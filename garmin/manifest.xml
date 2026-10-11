@@ -1,12 +1,12 @@
 <?xml version="1.0"?>
 <!--
-    SoarX Voice - Garmin Connect IQ watch-app.
+    ComX - Garmin Connect IQ watch-app.
     The id is the Connect IQ app id from docs/watch-companion.md
     (8ac2d628-66c4-40a4-96b0-10061a6d6519) written without dashes, the form
     Connect IQ uses in manifests. The phone bridge must use the same id.
 -->
 <iq:manifest version="3" xmlns:iq="http://www.garmin.com/xml/connectiq">
-    <iq:application id="8ac2d62866c440a496b010061a6d6519" type="watch-app" name="@Strings.AppName" entry="SoarXApp" launcherIcon="@Drawables.LauncherIcon" minApiLevel="3.4.0">
+    <iq:application id="8ac2d62866c440a496b010061a6d6519" type="watch-app" name="@Strings.AppName" entry="ComXApp" launcherIcon="@Drawables.LauncherIcon" minApiLevel="3.4.0">
         <iq:products>
             <iq:product id="enduro3"/>
             <iq:product id="epix2"/>

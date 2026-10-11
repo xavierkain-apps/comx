@@ -97,3 +97,45 @@ module Proto {
         return {"v" => VERSION, "kind" => "ptt", "active" => active};
     }
 }
+
+// Compass focus rule (docs/watch-companion.md, "Compass focus"): the rider
+// in SOS first, else the one the user last selected, else the nearest.
+module Focus {
+
+    //! keys: rider keys in display order (SOS first, then by distance).
+    //! sosKey: first rider in SOS, or null. sel: last selected key, or null.
+    //! selAfterSos: the user selected `sel` after the latest SOS started, so
+    //! an SOS does not keep yanking the focus back once seen.
+    function pick(keys as Array<String>, sosKey as String?, sel as String?, selAfterSos as Boolean) as String? {
+        if (sosKey != null && (sel == null || !selAfterSos)) {
+            return sosKey;
+        }
+        if (sel != null && (keys.indexOf(sel) >= 0 || sel.equals(sosKey))) {
+            return sel;
+        }
+        if (keys.size() > 0) {
+            return keys[0];
+        }
+        return sosKey;
+    }
+
+    //! Key `delta` steps away from `cur` in `keys`, wrapping; the first key
+    //! when `cur` is not in the list; null when the list is empty.
+    function step(keys as Array<String>, cur as String?, delta as Number) as String? {
+        var n = keys.size();
+        if (n == 0) {
+            return null;
+        }
+        var i = cur == null ? -1 : keys.indexOf(cur);
+        if (i < 0) {
+            return keys[0];
+        }
+        return keys[((i + delta) % n + n) % n];
+    }
+
+    //! True when a bearing lies within `tol` degrees of the heading.
+    function aligned(brg as Float, heading as Float, tol as Float) as Boolean {
+        var off = Ui.norm(brg - heading + 180.0) - 180.0;
+        return off.abs() <= tol;
+    }
+}

@@ -1,10 +1,11 @@
-// SoarX Voice for Garmin: application object, phone link and shared state.
+// ComX for Garmin: application object, phone link and shared state.
 //
 // Everything the views draw lives here. Views are stateless renderers apart
 // from their own selection, so a message arriving while a menu is open is
 // never lost: the next onUpdate of whatever view is on screen picks it up.
 
 import Toybox.Application;
+import Toybox.Application.Storage;
 import Toybox.Attention;
 import Toybox.Communications;
 import Toybox.Lang;
@@ -23,7 +24,7 @@ enum HeadingSource {
     HEADING_COG      // phone's course over ground (me.cog)
 }
 
-class SoarXApp extends Application.AppBase {
+class ComXApp extends Application.AppBase {
 
     const MESSAGE_SHOW_MS = 30000;  // incoming message screen closes itself
     const STATE_SILENT_MS = 20000;  // state expected every <= 5 s on Garmin
@@ -31,6 +32,10 @@ class SoarXApp extends Application.AppBase {
     const PTT_MAX_MS = 120000;      // safety: phone mic auto-off after 2 min
     const ALARM_PERIOD_TICKS = 4;   // SOS buzz every 4 s
     const ALARM_MAX_REPEATS = 30;   // ... for 2 minutes unless acknowledged
+    const CONFIRM_MAX_MS = 15000;   // an unanswered confirmation closes itself (= no)
+    const CUE_MIN_DIST = 300.0;     // heading cue: only for riders farther than this
+    const CUE_TOL_DEG = 20.0;       // ... when the heading is within this of them
+    const CUE_PERIOD_MS = 30000;    // ... at most this often
 
     // ---- link status ----
     var phoneOk as Boolean = false;
@@ -54,6 +59,17 @@ class SoarXApp extends Application.AppBase {
     var mySos as Boolean = false;
     var ptt as Boolean = false;
     private var _pttAt as Number = 0;
+
+    // ---- compass focus (Focus.pick) ----
+    private var _selKey as String? = null;  // last rider the user selected
+    private var _selSeq as Number = 0;
+    private var _sosSeq as Number = 0;      // bumped when a new rider enters SOS
+    private var _seq as Number = 0;
+    private var _sosKnown as Dictionary<String, Boolean> = {} as Dictionary<String, Boolean>;
+
+    // ---- directional heading cue (setting, off by default) ----
+    var cueOn as Boolean = false;
+    private var _cueAt as Number? = null;
 
     // ---- heading ----
     var headingDeg as Float? = null;
@@ -89,6 +105,10 @@ class SoarXApp extends Application.AppBase {
             Communications.registerForPhoneAppMessages(method(:onPhone));
         }
         phoneOk = System.getDeviceSettings().phoneConnected;
+        var c = Storage.getValue("cue");
+        if (c instanceof Boolean) {
+            cueOn = c;
+        }
         updateHeading();
         sendHello();
         _timer = new Timer.Timer();
@@ -111,8 +131,9 @@ class SoarXApp extends Application.AppBase {
     }
 
     function getInitialView() as [WatchUi.Views] or [WatchUi.Views, WatchUi.InputDelegates] {
-        var view = new ListView();
-        return [view, new ListDelegate(view)];
+        // The start screen is the compass on the focused rider.
+        var view = new CompassView(null);
+        return [view, new CompassDelegate()];
     }
 
     // =====================================================================
@@ -134,8 +155,27 @@ class SoarXApp extends Application.AppBase {
             // Clips are never sent to Garmin; anything else is unexpected.
             badMessages++;
         }
+        trackSos();
         _dirty = true;
         WatchUi.requestUpdate();
+    }
+
+    //! Notes when a rider newly enters SOS, so the focus jumps to them.
+    private function trackSos() as Void {
+        var now = {} as Dictionary<String, Boolean>;
+        var fresh = false;
+        var keys = sosKeys();
+        for (var i = 0; i < keys.size(); i++) {
+            now.put(keys[i], true);
+            if (!_sosKnown.hasKey(keys[i])) {
+                fresh = true;
+            }
+        }
+        if (fresh) {
+            _seq++;
+            _sosSeq = _seq;
+        }
+        _sosKnown = now;
     }
 
     private function applyState(d as Dictionary) as Void {
@@ -402,6 +442,8 @@ class SoarXApp extends Application.AppBase {
         var top = topView();
         if (top instanceof MessageView && now - top.shownAt > MESSAGE_SHOW_MS) {
             WatchUi.popView(WatchUi.SLIDE_IMMEDIATE);
+        } else if (top instanceof ConfirmView && now - top.shownAt > CONFIRM_MAX_MS) {
+            WatchUi.popView(WatchUi.SLIDE_IMMEDIATE); // unanswered = no
         }
         if (toast != null && now - _toastUntil > 0) {
             toast = null;
@@ -421,6 +463,9 @@ class SoarXApp extends Application.AppBase {
         }
 
         updateHeading();
+        if (cueOn) {
+            headingCue(now);
+        }
         var moved = false;
         if (headingDeg != _drawnHeading) {
             if (headingDeg == null || _drawnHeading == null) {
@@ -436,6 +481,31 @@ class SoarXApp extends Application.AppBase {
             _dirty = false;
             _drawnHeading = headingDeg;
             WatchUi.requestUpdate();
+        }
+    }
+
+    //! Double buzz when the rider faces the focused rider and that rider is
+    //! far away: "keep going this way" without looking at the screen.
+    private function headingCue(now as Number) as Void {
+        if (headingDeg == null || headingSrc == HEADING_NONE) {
+            return;
+        }
+        if (_cueAt != null && now - _cueAt < CUE_PERIOD_MS) {
+            return;
+        }
+        var k = focusKey();
+        var r = k != null ? findRider(k) : null;
+        if (r == null || Proto.flag(r.get("stale"))) {
+            return;
+        }
+        var d = Proto.num(r.get("dist"));
+        var b = Proto.num(r.get("brg"));
+        if (d == null || b == null || d <= CUE_MIN_DIST) {
+            return;
+        }
+        if (Focus.aligned(b, headingDeg as Float, CUE_TOL_DEG)) {
+            _cueAt = now;
+            buzz(VIBE_CUE);
         }
     }
 
@@ -501,6 +571,71 @@ class SoarXApp extends Application.AppBase {
         return k != null && sosAlerts.hasKey(k);
     }
 
+    //! Riders in SOS, display order, then SOS known only from an event.
+    function sosKeys() as Array<String> {
+        var out = [] as Array<String>;
+        for (var i = 0; i < riders.size(); i++) {
+            var k = Proto.uidKey(riders[i].get("uid"));
+            if (k != null && isSos(riders[i])) {
+                out.add(k);
+            }
+        }
+        var ak = sosAlerts.keys();
+        for (var j = 0; j < ak.size(); j++) {
+            var k2 = ak[j] as String;
+            if (out.indexOf(k2) < 0) {
+                out.add(k2);
+            }
+        }
+        return out;
+    }
+
+    function riderKeys() as Array<String> {
+        var out = [] as Array<String>;
+        for (var i = 0; i < riders.size(); i++) {
+            var k = Proto.uidKey(riders[i].get("uid"));
+            if (k != null) {
+                out.add(k);
+            }
+        }
+        return out;
+    }
+
+    //! The rider the compass shows (see Focus.pick), or null with no riders.
+    function focusKey() as String? {
+        var sos = sosKeys();
+        return Focus.pick(riderKeys(), sos.size() > 0 ? sos[0] : null, _selKey, _selKey != null && _selSeq > _sosSeq);
+    }
+
+    function selectRider(key as String) as Void {
+        _selKey = key;
+        _seq++;
+        _selSeq = _seq;
+        _dirty = true;
+    }
+
+    //! UP/DOWN on the compass: next/previous rider, short buzz.
+    function stepFocus(delta as Number) as Void {
+        var k = Focus.step(riderKeys(), focusKey(), delta);
+        if (k == null) {
+            return;
+        }
+        selectRider(k);
+        buzz(VIBE_TALK);
+        WatchUi.requestUpdate();
+    }
+
+    function setCue(on as Boolean) as Void {
+        cueOn = on;
+        Storage.setValue("cue", on);
+        showToast(on ? "Heading cue on" : "Heading cue off", 3000);
+    }
+
+    //! Short buzz confirming a button hold was registered.
+    function buzzShort() as Void {
+        buzz(VIBE_TALK);
+    }
+
     function findRider(key as String) as Dictionary? {
         for (var i = 0; i < riders.size(); i++) {
             if (key.equals(Proto.uidKey(riders[i].get("uid")))) {
@@ -517,7 +652,7 @@ class SoarXApp extends Application.AppBase {
         }
         var age = stateAgeMs();
         if (age == null) {
-            return "Open SoarX on phone";
+            return "Open ComX on phone";
         }
         if (age > STATE_SILENT_MS) {
             return "Phone silent " + (age / 1000) + "s";
@@ -564,7 +699,8 @@ class SoarXApp extends Application.AppBase {
     enum {
         VIBE_TALK,
         VIBE_TEXT,
-        VIBE_SOS
+        VIBE_SOS,
+        VIBE_CUE
     }
 
     private function buzz(kind as Number) as Void {
@@ -576,6 +712,8 @@ class SoarXApp extends Application.AppBase {
             p = [new Attention.VibeProfile(60, 200)];
         } else if (kind == VIBE_TEXT) {
             p = [new Attention.VibeProfile(100, 250), new Attention.VibeProfile(0, 150), new Attention.VibeProfile(100, 250)];
+        } else if (kind == VIBE_CUE) {
+            p = [new Attention.VibeProfile(50, 120), new Attention.VibeProfile(0, 120), new Attention.VibeProfile(50, 120)];
         } else {
             p = [new Attention.VibeProfile(100, 600), new Attention.VibeProfile(0, 200),
                  new Attention.VibeProfile(100, 600), new Attention.VibeProfile(0, 200),
@@ -656,6 +794,6 @@ class TxListener extends Communications.ConnectionListener {
     }
 }
 
-function getApp() as SoarXApp {
-    return Application.getApp() as SoarXApp;
+function getApp() as ComXApp {
+    return Application.getApp() as ComXApp;
 }
