@@ -88,7 +88,7 @@ class ListView extends WatchUi.View {
                 dc.drawText(cx, top, Graphics.FONT_XTINY, problem, Graphics.TEXT_JUSTIFY_CENTER);
             } else {
                 dc.setColor(Ui.staleColor(), Graphics.COLOR_TRANSPARENT);
-                var ch = app.channel != null ? app.channel : "SoarX";
+                var ch = app.channel != null ? app.channel : "ComX";
                 dc.drawText(cx, top, Graphics.FONT_XTINY, ch, Graphics.TEXT_JUSTIFY_CENTER);
             }
         }
@@ -259,7 +259,7 @@ class ListDelegate extends WatchUi.BehaviorDelegate {
 // =========================================================================
 
 function openActions() as Void {
-    var menu = new WatchUi.Menu2({:title => "SoarX"});
+    var menu = new WatchUi.Menu2({:title => "ComX"});
     var app = getApp();
     menu.addItem(new WatchUi.MenuItem("Talk via phone", app.ptt ? "Phone mic ON" : "Phone mic off", :ptt, null));
     menu.addItem(new WatchUi.MenuItem("Quick message", null, :quick, null));

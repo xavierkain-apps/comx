@@ -1,4 +1,4 @@
-// SoarX Voice for Garmin: application object, phone link and shared state.
+// ComX for Garmin: application object, phone link and shared state.
 //
 // Everything the views draw lives here. Views are stateless renderers apart
 // from their own selection, so a message arriving while a menu is open is
@@ -23,7 +23,7 @@ enum HeadingSource {
     HEADING_COG      // phone's course over ground (me.cog)
 }
 
-class SoarXApp extends Application.AppBase {
+class ComXApp extends Application.AppBase {
 
     const MESSAGE_SHOW_MS = 30000;  // incoming message screen closes itself
     const STATE_SILENT_MS = 20000;  // state expected every <= 5 s on Garmin
@@ -517,7 +517,7 @@ class SoarXApp extends Application.AppBase {
         }
         var age = stateAgeMs();
         if (age == null) {
-            return "Open SoarX on phone";
+            return "Open ComX on phone";
         }
         if (age > STATE_SILENT_MS) {
             return "Phone silent " + (age / 1000) + "s";
@@ -656,6 +656,6 @@ class TxListener extends Communications.ConnectionListener {
     }
 }
 
-function getApp() as SoarXApp {
-    return Application.getApp() as SoarXApp;
+function getApp() as ComXApp {
+    return Application.getApp() as ComXApp;
 }

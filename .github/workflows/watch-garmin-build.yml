@@ -14,7 +14,7 @@ name: Garmin watch build
 
 on:
   push:
-    branches: [feature/watch-garmin, feature/watch-companion]
+    branches: [feature/watch-garmin, feature/watch-companion, comx, comx-garmin]
     paths:
       - "garmin/**"
       - ".github/workflows/watch-garmin-build.yml"
@@ -100,7 +100,7 @@ jobs:
               for d in $BUILD_DEVICES; do
                 echo "::group::$d"
                 if monkeyc -f monkey.jungle -d "$d" -y /key/developer_key.der \
-                     -o "bin/soarx-$d.prg" -w -l 3; then
+                     -o "bin/comx-$d.prg" -w -l 3; then
                   echo "OK $d"
                 else
                   failed="$failed $d"
@@ -117,7 +117,7 @@ jobs:
       - name: Upload .prg files
         uses: actions/upload-artifact@v4
         with:
-          name: soarx-garmin-prg
+          name: comx-garmin-prg
           path: garmin/bin/*.prg
           if-no-files-found: error
 
