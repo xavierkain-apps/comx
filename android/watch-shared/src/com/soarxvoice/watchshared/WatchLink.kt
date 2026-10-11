@@ -1,8 +1,5 @@
 package com.soarxvoice.watchshared
 
-import java.net.URLDecoder
-import java.net.URLEncoder
-
 /**
  * Wear OS Data Layer protocol shared verbatim by the phone module (:app) and
  * the watch module (:wear). Both modules compile this directory as a source
@@ -20,10 +17,12 @@ import java.net.URLEncoder
  * | voice clip                 | watch → phone | ChannelClient, path [clipPath] with [CLIP_UP] |
  *
  * Clip metadata travels **inside the channel path**:
- * `<prefix>/<transferId>/<URL-encoded metadata JSON>`. The receiver gets it in
- * `onChannelOpened` before the first byte of audio, with no ordering problem
- * between a message and a channel. `transferId` keeps two clips with identical
- * metadata apart.
+ * `<prefix>/<transferId>/<hex of the UTF-8 metadata JSON>`. The receiver gets
+ * it in `onChannelOpened` before the first byte of audio, with no ordering
+ * problem between a message and a channel. Hex (not URL encoding) keeps the
+ * path to `[0-9a-z/-]`, so no layer can decode or reinterpret `%`, `+` or `/`
+ * on the way (manifest path matching works on a decoded Uri). `transferId`
+ * keeps two clips with identical metadata apart.
  */
 object WatchLink {
     const val PATH_STATE = "/soarx/state"
@@ -45,7 +44,7 @@ object WatchLink {
     fun clipPath(prefix: String, transferId: String, metaJson: String): String {
         require(prefix == CLIP_DOWN || prefix == CLIP_UP) { "unknown clip prefix $prefix" }
         require(transferId.isNotEmpty() && !transferId.contains('/')) { "bad transfer id" }
-        return prefix + transferId + "/" + URLEncoder.encode(metaJson, "UTF-8")
+        return prefix + transferId + "/" + toHex(metaJson.toByteArray(Charsets.UTF_8))
     }
 
     /** Parsed clip channel path. */
@@ -62,11 +61,31 @@ object WatchLink {
         val slash = rest.indexOf('/')
         if (slash <= 0) return null
         val id = rest.substring(0, slash)
-        val meta = try {
-            URLDecoder.decode(rest.substring(slash + 1), "UTF-8")
-        } catch (e: IllegalArgumentException) {
-            return null
+        val bytes = fromHex(rest.substring(slash + 1)) ?: return null
+        return ClipPath(prefix, id, String(bytes, Charsets.UTF_8).ifEmpty { "{}" })
+    }
+
+    private const val HEX = "0123456789abcdef"
+
+    internal fun toHex(bytes: ByteArray): String {
+        val sb = StringBuilder(bytes.size * 2)
+        for (b in bytes) {
+            val v = b.toInt() and 0xff
+            sb.append(HEX[v ushr 4]).append(HEX[v and 0x0f])
         }
-        return ClipPath(prefix, id, meta.ifEmpty { "{}" })
+        return sb.toString()
+    }
+
+    /** Decodes lowercase or uppercase hex; null when malformed. */
+    internal fun fromHex(s: String): ByteArray? {
+        if (s.length % 2 != 0) return null
+        val out = ByteArray(s.length / 2)
+        for (i in out.indices) {
+            val hi = Character.digit(s[2 * i], 16)
+            val lo = Character.digit(s[2 * i + 1], 16)
+            if (hi < 0 || lo < 0) return null
+            out[i] = ((hi shl 4) or lo).toByte()
+        }
+        return out
     }
 }
