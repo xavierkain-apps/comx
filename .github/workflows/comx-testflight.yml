@@ -2,10 +2,11 @@ name: ComX — TestFlight
 
 # ComX is a separate app (com.xavier.comx) built from the comx branch. It
 # never touches SoarX Voice: different bundle IDs, different workflow.
+# Release with a tag on the comx branch: git tag comx-v0.1.0 && git push org comx-v0.1.0
 on:
   workflow_dispatch:
   push:
-    branches: [comx]
+    tags: ['comx-v*']
 
 # match pushes the encrypted certificates to the match-certs branch
 permissions:
