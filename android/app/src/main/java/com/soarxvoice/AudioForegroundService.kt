@@ -6,7 +6,12 @@ import android.content.Intent
 import android.os.Build
 import android.os.IBinder
 import android.os.PowerManager
+import android.Manifest
+import android.content.pm.PackageManager
+import android.content.pm.ServiceInfo
 import androidx.core.app.NotificationCompat
+import androidx.core.app.ServiceCompat
+import androidx.core.content.ContextCompat
 
 class AudioForegroundService : Service() {
 
@@ -20,6 +25,25 @@ class AudioForegroundService : Service() {
 
     private var wakeLock: PowerManager.WakeLock? = null
 
+    /**
+     * Foreground-service types, fixed at the first start. `location` is only
+     * claimed when a location permission is already granted: on Android 14+
+     * claiming a type whose permission is missing throws SecurityException,
+     * and widening the type later from the background is refused. GPS is
+     * shared with the watch (and the other riders) while the phone is in a pouch.
+     */
+    private var serviceType = 0
+
+    private fun computeServiceType(): Int {
+        var type = ServiceInfo.FOREGROUND_SERVICE_TYPE_MICROPHONE
+        val hasLocation = ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) ==
+            PackageManager.PERMISSION_GRANTED ||
+            ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_COARSE_LOCATION) ==
+            PackageManager.PERMISSION_GRANTED
+        if (hasLocation) type = type or ServiceInfo.FOREGROUND_SERVICE_TYPE_LOCATION
+        return type
+    }
+
     override fun onCreate() {
         super.onCreate()
         createNotificationChannel()
@@ -32,7 +56,8 @@ class AudioForegroundService : Service() {
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         val channelName = intent?.getStringExtra(EXTRA_CHANNEL_NAME) ?: "SoarX"
         val isMuted = intent?.getBooleanExtra(EXTRA_IS_MUTED, false) ?: false
-        startForeground(NOTIFICATION_ID, buildNotification(channelName, isMuted))
+        if (serviceType == 0) serviceType = computeServiceType()
+        ServiceCompat.startForeground(this, NOTIFICATION_ID, buildNotification(channelName, isMuted), serviceType)
         return START_STICKY
     }
 

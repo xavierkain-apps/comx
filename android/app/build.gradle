@@ -168,6 +168,13 @@ android {
             ]
         }
     }
+    sourceSets {
+        // Wear OS Data Layer protocol, compiled verbatim into :wear as well.
+        main.java.srcDirs += rootProject.file("watch-shared/src")
+    }
+    testOptions {
+        unitTests.returnDefaultValues = true
+    }
     buildTypes {
         debug {
             signingConfig signingConfigs.debug
@@ -192,4 +199,12 @@ dependencies {
     } else {
         implementation jscFlavor
     }
+
+    // Watch companion (see docs/watch-android.md)
+    implementation("com.google.android.gms:play-services-wearable:19.0.0")
+    implementation("com.garmin.connectiq:ciq-companion-app-sdk:2.4.0@aar")
+
+    testImplementation("junit:junit:4.13.2")
+    // Real org.json and the Connect IQ serializer on the JVM (android.jar only ships stubs).
+    testImplementation("org.json:json:20240303")
 }
