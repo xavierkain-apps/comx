@@ -188,3 +188,49 @@ payload above to a native dictionary/array before sending, and converts
 dictionaries coming from the watch back to JSON before emitting
 `WatchMessage`. State is throttled to one message every 5 s on Garmin (BLE
 bandwidth), events are sent immediately, clips are never sent.
+
+## ComX additions (branch `comx`)
+
+ComX is the standalone app built from this code: a **friend compass** first
+(every rider's distance and direction, no interaction needed), voice messages
+second. Everything must be usable **without the touchscreen** (wet screen,
+water lock).
+
+### Targeted voice messages
+
+A watch clip may be addressed to the whole group (default, unchanged: played
+live into the channel) or to **one rider**. Clip metadata from the watch gains
+`to`:
+
+```json
+{"v": 1, "kind": "clip", "durationMs": 3100, "to": 12345}
+```
+
+`to` absent or `null` = group. A targeted clip is not mixed into the channel:
+the phone sends the file over the Agora data stream to that rider only
+(`vc` messages below), whose phone forwards it to its watch (`sendClip` with
+`"private": true` in the metadata) or plays it on its own headphones.
+
+Phone ↔ phone, chunked over the data stream (each message < 1 KB):
+
+| `type` | Fields |
+| --- | --- |
+| `vc` | `id` (clip id), `to` (uid), `seq` (0-based), `n` (chunk count), `d` (base64 slice, ≤ 600 chars), `ms` (duration, on chunk 0), `ext` (`m4a` / `aac`, on chunk 0) |
+
+Watches should record voice at **16 kbit/s AAC** so a 10 s message is about
+20 KB and crosses the data stream in a few seconds.
+
+### New bridge methods
+
+| Method | Purpose |
+| --- | --- |
+| `readClipBase64(path): Promise<string>` | Read a clip file as base64 (to send it over the data stream) |
+| `writeClip(base64, ext): Promise<string>` | Write a received clip to `getClipDir()` and return its absolute path |
+| `selectGarminDevices(): Promise<void>` | iOS only: open Garmin Connect so the user picks the Garmin watches ComX may talk to (Connect IQ iOS SDK device selection). Resolves immediately on Android, where devices are discovered automatically |
+
+### Compass focus
+
+Watches show one rider big at a time, chosen without touching:
+the rider in **SOS** first, else the one the user last selected, else the
+**nearest**. Buttons (or whatever input works in water) move the focus to the
+next / previous rider.
