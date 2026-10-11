@@ -59,11 +59,12 @@ class GarminJsonTest {
 
     @Test fun jsonStringFromWatchPassesThrough() {
         val raw = """{"v":1,"kind":"ptt","active":true}"""
-        assertTrue(JSONObject(raw).similar(JSONObject(GarminJson.fromGarmin(raw))))
+        // Compared as converted values: tests compile against android.jar, which has no JSONObject.similar.
+        assertEquals(GarminJson.toGarmin(raw), GarminJson.toGarmin(GarminJson.fromGarmin(raw)))
     }
 
     @Test fun roundTrip() {
-        val back = JSONObject(GarminJson.fromGarmin(GarminJson.toGarmin(state)))
-        assertTrue(back.toString(), JSONObject(state).similar(back))
+        val once = GarminJson.toGarmin(state)
+        assertEquals(once, GarminJson.toGarmin(GarminJson.fromGarmin(once)))
     }
 }
