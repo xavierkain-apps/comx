@@ -29,6 +29,8 @@ const CLIP_MIN_MS = 400;
 const SPEAKING_END_MS = 1500;
 /** A watch that said hello is considered active for this long. */
 const HELLO_TTL_MS = 5 * 60_000;
+/** "Talk via phone" closes by itself after this long. */
+const PTT_TIMEOUT_MS = 60_000;
 
 interface WatchContextValue {
   available: boolean;
@@ -102,6 +104,16 @@ export function WatchProvider({children}: {children: ReactNode}) {
     phonePtt,
     injecting,
   });
+
+  // If the Garmin drops while "talk via phone" is on, never leave the mic open
+  useEffect(() => {
+    if (!phonePtt) return;
+    const timer = setTimeout(() => {
+      appLog('Watch', 'talk via phone timed out');
+      setPhonePtt(false);
+    }, PTT_TIMEOUT_MS);
+    return () => clearTimeout(timer);
+  }, [phonePtt]);
 
   // Phone mic: off while it sits in a pouch, open while "talk via phone" is
   // held on a Garmin, and the stream stays published while a watch clip plays.
@@ -228,7 +240,6 @@ export function WatchProvider({children}: {children: ReactNode}) {
   }, [subscribeRideEvents]);
 
   // Speaking events + remote speech recorded into clips for the watch speaker
-  const speakingRef = useRef<Map<number, number>>(new Map());
   const recordingRef = useRef<{path: string; startedAt: number; lastVoiceAt: number; uids: Set<number>} | null>(null);
 
   const stopRecording = useCallback(() => {
@@ -251,25 +262,23 @@ export function WatchProvider({children}: {children: ReactNode}) {
   // drops between words, so "stopped" is only sent after a real pause.
   useEffect(() => {
     if (!connected || !WatchBridge.available) return;
+    const announced = new Map<number, number>();
     const timer = setInterval(() => {
       const t = Date.now();
       for (const r of ridersRef.current) {
-        const announcedAt = speakingRef.current.get(r.uid);
+        const announcedAt = announced.get(r.uid);
         if (r.speaking) {
           if (announcedAt === undefined) {
             WatchBridge.sendEvent({v: PROTOCOL_VERSION, kind: 'event', type: 'speaking', uid: r.uid, from: r.name, active: true});
           }
-          speakingRef.current.set(r.uid, t);
+          announced.set(r.uid, t);
         } else if (announcedAt !== undefined && t - announcedAt > SPEAKING_END_MS) {
-          speakingRef.current.delete(r.uid);
+          announced.delete(r.uid);
           WatchBridge.sendEvent({v: PROTOCOL_VERSION, kind: 'event', type: 'speaking', uid: r.uid, from: r.name, active: false});
         }
       }
     }, 250);
-    return () => {
-      clearInterval(timer);
-      speakingRef.current.clear();
-    };
+    return () => clearInterval(timer);
   }, [connected]);
 
   // Record remote speech while in watch mode. Polled because the pilot list
