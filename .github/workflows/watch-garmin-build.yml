@@ -153,18 +153,35 @@ jobs:
   # TEMPORARY: find out why monkeydo -t hangs. Removed once understood.
   diag-tests:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 20
     steps:
-      - name: Fetch maintainer fixture
+      - uses: actions/checkout@v4
+      - name: Variants
         run: |
-          git clone --depth 1 https://github.com/matco/action-connectiq-tester act
-          rm act/test/app/source/test/NotWorkingTest.mc
-      - name: Maintainer action on its own fixture
-        id: t
-        timeout-minutes: 8
-        uses: matco/action-connectiq-tester@a193b2068528203943c739a050e8dd33892307e2
-        with:
-          path: act/test/app
-          device: fr945
-      - run: echo "status=${{ steps.t.outputs.status }}"
-        if: ${{ always() }}
+          git clone --depth 1 https://github.com/matco/action-connectiq-tester "$RUNNER_TEMP/act"
+          rm "$RUNNER_TEMP/act/test/app/source/test/NotWorkingTest.mc"
+          docker pull -q "$CIQ_IMAGE"
+          cat > "$RUNNER_TEMP/mine.sh" <<'SH'
+          dev=$1; wait=$2
+          monkeyc -f monkey.jungle -d "$dev" -o /tmp/t.prg -y /tmp/k.der -t -l 3 >/dev/null 2>&1 || { echo COMPILE_FAIL; exit 1; }
+          export DISPLAY=:1
+          Xvfb :1 -screen 0 1280x1024x24 >/dev/null 2>&1 &
+          simulator >/dev/null 2>&1 &
+          sleep "$wait"
+          monkeydo /tmp/t.prg "$dev" -t > /tmp/r.txt 2>&1
+          echo "monkeydo rc=$?"; tail -15 /tmp/r.txt
+          SH
+          v() {
+            name=$1; app=$2; shift 2
+            echo "::group::$name"
+            start=$(date +%s)
+            timeout 150 docker run --rm -v "$app:/app" -w /app -v "$RUNNER_TEMP/mine.sh:/mine.sh:ro" "$@"
+            echo "rc=$? after $(( $(date +%s) - start ))s"
+            echo "::endgroup::"
+          }
+          prep='openssl genrsa -out /tmp/k.pem 2048 2>/dev/null; openssl pkcs8 -topk8 -inform PEM -outform DER -nocrypt -in /tmp/k.pem -out /tmp/k.der'
+          v "A image-script fixture fr945" "$RUNNER_TEMP/act/test/app" "$CIQ_IMAGE" fr945
+          v "B image-script ours fenix7" "$GITHUB_WORKSPACE/garmin" "$CIQ_IMAGE" fenix7
+          v "C mine wait5 fixture fr945" "$RUNNER_TEMP/act/test/app" --entrypoint /bin/bash "$CIQ_IMAGE" -c "$prep; bash /mine.sh fr945 5"
+          v "D mine wait30 fixture fr945" "$RUNNER_TEMP/act/test/app" --entrypoint /bin/bash "$CIQ_IMAGE" -c "$prep; bash /mine.sh fr945 30"
+          v "E mine wait5 ours fenix7" "$GITHUB_WORKSPACE/garmin" --entrypoint /bin/bash "$CIQ_IMAGE" -c "$prep; bash /mine.sh fenix7 5"
