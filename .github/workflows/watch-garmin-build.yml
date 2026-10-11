@@ -147,3 +147,43 @@ jobs:
               tail -20 /tmp/test/sim.log
               grep -q "^PASSED" /tmp/test/out.txt
             '
+
+  # TEMPORARY: find out why monkeydo -t hangs. Removed once understood.
+  diag-tests:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - name: Fetch maintainer fixture
+        run: |
+          git clone --depth 1 https://github.com/matco/action-connectiq-tester "$RUNNER_TEMP/act"
+          rm "$RUNNER_TEMP/act/test/app/source/test/NotWorkingTest.mc"
+          cp -r garmin "$RUNNER_TEMP/noperm"
+          sed -i '/uses-permission/d' "$RUNNER_TEMP/noperm/manifest.xml"
+      - name: Variants
+        run: |
+          openssl genrsa -out "$RUNNER_TEMP/k.pem" 2048
+          openssl pkcs8 -topk8 -inform PEM -outform DER -nocrypt -in "$RUNNER_TEMP/k.pem" -out "$RUNNER_TEMP/k.der"
+          cat > "$RUNNER_TEMP/run.sh" <<'SH'
+          set -u
+          app=$1; dev=$2
+          cd "$app"
+          monkeyc -f monkey.jungle -d "$dev" -y /k.der -o /tmp/t.prg -t -w || exit 1
+          export DISPLAY=:1
+          (Xvfb :1 -screen 0 1280x1024x24 >/dev/null 2>&1 &)
+          sleep 2
+          (simulator >/tmp/sim.log 2>&1 &)
+          sleep 15
+          timeout 90 monkeydo /tmp/t.prg "$dev" -t 2>&1 | tail -30
+          echo "monkeydo exit: ${PIPESTATUS[0]}"
+          echo "--- sim log"; tail -15 /tmp/sim.log
+          ps aux | grep -E "simulator|Xvfb" | grep -v grep | cut -c1-150
+          SH
+          run() {
+            echo "::group::$1 $3"
+            docker run --rm -v "$2:/app" -v "$RUNNER_TEMP/k.der:/k.der:ro" -v "$RUNNER_TEMP/run.sh:/run.sh:ro" \
+              --entrypoint /bin/bash "$CIQ_IMAGE" /run.sh /app "$3" || true
+            echo "::endgroup::"
+          }
+          run fixture "$RUNNER_TEMP/act/test/app" fr945
+          run noperm "$RUNNER_TEMP/noperm" fenix7
