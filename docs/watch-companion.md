@@ -143,6 +143,7 @@ Methods:
 | `sendEvent(json: string)` | Event to every watch |
 | `sendClip(path: string, metaJson: string)` | Audio file to watches that can play it |
 | `getStatus(): Promise<WatchStatus[]>` | `{platform, name, paired, installed, reachable}` per watch |
+| `getClipDir(): Promise<string>` | Absolute writable directory (no `file://`) where the phone records remote speech (`rx-<ts>.aac`) before `sendClip`. The bridge may delete a clip once it is delivered |
 
 Events (`NativeEventEmitter(NativeModules.WatchBridge)`):
 
@@ -153,6 +154,14 @@ Events (`NativeEventEmitter(NativeModules.WatchBridge)`):
 | `WatchStatus` | `{watches: WatchStatus[]}` — pairing / reachability changed |
 
 `platform` is `watchos`, `wearos` or `garmin`.
+
+## Phone permissions
+
+The phone shares its own GPS position (`@react-native-community/geolocation`),
+so it needs location permission "while in use", with background updates
+(iOS `UIBackgroundModes: location`, Android foreground service type
+`location`). The phone compass is never used: in a pouch it is meaningless.
+Phone users see north-up arrows; watches rotate them with their own heading.
 
 ## Platform identifiers
 
