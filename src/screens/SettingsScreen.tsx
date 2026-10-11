@@ -12,6 +12,7 @@ import {
   ActivityIndicator,
   Share,
   Switch,
+  Alert,
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import Sound from 'react-native-sound';
@@ -302,7 +303,11 @@ export function SettingsScreen({onDone}: SettingsScreenProps) {
           {WatchBridge.canSelectGarmin && (
             <TouchableOpacity
               style={[styles.segmentButton, {borderColor: colors.primary, marginTop: spacing.md}]}
-              onPress={() => WatchBridge.selectGarminDevices()}
+              onPress={() =>
+                WatchBridge.selectGarminDevices().catch((e: Error) =>
+                  Alert.alert('Garmin', e?.message || 'Could not open Garmin Connect.'),
+                )
+              }
               activeOpacity={0.7}>
               <Text style={[styles.segmentText, {color: colors.primary}]}>Connect a Garmin watch</Text>
             </TouchableOpacity>
