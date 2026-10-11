@@ -122,8 +122,12 @@ jobs:
           if-no-files-found: error
 
       # Unit tests (source/Tests.mc) in the simulator, headless under Xvfb.
+      # Not blocking: the Connect IQ simulator hangs before running tests in a
+      # headless container (investigated over several runs, cause not found).
+      # Run them locally with `monkeydo bin/test.prg fenix7 -t` instead.
       - name: Unit tests in the simulator (fenix7)
         if: ${{ !cancelled() }}
+        continue-on-error: true
         timeout-minutes: 10
         run: |
           docker run --rm \
@@ -149,33 +153,3 @@ jobs:
               tail -20 /tmp/test/sim.log
               grep -q "^PASSED" /tmp/test/out.txt
             '
-
-  # TEMPORARY: find out why monkeydo -t hangs. Removed once understood.
-  diag-tests:
-    runs-on: ubuntu-latest
-    timeout-minutes: 20
-    steps:
-      - uses: actions/checkout@v4
-      - name: Variants
-        run: |
-          set +e
-          git clone --depth 1 https://github.com/matco/action-connectiq-tester "$RUNNER_TEMP/act"
-          rm "$RUNNER_TEMP/act/test/app/source/test/NotWorkingTest.mc"
-          docker pull -q "$CIQ_IMAGE"
-          fx="$RUNNER_TEMP/act/test/app"
-          variant() {
-            name=$1; src=$2; dev=$3; edit=$4
-            dir="$RUNNER_TEMP/v-$name"
-            cp -r "$src" "$dir"
-            (cd "$dir" && eval "$edit")
-            echo "::group::$name"
-            grep -E "manifest |product |permission|minApi|minSdk" "$dir/manifest.xml" | head -8
-            start=$(date +%s)
-            timeout 120 docker run --rm -v "$dir:/app" -w /app "$CIQ_IMAGE" "$dev" | tail -12
-            echo "rc=${PIPESTATUS[0]} after $(( $(date +%s) - start ))s"
-            echo "::endgroup::"
-          }
-          variant fx-fenix7 "$fx" fenix7 'sed -i "s/fr945/fenix7/" manifest.xml'
-          variant fx-perms "$fx" fr945 'sed -i "s#</iq:products>#</iq:products><iq:permissions><iq:uses-permission id=\"Communications\"/><iq:uses-permission id=\"Positioning\"/><iq:uses-permission id=\"Sensor\"/></iq:permissions>#" manifest.xml'
-          variant fx-comms "$fx" fr945 'sed -i "s#</iq:products>#</iq:products><iq:permissions><iq:uses-permission id=\"Communications\"/></iq:permissions>#" manifest.xml'
-          variant ours-fr945 "$GITHUB_WORKSPACE/garmin" fr945 'sed -i "s#<iq:products>#<iq:products><iq:product id=\"fr945\"/>#" manifest.xml'
