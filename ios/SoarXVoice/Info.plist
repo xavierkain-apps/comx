@@ -7,7 +7,7 @@
 	<key>CFBundleDevelopmentRegion</key>
 	<string>en</string>
 	<key>CFBundleDisplayName</key>
-	<string>SoarXVoice</string>
+	<string>ComX</string>
 	<key>CFBundleExecutable</key>
 	<string>$(EXECUTABLE_NAME)</string>
 	<key>CFBundleIdentifier</key>
@@ -34,13 +34,13 @@
 		<true/>
 	</dict>
 	<key>NSLocationWhenInUseUsageDescription</key>
-	<string>SoarX Voice shares your position with the riders in your channel so everyone can see distance and direction.</string>
+	<string>ComX shares your position with the riders in your channel so everyone can see distance and direction.</string>
 	<key>NSBluetoothAlwaysUsageDescription</key>
-	<string>SoarX Voice uses Bluetooth to connect your mute/unmute control buttons.</string>
+	<string>ComX uses Bluetooth to connect your mute/unmute control buttons.</string>
 	<key>NSCameraUsageDescription</key>
-	<string>SoarX Voice does not record video. This access is required by the real-time audio framework the app is built on.</string>
+	<string>ComX does not record video. This access is required by the real-time audio framework the app is built on.</string>
 	<key>NSMicrophoneUsageDescription</key>
-	<string>SoarX Voice needs microphone access for in-flight pilot communication.</string>
+	<string>ComX needs microphone access to talk with the riders in your channel.</string>
 	<key>RCTNewArchEnabled</key>
 	<true/>
 	<key>UIBackgroundModes</key>

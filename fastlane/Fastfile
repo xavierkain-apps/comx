@@ -20,7 +20,8 @@
 
 default_platform(:ios)
 
-APP_ID = "com.xavier.soarxvoice"
+# ComX: a separate app from SoarX Voice, built from the same code.
+APP_ID = "com.xavier.comx"
 APP_NAME = "SoarXVoice"
 # Apple Watch companion, embedded in the iOS app (docs/watch-ios.md).
 WATCH_APP_ID = "#{APP_ID}.watchkitapp"
@@ -224,6 +225,49 @@ platform :ios do
     (asc_get("v1/betaGroups/#{group.id}/betaTesters")["data"] || []).each do |t|
       a = t["attributes"]
       UI.message("  #{a['email']} (#{a['firstName']} #{a['lastName']}) state=#{a['state']}")
+    end
+  end
+
+  desc "Register the iOS and watch App IDs (HealthKit on the watch) and check the App Store Connect record"
+  lane :register_ids do
+    require "spaceship"
+    require "base64"
+
+    Spaceship::ConnectAPI.token = Spaceship::ConnectAPI::Token.create(
+      key_id: ENV.fetch("ASC_KEY_ID"),
+      issuer_id: ENV.fetch("ASC_ISSUER_ID"),
+      key: Base64.decode64(ENV.fetch("ASC_KEY_P8_BASE64"))
+    )
+
+    healthkit = Spaceship::ConnectAPI::BundleIdCapability::Type::HEALTHKIT
+    [[APP_ID, "ComX", false], [WATCH_APP_ID, "ComX Watch", true]].each do |identifier, name, needs_health|
+      bundle = Spaceship::ConnectAPI::BundleId.find(identifier)
+      if bundle
+        UI.message("App ID #{identifier} already registered")
+      else
+        bundle = Spaceship::ConnectAPI::BundleId.create(name: name, platform: "IOS", identifier: identifier)
+        UI.success("Registered App ID #{identifier}")
+      end
+      next unless needs_health
+
+      if bundle.get_capabilities.any? { |c| c.capability_type == healthkit }
+        UI.message("HealthKit already enabled on #{identifier}")
+      else
+        bundle.create_capability(healthkit)
+        UI.success("Enabled HealthKit on #{identifier}")
+      end
+    end
+
+    # The App Store Connect API cannot create the app record itself: it must
+    # exist before the first upload (App Store Connect > Apps > +).
+    app = Spaceship::ConnectAPI::App.find(APP_ID)
+    if app
+      UI.success("App Store Connect record: #{app.name} (#{app.id})")
+    else
+      UI.user_error!(
+        "No App Store Connect record for #{APP_ID} yet. Create it in App Store Connect > Apps > + > New App: " \
+        "platform iOS, name ComX, bundle ID #{APP_ID}, SKU comx. Then re-run this workflow."
+      )
     end
   end
 

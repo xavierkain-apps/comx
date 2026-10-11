@@ -473,7 +473,7 @@
 					"-ObjC",
 					"-lc++",
 				);
-				PRODUCT_BUNDLE_IDENTIFIER = com.xavier.soarxvoice;
+				PRODUCT_BUNDLE_IDENTIFIER = com.xavier.comx;
 				PRODUCT_NAME = SoarXVoice;
 				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
 				SWIFT_OBJC_BRIDGING_HEADER = "SoarXVoice-Bridging-Header.h";
@@ -504,7 +504,7 @@
 					"-ObjC",
 					"-lc++",
 				);
-				PRODUCT_BUNDLE_IDENTIFIER = com.xavier.soarxvoice;
+				PRODUCT_BUNDLE_IDENTIFIER = com.xavier.comx;
 				PRODUCT_NAME = SoarXVoice;
 				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
 				SWIFT_OBJC_BRIDGING_HEADER = "SoarXVoice-Bridging-Header.h";
@@ -526,20 +526,20 @@
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = SoarXVoiceWatch/Info.plist;
-				INFOPLIST_KEY_CFBundleDisplayName = "SoarX Voice";
-				INFOPLIST_KEY_NSHealthShareUsageDescription = "SoarX Voice runs a water sports workout to stay on screen during your session.";
-				INFOPLIST_KEY_NSHealthUpdateUsageDescription = "SoarX Voice runs a water sports workout to stay on screen during your session. It does not save workouts.";
-				INFOPLIST_KEY_NSLocationWhenInUseUsageDescription = "SoarX Voice uses the compass to point the arrows at the other riders.";
-				INFOPLIST_KEY_NSMicrophoneUsageDescription = "SoarX Voice records your voice messages to the riders in your channel.";
+				INFOPLIST_KEY_CFBundleDisplayName = ComX;
+				INFOPLIST_KEY_NSHealthShareUsageDescription = "ComX runs a water sports workout to stay on screen during your session.";
+				INFOPLIST_KEY_NSHealthUpdateUsageDescription = "ComX runs a water sports workout to stay on screen during your session. It does not save workouts.";
+				INFOPLIST_KEY_NSLocationWhenInUseUsageDescription = "ComX uses the compass to point the arrows at the other riders.";
+				INFOPLIST_KEY_NSMicrophoneUsageDescription = "ComX records your voice messages to the riders in your channel.";
 				INFOPLIST_KEY_UISupportedInterfaceOrientations = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown";
-				INFOPLIST_KEY_WKCompanionAppBundleIdentifier = com.xavier.soarxvoice;
+				INFOPLIST_KEY_WKCompanionAppBundleIdentifier = com.xavier.comx;
 				INFOPLIST_KEY_WKRunsIndependentlyOfCompanionApp = NO;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
 				MARKETING_VERSION = 2.3;
-				PRODUCT_BUNDLE_IDENTIFIER = com.xavier.soarxvoice.watchkitapp;
+				PRODUCT_BUNDLE_IDENTIFIER = com.xavier.comx.watchkitapp;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = watchos;
 				SKIP_INSTALL = YES;
@@ -721,20 +721,20 @@
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = SoarXVoiceWatch/Info.plist;
-				INFOPLIST_KEY_CFBundleDisplayName = "SoarX Voice";
-				INFOPLIST_KEY_NSHealthShareUsageDescription = "SoarX Voice runs a water sports workout to stay on screen during your session.";
-				INFOPLIST_KEY_NSHealthUpdateUsageDescription = "SoarX Voice runs a water sports workout to stay on screen during your session. It does not save workouts.";
-				INFOPLIST_KEY_NSLocationWhenInUseUsageDescription = "SoarX Voice uses the compass to point the arrows at the other riders.";
-				INFOPLIST_KEY_NSMicrophoneUsageDescription = "SoarX Voice records your voice messages to the riders in your channel.";
+				INFOPLIST_KEY_CFBundleDisplayName = ComX;
+				INFOPLIST_KEY_NSHealthShareUsageDescription = "ComX runs a water sports workout to stay on screen during your session.";
+				INFOPLIST_KEY_NSHealthUpdateUsageDescription = "ComX runs a water sports workout to stay on screen during your session. It does not save workouts.";
+				INFOPLIST_KEY_NSLocationWhenInUseUsageDescription = "ComX uses the compass to point the arrows at the other riders.";
+				INFOPLIST_KEY_NSMicrophoneUsageDescription = "ComX records your voice messages to the riders in your channel.";
 				INFOPLIST_KEY_UISupportedInterfaceOrientations = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown";
-				INFOPLIST_KEY_WKCompanionAppBundleIdentifier = com.xavier.soarxvoice;
+				INFOPLIST_KEY_WKCompanionAppBundleIdentifier = com.xavier.comx;
 				INFOPLIST_KEY_WKRunsIndependentlyOfCompanionApp = NO;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
 				MARKETING_VERSION = 2.3;
-				PRODUCT_BUNDLE_IDENTIFIER = com.xavier.soarxvoice.watchkitapp;
+				PRODUCT_BUNDLE_IDENTIFIER = com.xavier.comx.watchkitapp;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = watchos;
 				SKIP_INSTALL = YES;

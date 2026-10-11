@@ -1,0 +1,91 @@
+name: ComX — TestFlight
+
+# ComX is a separate app (com.xavier.comx) built from the comx branch. It
+# never touches SoarX Voice: different bundle IDs, different workflow.
+on:
+  workflow_dispatch:
+  push:
+    branches: [comx]
+
+# match pushes the encrypted certificates to the match-certs branch
+permissions:
+  contents: write
+
+concurrency:
+  group: comx-testflight
+  cancel-in-progress: false
+
+jobs:
+  release:
+    runs-on: macos-26
+    timeout-minutes: 90
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: "3.3"
+          bundler-cache: true
+
+      - name: Check required secrets
+        env:
+          ASC_KEY_P8_BASE64: ${{ secrets.ASC_KEY_P8_BASE64 }}
+          ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+          ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          MATCH_PASSWORD: ${{ secrets.MATCH_PASSWORD }}
+          MATCH_GIT_URL: ${{ secrets.MATCH_GIT_URL }}
+          MATCH_GIT_TOKEN: ${{ secrets.MATCH_GIT_TOKEN }}
+          AGORA_APP_ID: ${{ secrets.AGORA_APP_ID }}
+        run: |
+          missing=""
+          for v in ASC_KEY_P8_BASE64 ASC_KEY_ID ASC_ISSUER_ID APPLE_TEAM_ID \
+                   MATCH_PASSWORD MATCH_GIT_URL MATCH_GIT_TOKEN AGORA_APP_ID; do
+            [ -z "${!v}" ] && missing="$missing $v"
+          done
+          if [ -n "$missing" ]; then
+            echo "::error::Missing secrets:$missing"
+            echo "Set them with: gh secret set <NAME>   (see README)"
+            exit 1
+          fi
+          echo "All required secrets present."
+
+      - name: Install JS dependencies
+        run: npm ci
+
+      - name: Write .env
+        run: echo "AGORA_APP_ID=${{ secrets.AGORA_APP_ID }}" > .env
+
+      - name: Install CocoaPods
+        run: bundle exec pod install --project-directory=ios
+
+      - name: Register App IDs and check the App Store Connect record
+        env:
+          ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+          ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
+          ASC_KEY_P8_BASE64: ${{ secrets.ASC_KEY_P8_BASE64 }}
+        run: bundle exec fastlane register_ids
+
+      - name: Build and upload to TestFlight
+        env:
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+          ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
+          ASC_KEY_P8_BASE64: ${{ secrets.ASC_KEY_P8_BASE64 }}
+          MATCH_PASSWORD: ${{ secrets.MATCH_PASSWORD }}
+          # Shared certificate storage: Apple caps distribution certificates, so
+          # every app in the account reuses the one already held here.
+          MATCH_GIT_URL: ${{ secrets.MATCH_GIT_URL }}
+          MATCH_GIT_TOKEN: ${{ secrets.MATCH_GIT_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: bundle exec fastlane beta
+
+      - name: Clean up
+        if: always()
+        run: rm -f .env ios/asc_key.p8 fastlane/asc_key.p8

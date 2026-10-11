@@ -12,8 +12,8 @@
 #   1. Compiles ios/WatchBridge.swift + .m into the SoarXVoice target (a file on
 #      disk that is not in project.pbxproj is never compiled).
 #   2. Creates the SoarXVoiceWatch target: a single-target SwiftUI watchOS app
-#      (watchOS 10+), bundle id com.xavier.soarxvoice.watchkitapp, companion of
-#      com.xavier.soarxvoice. Every *.swift in ios/SoarXVoiceWatch is compiled.
+#      (watchOS 10+), bundle id com.xavier.comx.watchkitapp, companion of
+#      com.xavier.comx. Every *.swift in ios/SoarXVoiceWatch is compiled.
 #   3. Embeds it in the iOS app ("Embed Watch Content") and makes the iOS
 #      target depend on it, so building the iOS scheme builds the watch app.
 #
@@ -28,7 +28,7 @@ PROJECT_PATH = File.join(IOS_DIR, "SoarXVoice.xcodeproj")
 IOS_TARGET = "SoarXVoice"
 WATCH_TARGET = "SoarXVoiceWatch"
 WATCH_DIR = "SoarXVoiceWatch" # relative to ios/
-IOS_BUNDLE_ID = "com.xavier.soarxvoice"
+IOS_BUNDLE_ID = "com.xavier.comx"
 WATCH_BUNDLE_ID = "#{IOS_BUNDLE_ID}.watchkitapp"
 WATCHOS_VERSION = "10.0"
 TEAM_ID = "S96H22CQ8W"
@@ -110,18 +110,18 @@ watch_settings = {
   "CURRENT_PROJECT_VERSION" => build_number,
   "GENERATE_INFOPLIST_FILE" => "YES",
   "INFOPLIST_FILE" => "#{WATCH_DIR}/Info.plist", # WKBackgroundModes (array)
-  "INFOPLIST_KEY_CFBundleDisplayName" => "SoarX Voice",
+  "INFOPLIST_KEY_CFBundleDisplayName" => "ComX",
   "INFOPLIST_KEY_WKCompanionAppBundleIdentifier" => IOS_BUNDLE_ID,
   "INFOPLIST_KEY_WKRunsIndependentlyOfCompanionApp" => "NO",
   "INFOPLIST_KEY_UISupportedInterfaceOrientations" => "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown",
   "INFOPLIST_KEY_NSMicrophoneUsageDescription" =>
-    "SoarX Voice records your voice messages to the riders in your channel.",
+    "ComX records your voice messages to the riders in your channel.",
   "INFOPLIST_KEY_NSLocationWhenInUseUsageDescription" =>
-    "SoarX Voice uses the compass to point the arrows at the other riders.",
+    "ComX uses the compass to point the arrows at the other riders.",
   "INFOPLIST_KEY_NSHealthShareUsageDescription" =>
-    "SoarX Voice runs a water sports workout to stay on screen during your session.",
+    "ComX runs a water sports workout to stay on screen during your session.",
   "INFOPLIST_KEY_NSHealthUpdateUsageDescription" =>
-    "SoarX Voice runs a water sports workout to stay on screen during your session. It does not save workouts.",
+    "ComX runs a water sports workout to stay on screen during your session. It does not save workouts.",
 }
 
 watch_target.build_configurations.each do |config|
