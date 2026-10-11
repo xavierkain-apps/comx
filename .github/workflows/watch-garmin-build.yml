@@ -158,30 +158,24 @@ jobs:
       - uses: actions/checkout@v4
       - name: Variants
         run: |
+          set +e
           git clone --depth 1 https://github.com/matco/action-connectiq-tester "$RUNNER_TEMP/act"
           rm "$RUNNER_TEMP/act/test/app/source/test/NotWorkingTest.mc"
           docker pull -q "$CIQ_IMAGE"
-          cat > "$RUNNER_TEMP/mine.sh" <<'SH'
-          dev=$1; wait=$2
-          monkeyc -f monkey.jungle -d "$dev" -o /tmp/t.prg -y /tmp/k.der -t -l 3 >/dev/null 2>&1 || { echo COMPILE_FAIL; exit 1; }
-          export DISPLAY=:1
-          Xvfb :1 -screen 0 1280x1024x24 >/dev/null 2>&1 &
-          simulator >/dev/null 2>&1 &
-          sleep "$wait"
-          monkeydo /tmp/t.prg "$dev" -t > /tmp/r.txt 2>&1
-          echo "monkeydo rc=$?"; tail -15 /tmp/r.txt
-          SH
-          v() {
-            name=$1; app=$2; shift 2
+          fx="$RUNNER_TEMP/act/test/app"
+          variant() {
+            name=$1; src=$2; dev=$3; edit=$4
+            dir="$RUNNER_TEMP/v-$name"
+            cp -r "$src" "$dir"
+            (cd "$dir" && eval "$edit")
             echo "::group::$name"
+            grep -E "manifest |product |permission|minApi|minSdk" "$dir/manifest.xml" | head -8
             start=$(date +%s)
-            timeout 150 docker run --rm -v "$app:/app" -w /app -v "$RUNNER_TEMP/mine.sh:/mine.sh:ro" "$@"
-            echo "rc=$? after $(( $(date +%s) - start ))s"
+            timeout 120 docker run --rm -v "$dir:/app" -w /app "$CIQ_IMAGE" "$dev" | tail -12
+            echo "rc=${PIPESTATUS[0]} after $(( $(date +%s) - start ))s"
             echo "::endgroup::"
           }
-          prep='openssl genrsa -out /tmp/k.pem 2048 2>/dev/null; openssl pkcs8 -topk8 -inform PEM -outform DER -nocrypt -in /tmp/k.pem -out /tmp/k.der'
-          v "A image-script fixture fr945" "$RUNNER_TEMP/act/test/app" "$CIQ_IMAGE" fr945
-          v "B image-script ours fenix7" "$GITHUB_WORKSPACE/garmin" "$CIQ_IMAGE" fenix7
-          v "C mine wait5 fixture fr945" "$RUNNER_TEMP/act/test/app" --entrypoint /bin/bash "$CIQ_IMAGE" -c "$prep; bash /mine.sh fr945 5"
-          v "D mine wait30 fixture fr945" "$RUNNER_TEMP/act/test/app" --entrypoint /bin/bash "$CIQ_IMAGE" -c "$prep; bash /mine.sh fr945 30"
-          v "E mine wait5 ours fenix7" "$GITHUB_WORKSPACE/garmin" --entrypoint /bin/bash "$CIQ_IMAGE" -c "$prep; bash /mine.sh fenix7 5"
+          variant fx-fenix7 "$fx" fenix7 'sed -i "s/fr945/fenix7/" manifest.xml'
+          variant fx-perms "$fx" fr945 'sed -i "s#</iq:products>#</iq:products><iq:permissions><iq:uses-permission id=\"Communications\"/><iq:uses-permission id=\"Positioning\"/><iq:uses-permission id=\"Sensor\"/></iq:permissions>#" manifest.xml'
+          variant fx-comms "$fx" fr945 'sed -i "s#</iq:products>#</iq:products><iq:permissions><iq:uses-permission id=\"Communications\"/></iq:permissions>#" manifest.xml'
+          variant ours-fr945 "$GITHUB_WORKSPACE/garmin" fr945 'sed -i "s#<iq:products>#<iq:products><iq:product id=\"fr945\"/>#" manifest.xml'
