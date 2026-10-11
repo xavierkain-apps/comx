@@ -24,6 +24,8 @@ const STATE_INTERVAL_MS = 2000;
 const CLIP_SILENCE_MS = 1200;
 const CLIP_MAX_MS = 30_000;
 const CLIP_MIN_MS = 400;
+/** A rider counts as done talking after this much silence. */
+const SPEAKING_END_MS = 1500;
 /** A watch that said hello is considered active for this long. */
 const HELLO_TTL_MS = 5 * 60_000;
 
@@ -34,14 +36,19 @@ interface WatchContextValue {
   watchMode: boolean;
   setting: WatchModeSetting;
   setSetting: (s: WatchModeSetting) => void;
-  /** A watch is pushing "talk via phone" (Garmin fallback). */
+  /**
+   * A Garmin (no microphone) is in use: the phone mic stays off except while
+   * the rider holds "talk via phone" on the watch.
+   */
+  pttMode: boolean;
+  /** "Talk via phone" is active right now. */
   phonePtt: boolean;
 }
 
 const WatchContext = createContext<WatchContextValue | null>(null);
 
 export function WatchProvider({children}: {children: ReactNode}) {
-  const {connectionState, channelName, getEngine, setPhoneMicSilenced, isHeadphonesConnected} = useAgoraContext();
+  const {connectionState, channelName, getEngine, setMicOverride, isHeadphonesConnected} = useAgoraContext();
   const {pilotName} = useUser();
   const {myPosition, riders, sendQuickMessage, setSos, subscribeRideEvents} = useRide();
   const connected = connectionState === 'connected';
@@ -81,15 +88,22 @@ export function WatchProvider({children}: {children: ReactNode}) {
     watches.some(w => isActiveWatch(w) && VOICE_PLATFORMS.includes(w.platform)) ||
     VOICE_PLATFORMS.some(p => (helloAt[p] ?? 0) > now - HELLO_TTL_MS);
 
+  const garminActive =
+    watches.some(w => isActiveWatch(w) && w.platform === 'garmin') ||
+    (helloAt.garmin ?? 0) > now - HELLO_TTL_MS;
+
   const watchMode =
     connected && (setting === 'on' || (setting === 'auto' && voiceWatchActive && !isHeadphonesConnected));
+  const pttMode = connected && !watchMode && setting !== 'off' && garminActive && !isHeadphonesConnected;
 
-  // Phone mic: off in watch mode (it is in a pouch), but the stream stays
-  // published while a watch clip is being played into the channel.
+  // Phone mic: off while it sits in a pouch, open while "talk via phone" is
+  // held on a Garmin, and the stream stays published while a watch clip plays.
   useEffect(() => {
     if (!connected) return;
-    setPhoneMicSilenced((watchMode && !phonePtt) || (injecting && !phonePtt));
-  }, [connected, watchMode, phonePtt, injecting, setPhoneMicSilenced]);
+    if (phonePtt) setMicOverride('open');
+    else if (watchMode || pttMode || injecting) setMicOverride('silenced');
+    else setMicOverride('normal');
+  }, [connected, watchMode, pttMode, phonePtt, injecting, setMicOverride]);
 
   // ---- Watch clips → channel ------------------------------------------------
   const clipQueueRef = useRef<{path: string; durationMs: number}[]>([]);
@@ -210,7 +224,7 @@ export function WatchProvider({children}: {children: ReactNode}) {
   }, [subscribeRideEvents]);
 
   // Speaking events + remote speech recorded into clips for the watch speaker
-  const speakingRef = useRef<Set<number>>(new Set());
+  const speakingRef = useRef<Map<number, number>>(new Map());
   const recordingRef = useRef<{path: string; startedAt: number; lastVoiceAt: number; uids: Set<number>} | null>(null);
 
   const stopRecording = useCallback(() => {
@@ -229,16 +243,30 @@ export function WatchProvider({children}: {children: ReactNode}) {
     }, 400);
   }, [getEngine]);
 
-  // Tell watches who is talking (haptic cue before the clip arrives)
+  // Tell watches who is talking (haptic cue before the clip arrives). Volume
+  // drops between words, so "stopped" is only sent after a real pause.
   useEffect(() => {
-    const speakingNow = new Set(riders.filter(r => r.speaking).map(r => r.uid));
-    for (const r of riders) {
-      if (r.speaking !== speakingRef.current.has(r.uid)) {
-        WatchBridge.sendEvent({v: PROTOCOL_VERSION, kind: 'event', type: 'speaking', uid: r.uid, from: r.name, active: r.speaking});
+    if (!connected || !WatchBridge.available) return;
+    const timer = setInterval(() => {
+      const t = Date.now();
+      for (const r of ridersRef.current) {
+        const announcedAt = speakingRef.current.get(r.uid);
+        if (r.speaking) {
+          if (announcedAt === undefined) {
+            WatchBridge.sendEvent({v: PROTOCOL_VERSION, kind: 'event', type: 'speaking', uid: r.uid, from: r.name, active: true});
+          }
+          speakingRef.current.set(r.uid, t);
+        } else if (announcedAt !== undefined && t - announcedAt > SPEAKING_END_MS) {
+          speakingRef.current.delete(r.uid);
+          WatchBridge.sendEvent({v: PROTOCOL_VERSION, kind: 'event', type: 'speaking', uid: r.uid, from: r.name, active: false});
+        }
       }
-    }
-    speakingRef.current = speakingNow;
-  }, [riders]);
+    }, 250);
+    return () => {
+      clearInterval(timer);
+      speakingRef.current.clear();
+    };
+  }, [connected]);
 
   // Record remote speech while in watch mode. Polled because the pilot list
   // only re-renders when a volume bucket changes, not while someone keeps talking.
@@ -294,8 +322,8 @@ export function WatchProvider({children}: {children: ReactNode}) {
   }, [connected]);
 
   const value = useMemo(
-    () => ({available: WatchBridge.available, watches, watchMode, setting, setSetting, phonePtt}),
-    [watches, watchMode, setting, setSetting, phonePtt],
+    () => ({available: WatchBridge.available, watches, watchMode, setting, setSetting, pttMode, phonePtt}),
+    [watches, watchMode, setting, setSetting, pttMode, phonePtt],
   );
 
   return <WatchContext.Provider value={value}>{children}</WatchContext.Provider>;

@@ -53,13 +53,18 @@ interface AgoraContextValue {
   /** The live engine, or null before the first join. */
   getEngine: () => IRtcEngine | null;
   /**
-   * Silence the phone microphone while keeping our stream published, so audio
-   * mixed in (watch voice clips) still reaches the channel. Used in watch mode,
-   * when the phone sits in a waterproof pouch.
+   * Override the phone microphone for watch use:
+   * - 'silenced': mic captured at volume 0 but the stream stays published, so
+   *   audio mixed in (watch voice clips) still reaches the channel. The phone
+   *   sits in a waterproof pouch.
+   * - 'open': mic published even if the user muted (talk via phone from a Garmin).
+   * - 'normal': the mute button decides.
    */
-  setPhoneMicSilenced: (silenced: boolean) => void;
-  isPhoneMicSilenced: boolean;
+  setMicOverride: (mode: MicOverride) => void;
+  micOverride: MicOverride;
 }
+
+export type MicOverride = 'normal' | 'silenced' | 'open';
 
 export type StreamListener = (remoteUid: number, msg: Record<string, unknown>) => void;
 
@@ -81,8 +86,8 @@ export function AgoraProvider({children}: {children: ReactNode}) {
   const audioInterruptedRef = useRef(false);
   const announcedUidsRef = useRef<Set<number>>(new Set());
   const streamListenersRef = useRef<Set<StreamListener>>(new Set());
-  const micSilencedRef = useRef(false);
-  const [isPhoneMicSilenced, setIsPhoneMicSilenced] = useState(false);
+  const micOverrideRef = useRef<MicOverride>('normal');
+  const [micOverride, setMicOverrideState] = useState<MicOverride>('normal');
 
   const lastActivityRef = useRef<number>(Date.now());
   const aloneStartRef = useRef<number | null>(null);
@@ -173,7 +178,7 @@ export function AgoraProvider({children}: {children: ReactNode}) {
   // The stream must stay published while the phone mic is silenced, otherwise
   // the watch clips mixed into it would never leave the phone.
   const applyLocalStreamMute = useCallback((engine: IRtcEngine) => {
-    engine.muteLocalAudioStream(micSilencedRef.current ? false : isMutedRef.current);
+    engine.muteLocalAudioStream(micOverrideRef.current === 'normal' ? isMutedRef.current : false);
   }, []);
 
   const initEngine = useCallback(async () => {
@@ -443,7 +448,7 @@ export function AgoraProvider({children}: {children: ReactNode}) {
     try {
       engine.joinChannel('', config.channelName, 0, {});
       engine.muteLocalAudioStream(false);
-      engine.adjustRecordingSignalVolume(micSilencedRef.current ? 0 : 100);
+      engine.adjustRecordingSignalVolume(micOverrideRef.current === 'silenced' ? 0 : 100);
     } catch (e) {
       settleJoin(e instanceof Error ? e : new Error('Join call failed'));
     }
@@ -480,7 +485,7 @@ export function AgoraProvider({children}: {children: ReactNode}) {
     stopInactivityTimer();
     const engine = engineRef.current;
     if (engine) {
-      if (micSilencedRef.current) {
+      if (micOverrideRef.current === 'silenced') {
         engine.adjustRecordingSignalVolume(100);
       }
       appLog('Agora', 'calling engine.leaveChannel()');
@@ -498,8 +503,8 @@ export function AgoraProvider({children}: {children: ReactNode}) {
     announcedUidsRef.current.clear();
     audioInterruptedRef.current = false;
     setIsPausedForVideo(false);
-    micSilencedRef.current = false;
-    setIsPhoneMicSilenced(false);
+    micOverrideRef.current = 'normal';
+    setMicOverrideState('normal');
     appLog('Agora', 'leaveChannel() END');
   }, [stopInactivityTimer]);
 
@@ -589,14 +594,15 @@ export function AgoraProvider({children}: {children: ReactNode}) {
     }
   }, [applyLocalStreamMute, dismissWarning]);
 
-  const setPhoneMicSilenced = useCallback((silenced: boolean) => {
-    micSilencedRef.current = silenced;
-    setIsPhoneMicSilenced(silenced);
+  const setMicOverride = useCallback((mode: MicOverride) => {
+    if (micOverrideRef.current === mode) return;
+    micOverrideRef.current = mode;
+    setMicOverrideState(mode);
     const engine = engineRef.current;
     if (!engine) return;
-    engine.adjustRecordingSignalVolume(silenced ? 0 : 100);
+    engine.adjustRecordingSignalVolume(mode === 'silenced' ? 0 : 100);
     applyLocalStreamMute(engine);
-    appLog('Agora', `phone mic ${silenced ? 'silenced (watch mode)' : 'restored'}`);
+    appLog('Agora', `phone mic override: ${mode}`);
   }, [applyLocalStreamMute]);
 
   const sendStreamJson = useCallback((msg: object): boolean => {
@@ -726,8 +732,8 @@ export function AgoraProvider({children}: {children: ReactNode}) {
         sendStreamJson,
         subscribeStream,
         getEngine,
-        setPhoneMicSilenced,
-        isPhoneMicSilenced,
+        setMicOverride,
+        micOverride,
       }}>
       {children}
     </AgoraContext.Provider>

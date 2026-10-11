@@ -47,8 +47,12 @@ out.
 
 Connect IQ exposes no microphone and no arbitrary audio playback. Garmin
 watches get everything **except voice**: rider list with distance and arrow,
-quick messages, SOS, and a vibration when someone talks. A "talk via phone"
-button can unmute the phone mic as a fallback.
+quick messages, SOS, and a vibration when someone talks.
+
+With a Garmin connected (and no headphones) the phone switches to **talk via
+phone**: its mic stays off, so the group does not hear wind in the pouch, and
+opens only while the watch sends `ptt` `active: true`. The voice is muffled by
+the pouch — it is a fallback, not the main use.
 
 ## Phone ↔ phone (Agora data stream)
 
@@ -113,7 +117,11 @@ AAC in an `.aac` (ADTS) or `.m4a` container — players must accept both.
 {"v": 1, "kind": "hello", "platform": "watchos", "model": "Watch7,5", "hasCompass": true}
 ```
 
-`ptt` asks the phone to unmute its own mic (Garmin fallback). A voice clip is
+`ptt` asks the phone to open its own mic (Garmin fallback); `active: false`
+closes it again.
+
+`speaking` events are debounced on the phone: `active: true` once when a rider
+starts, `active: false` after 1.5 s of silence. A voice clip is
 a file `.m4a` (AAC, mono, 16 kHz) with metadata `{"v": 1, "kind": "clip", "durationMs": 3100}`.
 
 ### Quick messages

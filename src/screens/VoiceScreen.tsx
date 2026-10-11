@@ -114,11 +114,17 @@ export function VoiceScreen({onLeft}: VoiceScreenProps) {
       <RideBar />
 
       <View style={styles.controls}>
-        {watch.watchMode ? (
+        {watch.watchMode || watch.pttMode ? (
           <View style={[styles.watchPill, {backgroundColor: colors.primaryLight, borderColor: colors.primary}]}>
-            <Text style={[styles.watchTitle, {color: colors.primary}]}>⌚ Watch mode</Text>
+            <Text style={[styles.watchTitle, {color: colors.primary}]}>
+              {watch.watchMode ? '⌚ Watch mode' : '⌚ Garmin — talk via phone'}
+            </Text>
             <Text style={[styles.watchHint, {color: colors.textSecondary}]}>
-              {watch.phonePtt ? 'Phone mic on (talk via phone)' : 'Talk and listen on your watch — phone mic off'}
+              {watch.phonePtt
+                ? 'Phone mic on — talking'
+                : watch.watchMode
+                  ? 'Talk and listen on your watch — phone mic off'
+                  : 'Phone mic off until you press Talk on the watch'}
             </Text>
           </View>
         ) : (
