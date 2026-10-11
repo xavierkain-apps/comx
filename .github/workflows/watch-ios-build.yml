@@ -9,6 +9,8 @@ on:
     branches:
       - feature/watch-ios
       - feature/watch-companion
+      - comx
+      - comx-ios
 
 permissions:
   contents: read
