@@ -15,8 +15,9 @@ import {useRide} from './RideContext';
 import {WatchBridge, WatchInfo, WatchPlatform, VOICE_PLATFORMS, isActiveWatch} from '../services/WatchBridge';
 import {PROTOCOL_VERSION, buildWatchState, parseWatchMessage} from '../ride/protocol';
 import {appLog} from '../utils/logger';
+import {micPolicy, WatchModeSetting} from '../ride/micPolicy';
 
-export type WatchModeSetting = 'auto' | 'on' | 'off';
+export type {WatchModeSetting};
 const SETTING_KEY = '@soarx_watch_mode';
 
 const STATE_INTERVAL_MS = 2000;
@@ -92,18 +93,21 @@ export function WatchProvider({children}: {children: ReactNode}) {
     watches.some(w => isActiveWatch(w) && w.platform === 'garmin') ||
     (helloAt.garmin ?? 0) > now - HELLO_TTL_MS;
 
-  const watchMode =
-    connected && (setting === 'on' || (setting === 'auto' && voiceWatchActive && !isHeadphonesConnected));
-  const pttMode = connected && !watchMode && setting !== 'off' && garminActive && !isHeadphonesConnected;
+  const {watchMode, pttMode, override} = micPolicy({
+    connected,
+    setting,
+    voiceWatchActive,
+    garminActive,
+    headphones: isHeadphonesConnected,
+    phonePtt,
+    injecting,
+  });
 
   // Phone mic: off while it sits in a pouch, open while "talk via phone" is
   // held on a Garmin, and the stream stays published while a watch clip plays.
   useEffect(() => {
-    if (!connected) return;
-    if (phonePtt) setMicOverride('open');
-    else if (watchMode || pttMode || injecting) setMicOverride('silenced');
-    else setMicOverride('normal');
-  }, [connected, watchMode, pttMode, phonePtt, injecting, setMicOverride]);
+    if (connected) setMicOverride(override);
+  }, [connected, override, setMicOverride]);
 
   // ---- Watch clips → channel ------------------------------------------------
   const clipQueueRef = useRef<{path: string; durationMs: number}[]>([]);
