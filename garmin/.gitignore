@@ -1,0 +1,12 @@
+# Build output
+bin/
+gen/
+*.prg
+*.iq
+*.prg.debug.xml
+mir/
+
+# Developer signing key: NEVER commit
+*.der
+*.pem
+developer_key*
