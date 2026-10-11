@@ -6,17 +6,23 @@ import WatchKit
 
 struct ContentView: View {
   @EnvironmentObject var model: AppModel
+  @Environment(\.scenePhase) private var scenePhase
+  @Environment(\.isLuminanceReduced) private var luminanceReduced
   @State private var page = 0
 
   var body: some View {
     ZStack(alignment: .top) {
       NavigationStack {
+        // Horizontal paging: the Digital Crown stays free for the compass.
         TabView(selection: $page) {
-          TalkView().tag(0)
-          RidersView().tag(1)
+          CompassView().tag(0)
+          RidersView(onSelect: { uid in
+            model.select(uid)
+            page = 0
+          }).tag(1)
           MessagesView().tag(2)
         }
-        .tabViewStyle(.verticalPage)
+        .tabViewStyle(.page)
       }
       if let banner = model.banner {
         BannerView(banner: banner)
@@ -28,43 +34,125 @@ struct ContentView: View {
       }
     }
     .animation(.easeInOut(duration: 0.2), value: model.banner)
+    // Wrist raise / lower, logged for the Input test page.
+    .onChange(of: scenePhase) { _, phase in
+      InputLog.shared.record(.wrist, "scene \(phase.label)")
+    }
+    .onChange(of: luminanceReduced) { _, reduced in
+      InputLog.shared.record(.wrist, reduced ? "dimmed (wrist down)" : "bright (wrist up)")
+    }
   }
 }
 
-// MARK: - Talk
+private extension ScenePhase {
+  var label: String {
+    switch self {
+    case .active: return "active"
+    case .inactive: return "inactive"
+    case .background: return "background"
+    @unknown default: return "other"
+    }
+  }
+}
 
-struct TalkView: View {
+// MARK: - Compass (main page)
+
+/// One rider big, chosen without touching (AppModel.focusedRider).
+/// Crown: next / previous rider; while talking, the recipient.
+/// Double tap (watchOS 11+) or the Action button: talk.
+struct CompassView: View {
+  @EnvironmentObject var model: AppModel
+  @State private var crown: Double = 0
+  @State private var crownStep = 0
+  @FocusState private var crownFocused: Bool
+
+  var body: some View {
+    let rider = model.focusedRider
+    VStack(spacing: 1) {
+      StatusLine()
+      if let rider = rider {
+        HStack(spacing: 4) {
+          if rider.isSOS {
+            Text("SOS").font(.system(size: 16, weight: .heavy)).foregroundStyle(.red)
+          }
+          Text(rider.displayName)
+            .font(.system(size: 20, weight: .heavy))
+            .lineLimit(1)
+            .minimumScaleFactor(0.6)
+          if rider.isSpeaking {
+            Image(systemName: "waveform").foregroundStyle(.yellow)
+          }
+          if let pos = model.focusPosition, pos.1 > 1 {
+            Text("\(pos.0)/\(pos.1)").font(.system(size: 13, weight: .semibold)).foregroundStyle(.secondary)
+          }
+        }
+        DirectionArrow(angle: model.arrowAngle(bearing: rider.brg),
+                       color: rider.isSOS ? .red : .cyan)
+          .frame(maxWidth: .infinity, maxHeight: .infinity)
+          .padding(2)
+          .opacity(rider.isStale ? 0.4 : 1)
+        Text(rider.isStale ? "\(Format.distance(rider.dist)) old" : Format.distance(rider.dist))
+          .font(.system(size: 30, weight: .heavy, design: .rounded))
+          .lineLimit(1)
+          .minimumScaleFactor(0.6)
+      } else {
+        Spacer(minLength: 0)
+        Text(model.linkUp ? "No riders yet" : "Waiting for phone")
+          .font(.title3)
+          .foregroundStyle(.secondary)
+        Spacer(minLength: 0)
+      }
+      if let who = model.speakingLabel, !model.isRecording {
+        Text(who)
+          .font(.system(size: 14, weight: .bold))
+          .foregroundStyle(.yellow)
+          .lineLimit(1)
+      }
+      TalkButton()
+    }
+    .padding(.horizontal, 2)
+    .focusable()
+    .focused($crownFocused)
+    .digitalCrownRotation($crown, from: -1_000_000, through: 1_000_000, by: 1,
+                          sensitivity: .low, isContinuous: false, isHapticFeedbackEnabled: true)
+    .onChange(of: crown) { _, value in
+      let step = Int(value.rounded())
+      guard step != crownStep else { return }
+      model.crownStep(step > crownStep ? 1 : -1)
+      crownStep = step
+    }
+    .onAppear { crownFocused = true }
+  }
+}
+
+/// Big talk button: group by default; while recording, shows the recipient
+/// (crown, or a tap on the label, changes it).
+struct TalkButton: View {
   @EnvironmentObject var model: AppModel
 
   var body: some View {
-    VStack(spacing: 4) {
-      StatusLine()
-      if let who = model.speakingLabel, !model.isRecording {
-        Label(who, systemImage: "waveform")
-          .font(.system(size: 17, weight: .bold))
-          .foregroundStyle(.yellow)
-          .lineLimit(1)
-          .minimumScaleFactor(0.6)
+    VStack(spacing: 2) {
+      if model.isRecording {
+        Button { model.cycleTalkTarget(1) } label: {
+          Text("To: \(model.talkTargetName)")
+            .font(.system(size: 16, weight: .heavy))
+            .foregroundStyle(model.talkTarget == nil ? .white : .yellow)
+            .lineLimit(1)
+            .minimumScaleFactor(0.6)
+            .frame(maxWidth: .infinity)
+        }
+        .buttonStyle(.plain)
       }
       Button(action: { model.toggleTalk() }) {
-        ZStack {
-          Circle()
-            .fill(model.isRecording ? Color.red : Color.blue)
-          if model.isRecording {
-            Circle()
-              .trim(from: 0, to: model.recordingElapsed / AppModel.maxClipSeconds)
-              .stroke(Color.white, style: StrokeStyle(lineWidth: 6, lineCap: .round))
-              .rotationEffect(.degrees(-90))
-              .padding(4)
-          }
-          VStack(spacing: 0) {
-            Image(systemName: model.isRecording ? "paperplane.fill" : "mic.fill")
-              .font(.system(size: 34, weight: .bold))
-            Text(model.isRecording ? "SEND \(Int(AppModel.maxClipSeconds - model.recordingElapsed))" : "TALK")
-              .font(.system(size: 22, weight: .heavy))
-          }
-          .foregroundStyle(.white)
+        HStack(spacing: 6) {
+          Image(systemName: model.isRecording ? "paperplane.fill" : "mic.fill")
+            .font(.system(size: 22, weight: .bold))
+          Text(model.isRecording ? "SEND \(Int(AppModel.maxClipSeconds - model.recordingElapsed))" : "TALK")
+            .font(.system(size: 22, weight: .heavy))
         }
+        .foregroundStyle(.white)
+        .frame(maxWidth: .infinity, minHeight: 50)
+        .background(Capsule().fill(model.isRecording ? Color.red : Color.blue))
       }
       .buttonStyle(.plain)
       .primaryActionShortcut()
@@ -74,7 +162,6 @@ struct TalkView: View {
           .font(.footnote).foregroundStyle(.orange)
       }
     }
-    .padding(.horizontal, 4)
   }
 }
 
@@ -123,6 +210,7 @@ struct StatusLine: View {
 
 struct RidersView: View {
   @EnvironmentObject var model: AppModel
+  var onSelect: (Int) -> Void = { _ in }
 
   var body: some View {
     let riders = model.riders
@@ -134,9 +222,7 @@ struct RidersView: View {
           .foregroundStyle(.secondary)
       }
       ForEach(riders) { rider in
-        NavigationLink {
-          RiderDetailView(uid: rider.uid)
-        } label: {
+        Button { onSelect(rider.uid) } label: {
           RiderRow(rider: rider)
         }
         .listRowBackground(rider.isSOS ? Color.red.opacity(0.85) : Color.clear)
@@ -187,30 +273,6 @@ struct RiderRow: View {
       }
     }
     .opacity(rider.isStale ? 0.4 : 1)
-  }
-}
-
-struct RiderDetailView: View {
-  @EnvironmentObject var model: AppModel
-  let uid: Int
-
-  var body: some View {
-    let rider = model.rider(uid)
-    VStack(spacing: 2) {
-      Text(rider?.displayName ?? "Rider")
-        .font(.system(size: 18, weight: .bold))
-        .lineLimit(1)
-      DirectionArrow(angle: model.arrowAngle(bearing: rider?.brg),
-                     color: (rider?.isSOS ?? false) ? .red : .cyan)
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .padding(6)
-      Text(Format.distance(rider?.dist))
-        .font(.system(size: 34, weight: .heavy, design: .rounded))
-      if rider?.isStale ?? true {
-        Text("Position is old").font(.footnote).foregroundStyle(.orange)
-      }
-    }
-    .opacity((rider?.isStale ?? true) ? 0.6 : 1)
   }
 }
 
@@ -291,6 +353,12 @@ struct MessagesView: View {
         Label("Water lock", systemImage: "drop.fill")
       }
       .padding(.top, 8)
+
+      NavigationLink {
+        InputTestView()
+      } label: {
+        Label("Input test", systemImage: "hand.tap")
+      }
 
       if model.workoutRunning {
         Button(role: .destructive) { model.endSession() } label: {

@@ -27,6 +27,7 @@ final class AppDelegate: NSObject, WKApplicationDelegate {
 
   /// Launched to run a workout (Action button, or the system relaunching us).
   func handle(_ workoutConfiguration: HKWorkoutConfiguration) {
+    InputLog.shared.record(.intent, "Workout launch (Action button > Workout)")
     AppModel.shared.startIfNeeded()
     AppModel.shared.startSession()
   }

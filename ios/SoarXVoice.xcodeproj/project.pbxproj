@@ -11,6 +11,7 @@
 		0C80B921A6F3F58F76C31292 /* libPods-SoarXVoice.a in Frameworks */ = {isa = PBXBuildFile; fileRef = 5DCACB8F33CDC322A6C60F78 /* libPods-SoarXVoice.a */; };
 		11673D5ADCDBB4B9F0FC2691 /* Sensors.swift in Sources */ = {isa = PBXBuildFile; fileRef = ED060D1026DF1618E569F407 /* Sensors.swift */; };
 		13B07FBF1A68108700A75B9A /* Images.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 13B07FB51A68108700A75B9A /* Images.xcassets */; };
+		13BA3BEFA6E4ECEC88020325 /* GarminLink.m in Sources */ = {isa = PBXBuildFile; fileRef = F97C8DC1E1359BAC8D6ABEC4 /* GarminLink.m */; };
 		1E34DEBEC3B9815B2C0678A5 /* AppModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5054D08A17FD631FE83BFBCD /* AppModel.swift */; };
 		251E6A2C2F6605900079205C /* HIDModule.m in Sources */ = {isa = PBXBuildFile; fileRef = 251E6A2A2F6605900079205C /* HIDModule.m */; };
 		251E6A2D2F6605900079205C /* HIDModule.swift in Sources */ = {isa = PBXBuildFile; fileRef = 251E6A2B2F6605900079205C /* HIDModule.swift */; };
@@ -31,6 +32,7 @@
 		8893BBBBDAA170459889A681 /* beep_single.mp3 in Resources */ = {isa = PBXBuildFile; fileRef = FC0E281E0AFBFEC819D6D979 /* beep_single.mp3 */; };
 		9739BAD568656A95C6773DAF /* Intents.swift in Sources */ = {isa = PBXBuildFile; fileRef = DE9C44A7567B31232C6E7161 /* Intents.swift */; };
 		9D60CE20D2042E04EE36D6AC /* beep_double.mp3 in Resources */ = {isa = PBXBuildFile; fileRef = 355D75D50E6E2FC0FAF0567E /* beep_double.mp3 */; };
+		9F7D52E366594E3950FEA6E6 /* InputTest.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5AA19339BAD4B3B37A120531 /* InputTest.swift */; };
 		A5D10C012F80000000000003 /* AudioSessionManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = A5D10C012F80000000000001 /* AudioSessionManager.swift */; };
 		A5D10C012F80000000000004 /* AudioSessionManager.m in Sources */ = {isa = PBXBuildFile; fileRef = A5D10C012F80000000000002 /* AudioSessionManager.m */; };
 		A818D0CCEF987E2EFA2DC224 /* voice_mute.mp3 in Resources */ = {isa = PBXBuildFile; fileRef = A99F0168CA49634E8F39762D /* voice_mute.mp3 */; };
@@ -38,6 +40,7 @@
 		D398C0BBA36E17D2852BC08F /* TTSManager.m in Sources */ = {isa = PBXBuildFile; fileRef = F6F7EE5FC0A5AB17D84956F3 /* TTSManager.m */; };
 		E28F7F6B79ED856EF1F2D2CD /* Views.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3FFECBA0D1C53C08B74AA5F8 /* Views.swift */; };
 		E7E39ACF8BF094F35FFCBA16 /* PhoneLink.swift in Sources */ = {isa = PBXBuildFile; fileRef = CC3A2A6FCB9620F3033A6981 /* PhoneLink.swift */; };
+		F10BB64ECB0FE82DF4CADC14 /* ConnectIQ in Frameworks */ = {isa = PBXBuildFile; productRef = 94464BE5EC8170347F7F18F6 /* ConnectIQ */; };
 		F2D36FDBEA3E5F17654124D6 /* HapticManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = C6BE7A5A9CC84E9591B871ED /* HapticManager.swift */; };
 /* End PBXBuildFile section */
 
@@ -84,6 +87,7 @@
 		3FFECBA0D1C53C08B74AA5F8 /* Views.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = Views.swift; sourceTree = "<group>"; };
 		5054D08A17FD631FE83BFBCD /* AppModel.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = AppModel.swift; sourceTree = "<group>"; };
 		5709B34CF0A7D63546082F79 /* Pods-SoarXVoice.release.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-SoarXVoice.release.xcconfig"; path = "Target Support Files/Pods-SoarXVoice/Pods-SoarXVoice.release.xcconfig"; sourceTree = "<group>"; };
+		5AA19339BAD4B3B37A120531 /* InputTest.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = InputTest.swift; sourceTree = "<group>"; };
 		5D52D1C7337F28C1523D64E6 /* WatchBridge.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = WatchBridge.swift; sourceTree = "<group>"; };
 		5DCACB8F33CDC322A6C60F78 /* libPods-SoarXVoice.a */ = {isa = PBXFileReference; explicitFileType = archive.ar; includeInIndex = 0; path = "libPods-SoarXVoice.a"; sourceTree = BUILT_PRODUCTS_DIR; };
 		5E8337D89E96B19AB6945747 /* Assets.xcassets */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
@@ -105,7 +109,9 @@
 		ED060D1026DF1618E569F407 /* Sensors.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = Sensors.swift; sourceTree = "<group>"; };
 		ED297162215061F000B7C4FE /* JavaScriptCore.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = JavaScriptCore.framework; path = System/Library/Frameworks/JavaScriptCore.framework; sourceTree = SDKROOT; };
 		F6F7EE5FC0A5AB17D84956F3 /* TTSManager.m */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.c.objc; path = TTSManager.m; sourceTree = "<group>"; };
+		F97C8DC1E1359BAC8D6ABEC4 /* GarminLink.m */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.c.objc; path = GarminLink.m; sourceTree = "<group>"; };
 		FC0E281E0AFBFEC819D6D979 /* beep_single.mp3 */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = audio.mp3; path = beep_single.mp3; sourceTree = "<group>"; };
+		FE3840F84622F9009F3FC50B /* GarminLink.h */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.c.h; path = GarminLink.h; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -114,6 +120,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				0C80B921A6F3F58F76C31292 /* libPods-SoarXVoice.a in Frameworks */,
+				F10BB64ECB0FE82DF4CADC14 /* ConnectIQ in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -148,6 +155,8 @@
 				A5D10C012F80000000000002 /* AudioSessionManager.m */,
 				5D52D1C7337F28C1523D64E6 /* WatchBridge.swift */,
 				AF9E717AA22B4B02F24149B4 /* WatchBridge.m */,
+				FE3840F84622F9009F3FC50B /* GarminLink.h */,
+				F97C8DC1E1359BAC8D6ABEC4 /* GarminLink.m */,
 			);
 			name = SoarXVoice;
 			sourceTree = "<group>";
@@ -211,6 +220,7 @@
 				5E8337D89E96B19AB6945747 /* Assets.xcassets */,
 				698F3A250F987F54F0E05B9C /* Info.plist */,
 				06FDE1EE20D8138FF7544A6A /* SoarXVoiceWatch.entitlements */,
+				5AA19339BAD4B3B37A120531 /* InputTest.swift */,
 			);
 			name = SoarXVoiceWatch;
 			path = SoarXVoiceWatch;
@@ -247,6 +257,9 @@
 				7CA6680F29437318F7B1DA06 /* PBXTargetDependency */,
 			);
 			name = SoarXVoice;
+			packageProductDependencies = (
+				94464BE5EC8170347F7F18F6 /* ConnectIQ */,
+			);
 			productName = SoarXVoice;
 			productReference = 13B07F961A680F5B00A75B9A /* SoarXVoice.app */;
 			productType = "com.apple.product-type.application";
@@ -293,6 +306,9 @@
 				Base,
 			);
 			mainGroup = 83CBB9F61A601CBA00E9B192;
+			packageReferences = (
+				EC7A1CBA8244377B867B23CC /* XCRemoteSwiftPackageReference "connectiq-companion-app-sdk-ios" */,
+			);
 			productRefGroup = 83CBBA001A601CBA00E9B192 /* Products */;
 			projectDirPath = "";
 			projectRoot = "";
@@ -422,6 +438,7 @@
 				A5D10C012F80000000000004 /* AudioSessionManager.m in Sources */,
 				5A25232184B908FA8E59E696 /* WatchBridge.swift in Sources */,
 				5F078D4A5DC0E8D84C43733D /* WatchBridge.m in Sources */,
+				13BA3BEFA6E4ECEC88020325 /* GarminLink.m in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -437,6 +454,7 @@
 				11673D5ADCDBB4B9F0FC2691 /* Sensors.swift in Sources */,
 				4D7FE641F4AA7B1F704D83A1 /* SoarXVoiceWatchApp.swift in Sources */,
 				E28F7F6B79ED856EF1F2D2CD /* Views.swift in Sources */,
+				9F7D52E366594E3950FEA6E6 /* InputTest.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -778,6 +796,25 @@
 			defaultConfigurationName = Release;
 		};
 /* End XCConfigurationList section */
+
+/* Begin XCRemoteSwiftPackageReference section */
+		EC7A1CBA8244377B867B23CC /* XCRemoteSwiftPackageReference "connectiq-companion-app-sdk-ios" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/garmin/connectiq-companion-app-sdk-ios";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 1.8.0;
+			};
+		};
+/* End XCRemoteSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		94464BE5EC8170347F7F18F6 /* ConnectIQ */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = EC7A1CBA8244377B867B23CC /* XCRemoteSwiftPackageReference "connectiq-companion-app-sdk-ios" */;
+			productName = ConnectIQ;
+		};
+/* End XCSwiftPackageProductDependency section */
 	};
 	rootObject = 83CBB9F71A601CBA00E9B192 /* Project object */;
 }

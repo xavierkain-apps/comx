@@ -16,6 +16,8 @@
 #      com.xavier.comx. Every *.swift in ios/SoarXVoiceWatch is compiled.
 #   3. Embeds it in the iOS app ("Embed Watch Content") and makes the iOS
 #      target depend on it, so building the iOS scheme builds the watch app.
+#   4. Adds Garmin's Connect IQ iOS SDK (Swift Package, binary
+#      ConnectIQ.xcframework) to the iOS target, for ios/GarminLink.m.
 #
 # See docs/watch-ios.md.
 
@@ -34,7 +36,12 @@ WATCHOS_VERSION = "10.0"
 TEAM_ID = "S96H22CQ8W"
 EMBED_PHASE = "Embed Watch Content"
 
-BRIDGE_FILES = %w[WatchBridge.swift WatchBridge.m].freeze
+# .h files are only referenced; .swift / .m are compiled into the iOS target.
+BRIDGE_FILES = %w[WatchBridge.swift WatchBridge.m GarminLink.h GarminLink.m].freeze
+
+CIQ_PACKAGE_URL = "https://github.com/garmin/connectiq-companion-app-sdk-ios"
+CIQ_PACKAGE_MIN_VERSION = "1.8.0"
+CIQ_PRODUCT = "ConnectIQ"
 
 project = Xcodeproj::Project.open(PROJECT_PATH)
 ios_target = project.targets.find { |t| t.name == IOS_TARGET } or abort("No #{IOS_TARGET} target")
@@ -56,6 +63,8 @@ BRIDGE_FILES.each do |name|
     ref.include_in_index = "1"
     changes << "file ref #{name}"
   end
+  next if name.end_with?(".h")
+
   unless ios_target.source_build_phase.files_references.include?(ref)
     ios_target.source_build_phase.add_file_reference(ref)
     changes << "#{name} -> #{IOS_TARGET} Sources"
@@ -201,6 +210,38 @@ unless embed.files_references.include?(watch_target.product_reference)
   bf = embed.add_file_reference(watch_target.product_reference)
   bf.settings = {"ATTRIBUTES" => ["RemoveHeadersOnCopy"]}
   changes << "embed #{WATCH_TARGET}.app"
+end
+
+# --- 4. Connect IQ SDK (Swift Package) in the iOS target ---------------------
+
+package = project.root_object.package_references.find do |p|
+  p.respond_to?(:repositoryURL) && p.repositoryURL == CIQ_PACKAGE_URL
+end
+unless package
+  package = project.new(Xcodeproj::Project::Object::XCRemoteSwiftPackageReference)
+  package.repositoryURL = CIQ_PACKAGE_URL
+  project.root_object.package_references << package
+  changes << "package #{CIQ_PACKAGE_URL}"
+end
+requirement = {"kind" => "upToNextMajorVersion", "minimumVersion" => CIQ_PACKAGE_MIN_VERSION}
+unless package.requirement == requirement
+  package.requirement = requirement
+  changes << "package requirement #{CIQ_PACKAGE_MIN_VERSION}"
+end
+
+product = ios_target.package_product_dependencies.find { |d| d.product_name == CIQ_PRODUCT }
+unless product
+  product = project.new(Xcodeproj::Project::Object::XCSwiftPackageProductDependency)
+  product.package = package
+  product.product_name = CIQ_PRODUCT
+  ios_target.package_product_dependencies << product
+  changes << "#{IOS_TARGET} uses package product #{CIQ_PRODUCT}"
+end
+unless ios_target.frameworks_build_phase.files.any? { |f| f.product_ref == product }
+  build_file = project.new(Xcodeproj::Project::Object::PBXBuildFile)
+  build_file.product_ref = product
+  ios_target.frameworks_build_phase.files << build_file
+  changes << "#{CIQ_PRODUCT} -> #{IOS_TARGET} Frameworks"
 end
 
 attributes = project.root_object.attributes["TargetAttributes"] ||= {}

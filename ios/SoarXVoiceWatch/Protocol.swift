@@ -62,6 +62,13 @@ struct ClipMeta: Decodable {
   var uid: Int?
   var from: String?
   var durationMs: Double?
+  /// The sender addressed this clip to us only (ComX targeted message).
+  var isPrivate: Bool?
+
+  enum CodingKeys: String, CodingKey {
+    case v, kind, uid, from, durationMs
+    case isPrivate = "private"
+  }
 }
 
 /// Only used to read "kind" before decoding the full payload.
@@ -109,8 +116,12 @@ enum Outgoing {
     encode(["kind": "hello", "platform": "watchos", "model": model, "hasCompass": hasCompass])
   }
 
-  static func clipMeta(durationMs: Int) -> String {
-    encode(["kind": "clip", "durationMs": durationMs])
+  /// `to`: uid of the one rider the clip is for; nil = the whole group
+  /// (the key is then omitted, which the contract reads as group).
+  static func clipMeta(durationMs: Int, to: Int?) -> String {
+    var obj: [String: Any] = ["kind": "clip", "durationMs": durationMs]
+    if let to = to { obj["to"] = to }
+    return encode(obj)
   }
 }
 

@@ -49,6 +49,16 @@ final class AppModel: ObservableObject {
   // Session
   @Published private(set) var workoutRunning = false
 
+  // Compass focus (see "Compass focus" in docs/watch-companion.md)
+  /// Rider the user last picked with the crown or the list.
+  @Published private(set) var selectedUid: Int?
+  private var selectedAt: Date = .distantPast
+  /// When each rider currently in SOS was first seen in SOS.
+  private var sosSeenAt: [Int: Date] = [:]
+
+  /// Who the clip being recorded goes to: nil = the whole group (default).
+  @Published private(set) var talkTarget: Int?
+
   private let link = PhoneLink()
   private let recorder = ClipRecorder()
   private let player = ClipPlayer()
@@ -136,6 +146,69 @@ final class AppModel: ObservableObject {
 
   func rider(_ uid: Int) -> Rider? { state?.riders?.first { $0.uid == uid } }
 
+  /// The one rider shown big: a rider whose SOS started after the user's
+  /// last pick, else the rider the user picked, else the nearest (SOS riders
+  /// sort first, so an older SOS still wins over distance).
+  var focusedRider: Rider? {
+    let list = riders
+    guard !list.isEmpty else { return nil }
+    let newestSOS = list.filter { $0.isSOS }.max {
+      (sosSeenAt[$0.uid] ?? .distantPast) < (sosSeenAt[$1.uid] ?? .distantPast)
+    }
+    if let s = newestSOS, (sosSeenAt[s.uid] ?? .distantPast) > selectedAt { return s }
+    if let sel = selectedUid, let r = list.first(where: { $0.uid == sel }) { return r }
+    return list.first
+  }
+
+  /// Position of the focused rider, 1-based, and the rider count.
+  var focusPosition: (Int, Int)? {
+    let list = riders
+    guard let f = focusedRider, let i = list.firstIndex(where: { $0.uid == f.uid }) else { return nil }
+    return (i + 1, list.count)
+  }
+
+  func select(_ uid: Int) {
+    selectedUid = uid
+    selectedAt = Date()
+  }
+
+  /// One Digital Crown detent. While recording it picks the recipient,
+  /// otherwise it moves the compass to the next / previous rider.
+  func crownStep(_ delta: Int) {
+    if isRecording {
+      cycleTalkTarget(delta)
+      return
+    }
+    let list = riders
+    guard list.count > 1 else { return }
+    let index = focusedRider.flatMap { f in list.firstIndex { $0.uid == f.uid } } ?? 0
+    let n = list.count
+    select(list[((index + delta) % n + n) % n].uid)
+  }
+
+  /// Recipients in crown order: group, the rider on the compass, the others.
+  var talkTargets: [Int?] {
+    let focused = focusedRider?.uid
+    var out: [Int?] = [nil]
+    if let f = focused { out.append(f) }
+    for r in riders where r.uid != focused { out.append(r.uid) }
+    return out
+  }
+
+  func cycleTalkTarget(_ delta: Int) {
+    let targets = talkTargets
+    guard targets.count > 1 else { return }
+    let index = targets.firstIndex { $0 == talkTarget } ?? 0
+    let n = targets.count
+    talkTarget = targets[((index + delta) % n + n) % n]
+    WKInterfaceDevice.current().play(talkTarget == nil ? .directionDown : .directionUp)
+  }
+
+  var talkTargetName: String {
+    guard let uid = talkTarget else { return "Group" }
+    return rider(uid)?.displayName ?? "Rider \(uid)"
+  }
+
   var speakingLabel: String? {
     if let from = playingFrom { return from }
     let names = talkingNow.values.sorted()
@@ -168,6 +241,7 @@ final class AppModel: ObservableObject {
         return
       }
       self.isRecording = true
+      self.talkTarget = nil // group unless the crown picks someone
       self.recordingElapsed = 0
       WKInterfaceDevice.current().play(.start)
       self.recordTimer = Timer.scheduledTimer(withTimeInterval: 0.25, repeats: true) { [weak self] _ in
@@ -186,9 +260,11 @@ final class AppModel: ObservableObject {
     let result = recorder.stop()
     WKInterfaceDevice.current().play(.stop)
     player.paused = false
+    let target = talkTarget
+    talkTarget = nil
     guard let clip = result else { return }
     let (url, ms) = clip
-    link.sendClip(url, metaJSON: Outgoing.clipMeta(durationMs: ms))
+    link.sendClip(url, metaJSON: Outgoing.clipMeta(durationMs: ms, to: target))
     lastSent = Date()
     DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) {
       WKInterfaceDevice.current().play(.success)
@@ -200,6 +276,7 @@ final class AppModel: ObservableObject {
     recordTimer?.invalidate()
     recordTimer = nil
     isRecording = false
+    talkTarget = nil
     recorder.cancel()
     player.paused = false
     WKInterfaceDevice.current().play(.retry)
@@ -241,6 +318,9 @@ final class AppModel: ObservableObject {
       let speaking = Set((s.riders ?? []).filter { $0.isSpeaking }.map { $0.uid })
       talkingNow = talkingNow.filter { speaking.contains($0.key) }
       for r in s.riders ?? [] where r.isSpeaking { talkingNow[r.uid] = r.displayName }
+      let inSOS = Set((s.riders ?? []).filter { $0.isSOS }.map { $0.uid })
+      sosSeenAt = sosSeenAt.filter { inSOS.contains($0.key) }
+      for uid in inSOS where sosSeenAt[uid] == nil { sosSeenAt[uid] = Date() }
       if var alert = sosAlert, let r = rider(alert.uid) {
         alert.dist = r.dist ?? alert.dist
         alert.brg = r.brg ?? alert.brg
@@ -270,6 +350,7 @@ final class AppModel: ObservableObject {
     case "sos":
       if e.active ?? true {
         sosAlert = SOSAlert(uid: uid, from: from, dist: e.dist, brg: e.brg, at: Date())
+        if sosSeenAt[uid] == nil { sosSeenAt[uid] = Date() }
         AppModel.alarmHaptics()
       } else if sosAlert?.uid == uid {
         sosAlert = nil
@@ -283,7 +364,8 @@ final class AppModel: ObservableObject {
 
   private func handleClip(_ url: URL, _ meta: ClipMeta?) {
     let from = meta?.from ?? meta?.uid.flatMap { rider($0)?.displayName } ?? "Rider"
-    player.enqueue(.init(url: url, from: from))
+    let label = (meta?.isPrivate ?? false) ? "\(from) (to you)" : from
+    player.enqueue(.init(url: url, from: label))
   }
 
   // MARK: - Helpers
