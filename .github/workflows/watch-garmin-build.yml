@@ -1,0 +1,155 @@
+name: Garmin watch build
+
+# Compiles the Connect IQ watch app (garmin/) for a set of devices.
+#
+# SDK and device files come from ghcr.io/matco/connectiq-tester, a maintained
+# public image (github.com/matco/connectiq-tester) that bundles the Connect IQ
+# SDK and the device files. Fetching device files directly from Garmin needs
+# a Garmin account login, so the image is the only headless option without
+# storing Garmin credentials. The tag is pinned: bump it deliberately.
+#
+# The signing key is a throwaway generated per job. A .prg signed with it is
+# fine for sideloading; a store upload (.iq) must be signed with the owner's
+# real developer key (see docs/watch-garmin.md).
+
+on:
+  push:
+    branches: [feature/watch-garmin, feature/watch-companion]
+    paths:
+      - "garmin/**"
+      - ".github/workflows/watch-garmin-build.yml"
+  workflow_dispatch:
+    inputs:
+      all_devices:
+        description: "Build every device in the manifest (slow)"
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+env:
+  # SDK 9.2.0, device files of 2026-08-31.
+  CIQ_IMAGE: ghcr.io/matco/connectiq-tester:v2.10.0
+  # One device per screen / input family. Every manifest product is built
+  # with all_devices.
+  DEVICES: >-
+    fenix7 fenix7pro fenix847mm epix2pro47mm enduro3
+    fr255 fr265 fr955 fr965 fr970
+    instinct2 instinct3solar45mm instinct3amoled45mm venu3
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Pull Connect IQ image
+        run: docker pull "$CIQ_IMAGE"
+
+      - name: Generate a throwaway developer key
+        run: |
+          mkdir -p "$RUNNER_TEMP/key"
+          openssl genrsa -out "$RUNNER_TEMP/key/key.pem" 4096
+          openssl pkcs8 -topk8 -inform PEM -outform DER -nocrypt \
+            -in "$RUNNER_TEMP/key/key.pem" -out "$RUNNER_TEMP/key/developer_key.der"
+
+      - name: Check manifest products exist in the SDK device files
+        run: |
+          docker run --rm --entrypoint ls "$CIQ_IMAGE" /root/.Garmin/ConnectIQ/Devices \
+            | sort > "$RUNNER_TEMP/sdk-devices.txt"
+          echo "SDK image has $(wc -l < "$RUNNER_TEMP/sdk-devices.txt") devices"
+          grep -o 'iq:product id="[^"]*"' garmin/manifest.xml | cut -d'"' -f2 | sort \
+            > "$RUNNER_TEMP/manifest-devices.txt"
+          missing=$(comm -23 "$RUNNER_TEMP/manifest-devices.txt" "$RUNNER_TEMP/sdk-devices.txt")
+          if [ -n "$missing" ]; then
+            echo "::error::Manifest products unknown to the SDK image: $missing"
+            echo "Similar ids in the image:"
+            grep -E 'fenix|epix|fr|instinct|venu|enduro' "$RUNNER_TEMP/sdk-devices.txt" | tr '\n' ' '
+            exit 1
+          fi
+
+      - name: Select devices
+        if: ${{ !cancelled() }}
+        env:
+          ALL: ${{ inputs.all_devices }}
+        run: |
+          if [ "$ALL" = "true" ]; then
+            list=$(tr '\n' ' ' < "$RUNNER_TEMP/manifest-devices.txt")
+          else
+            list="$DEVICES"
+          fi
+          echo "BUILD_DEVICES=$list" >> "$GITHUB_ENV"
+          echo "Building: $list"
+
+      - name: Compile
+        if: ${{ !cancelled() }}
+        run: |
+          mkdir -p garmin/bin
+          docker run --rm \
+            -v "$GITHUB_WORKSPACE/garmin:/app" \
+            -v "$RUNNER_TEMP/key:/key:ro" \
+            -w /app \
+            -e BUILD_DEVICES \
+            --entrypoint /bin/bash \
+            "$CIQ_IMAGE" -c '
+              set -u
+              monkeyc --version
+              failed=""
+              for d in $BUILD_DEVICES; do
+                echo "::group::$d"
+                if monkeyc -f monkey.jungle -d "$d" -y /key/developer_key.der \
+                     -o "bin/soarx-$d.prg" -w -l 3; then
+                  echo "OK $d"
+                else
+                  failed="$failed $d"
+                fi
+                echo "::endgroup::"
+              done
+              if [ -n "$failed" ]; then
+                echo "::error::Compilation failed for:$failed"
+                exit 1
+              fi
+            '
+          ls -la garmin/bin
+
+      - name: Upload .prg files
+        uses: actions/upload-artifact@v4
+        with:
+          name: soarx-garmin-prg
+          path: garmin/bin/*.prg
+          if-no-files-found: error
+
+      # Unit tests (source/Tests.mc) in the simulator, headless under Xvfb.
+      # Not blocking: the Connect IQ simulator hangs before running tests in a
+      # headless container (investigated over several runs, cause not found).
+      # Run them locally with `monkeydo bin/test.prg fenix7 -t` instead.
+      - name: Unit tests in the simulator (fenix7)
+        if: ${{ !cancelled() }}
+        continue-on-error: true
+        timeout-minutes: 10
+        run: |
+          docker run --rm \
+            -v "$GITHUB_WORKSPACE/garmin:/app" \
+            -v "$RUNNER_TEMP/key:/key:ro" \
+            -w /app \
+            --entrypoint /bin/bash \
+            "$CIQ_IMAGE" -c '
+              set -u
+              mkdir -p /tmp/test
+              monkeyc -f monkey.jungle -d fenix7 -y /key/developer_key.der \
+                -o /tmp/test/test.prg -t -w -l 3 || exit 1
+              export DISPLAY=:1
+              Xvfb "$DISPLAY" -screen 0 1280x1024x24 >/dev/null 2>&1 &
+              sleep 2
+              simulator >/tmp/test/sim.log 2>&1 &
+              sleep 45
+              echo "listening sockets (local addr:port in hex):"
+              grep " 0A " /proc/net/tcp /proc/net/tcp6 || echo none
+              # monkeydo exits non-zero even on success: judge by the output.
+              timeout 240 monkeydo /tmp/test/test.prg fenix7 -t 2>&1 | tee /tmp/test/out.txt
+              echo "--- simulator log (tail)"
+              tail -20 /tmp/test/sim.log
+              grep -q "^PASSED" /tmp/test/out.txt
+            '

@@ -1,0 +1,17 @@
+project.manifest = manifest.xml
+
+# Monochrome (1 bit per pixel) screens get the `mono` code path and icons.
+# Everything else is the `color` path. Exactly one of the two functions
+# annotated (:mono) / (:color) in source/Ui.mc survives per device.
+base.excludeAnnotations = mono
+
+instinct2.excludeAnnotations = color
+instinct2.resourcePath = $(instinct2.resourcePath);resources-mono
+instinct2s.excludeAnnotations = color
+instinct2s.resourcePath = $(instinct2s.resourcePath);resources-mono
+instinct2x.excludeAnnotations = color
+instinct2x.resourcePath = $(instinct2x.resourcePath);resources-mono
+instinctcrossover.excludeAnnotations = color
+instinctcrossover.resourcePath = $(instinctcrossover.resourcePath);resources-mono
+instinct3solar45mm.excludeAnnotations = color
+instinct3solar45mm.resourcePath = $(instinct3solar45mm.resourcePath);resources-mono
