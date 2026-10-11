@@ -43,6 +43,8 @@ interface RideContextValue {
   sendQuickMessage: (id: string, text?: string) => void;
   setSos: (active: boolean) => void;
   subscribeRideEvents: (listener: RideEventListener) => () => void;
+  /** Show a line in the message feed (no network). */
+  logMessage: (from: string, id: string, text: string, uid?: number | null) => void;
 }
 
 const RideContext = createContext<RideContextValue | null>(null);
@@ -218,6 +220,10 @@ export function RideProvider({children}: {children: ReactNode}) {
     };
   }, []);
 
+  const logMessage = useCallback((from: string, id: string, text: string, uid: number | null = null) => {
+    pushMessage({uid, from, id, text, t: Date.now()});
+  }, [pushMessage]);
+
   const riders = useMemo(
     () =>
       buildRiderViews(
@@ -235,8 +241,8 @@ export function RideProvider({children}: {children: ReactNode}) {
   );
 
   const value = useMemo(
-    () => ({myPosition, riders, messages, mySos, locationDenied, sendQuickMessage, setSos, subscribeRideEvents}),
-    [myPosition, riders, messages, mySos, locationDenied, sendQuickMessage, setSos, subscribeRideEvents],
+    () => ({myPosition, riders, messages, mySos, locationDenied, sendQuickMessage, setSos, subscribeRideEvents, logMessage}),
+    [myPosition, riders, messages, mySos, locationDenied, sendQuickMessage, setSos, subscribeRideEvents, logMessage],
   );
 
   return <RideContext.Provider value={value}>{children}</RideContext.Provider>;

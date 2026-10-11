@@ -24,7 +24,7 @@ export function PilotList({remotePilots, localPilotName, isMuted, riders}: Pilot
   return (
     <View style={styles.container}>
       <View style={styles.headerRow}>
-        <Text style={[styles.headerLabel, {color: colors.textMuted}]}>Connected Pilots</Text>
+        <Text style={[styles.headerLabel, {color: colors.textMuted}]}>Riders</Text>
         <View style={[styles.countBadge, {backgroundColor: colors.primaryLight}]}>
           <Text style={[styles.countText, {color: colors.primary}]}>{totalCount}</Text>
         </View>

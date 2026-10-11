@@ -59,7 +59,7 @@ export function HomeScreen({onJoined, onSettings}: HomeScreenProps) {
 
     const granted = await PermissionsAndroid.request(
       PermissionsAndroid.PERMISSIONS.RECORD_AUDIO,
-      { title: 'Microphone Permission', message: 'SoarX Voice needs microphone access for in-flight communication.', buttonPositive: 'Allow' },
+      { title: 'Microphone Permission', message: 'ComX needs microphone access to talk with your group.', buttonPositive: 'Allow' },
     );
     if (granted !== PermissionsAndroid.RESULTS.GRANTED) return false;
 
@@ -69,7 +69,7 @@ export function HomeScreen({onJoined, onSettings}: HomeScreenProps) {
       try {
         await PermissionsAndroid.request(
           PermissionsAndroid.PERMISSIONS.POST_NOTIFICATIONS,
-          { title: 'Notifications', message: 'Lets SoarX Voice show the channel status while you fly.', buttonPositive: 'Allow' },
+          { title: 'Notifications', message: 'Lets ComX show the group status while you ride.', buttonPositive: 'Allow' },
         );
       } catch {}
     }
@@ -80,7 +80,7 @@ export function HomeScreen({onJoined, onSettings}: HomeScreenProps) {
     if (!canJoin || isJoining) return;
     const hasPermission = await requestMicPermission();
     if (!hasPermission) {
-      Alert.alert('Permission Required', 'SoarX Voice needs microphone access to work. Please enable it in Settings.');
+      Alert.alert('Permission Required', 'ComX needs microphone access to work. Please enable it in Settings.');
       return;
     }
     setIsJoining(true);
@@ -199,7 +199,7 @@ export function HomeScreen({onJoined, onSettings}: HomeScreenProps) {
         onPress={handleJoin}
         disabled={!canJoin || isJoining}
         activeOpacity={0.8}>
-        <Text style={styles.joinText}>{isJoining ? 'Connecting...' : 'Join Flight'}</Text>
+        <Text style={styles.joinText}>{isJoining ? 'Connecting...' : 'Join group'}</Text>
       </TouchableOpacity>
 
       <TouchableOpacity style={styles.bleButton} onPress={onSettings} activeOpacity={0.7}>

@@ -22,6 +22,7 @@ import {soundFile} from '../utils/sounds';
 import {APP_VERSION} from '../version';
 import type {MuteFeedbackMode} from '../hooks/useMute';
 import {useWatch, WatchModeSetting} from '../contexts/WatchContext';
+import {WatchBridge} from '../services/WatchBridge';
 
 const WATCH_MODES: {value: WatchModeSetting; label: string}[] = [
   {value: 'auto', label: 'Auto'},
@@ -51,7 +52,7 @@ interface BLEDevice {
 // Why the radio cannot scan, in words a pilot can act on.
 const BLE_REASONS: Record<string, string> = {
   unauthorized:
-    'Bluetooth permission was refused. Enable it in iOS Settings > SoarX Voice > Bluetooth, then scan again.',
+    'Bluetooth permission was refused. Enable it in iOS Settings > ComX > Bluetooth, then scan again.',
   'bluetooth-off': 'Bluetooth is turned off. Switch it on in Control Centre, then scan again.',
   unsupported: 'This device does not support Bluetooth Low Energy.',
   resetting: 'Bluetooth is restarting — try again in a moment.',
@@ -246,8 +247,8 @@ export function SettingsScreen({onDone}: SettingsScreenProps) {
         <View style={[styles.card, {backgroundColor: colors.bgCard, borderColor: colors.cardBorder}]}>
           <View style={styles.toggleRow}>
             <View style={{flex: 1}}>
-              <Text style={[styles.toggleLabel, {color: colors.text}]}>Pilot joined / left</Text>
-              <Text style={[styles.toggleHint, {color: colors.textMuted}]}>Announce when pilots connect or disconnect</Text>
+              <Text style={[styles.toggleLabel, {color: colors.text}]}>Rider joined / left</Text>
+              <Text style={[styles.toggleHint, {color: colors.textMuted}]}>Announce when riders connect or disconnect</Text>
             </View>
             <Switch
               value={ttsEnabled}
@@ -266,7 +267,7 @@ export function SettingsScreen({onDone}: SettingsScreenProps) {
         <View style={[styles.card, {backgroundColor: colors.bgCard, borderColor: colors.cardBorder}]}>
           <Text style={[styles.cardDescription, {color: colors.textSecondary}]}>
             Watch mode: talk and listen on your watch while the phone stays in a waterproof pouch. The phone
-            mic is turned off. Auto switches it on when a watch with SoarX Voice is reachable and no headphones are
+            mic is turned off. Auto switches it on when a watch with ComX is reachable and no headphones are
             connected.
           </Text>
           <View style={styles.segmentedControl}>
@@ -292,19 +293,27 @@ export function SettingsScreen({onDone}: SettingsScreenProps) {
             {!watch.available
               ? 'Watch support is not available in this build.'
               : watch.watches.length === 0
-                ? 'No watch found. Install SoarX Voice on your watch.'
+                ? 'No watch found. Install ComX on your watch.'
                 : watch.watches
                     .map(w => `${PLATFORM_NAMES[w.platform] ?? w.platform} ${w.name}: ${
                       !w.installed ? 'app not installed' : w.reachable ? 'connected' : 'not reachable'}`)
                     .join('\n')}
           </Text>
+          {WatchBridge.canSelectGarmin && (
+            <TouchableOpacity
+              style={[styles.segmentButton, {borderColor: colors.primary, marginTop: spacing.md}]}
+              onPress={() => WatchBridge.selectGarminDevices()}
+              activeOpacity={0.7}>
+              <Text style={[styles.segmentText, {color: colors.primary}]}>Connect a Garmin watch</Text>
+            </TouchableOpacity>
+          )}
         </View>
 
         {/* --- Bluetooth Button Section --- */}
         <Text style={[styles.sectionTitle, {color: colors.textSecondary}]}>BLUETOOTH BUTTON</Text>
         <View style={[styles.card, {backgroundColor: colors.bgCard, borderColor: colors.cardBorder}]}>
           <Text style={[styles.cardDescription, {color: colors.textSecondary}]}>
-            Connect a BLE button to toggle mute during flight — works with screen locked
+            Connect a BLE button to toggle mute while riding — works with screen locked
           </Text>
 
           {savedDevices.length > 0 && !showScan ? (

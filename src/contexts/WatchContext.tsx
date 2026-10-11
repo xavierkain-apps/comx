@@ -16,6 +16,13 @@ import {WatchBridge, WatchInfo, WatchPlatform, VOICE_PLATFORMS, isActiveWatch} f
 import {PROTOCOL_VERSION, buildWatchState, parseWatchMessage} from '../ride/protocol';
 import {appLog} from '../utils/logger';
 import {micPolicy, WatchModeSetting} from '../ride/micPolicy';
+import {
+  CHUNK_INTERVAL_MS,
+  ClipAssembler,
+  MAX_CLIP_CHARS,
+  parseVoiceChunk,
+  splitClip,
+} from '../ride/voiceClips';
 
 export type {WatchModeSetting};
 const SETTING_KEY = '@soarx_watch_mode';
@@ -51,9 +58,12 @@ interface WatchContextValue {
 const WatchContext = createContext<WatchContextValue | null>(null);
 
 export function WatchProvider({children}: {children: ReactNode}) {
-  const {connectionState, channelName, getEngine, setMicOverride, isHeadphonesConnected} = useAgoraContext();
+  const {
+    connectionState, channelName, getEngine, setMicOverride, isHeadphonesConnected,
+    sendStreamJson, subscribeStream, localUid,
+  } = useAgoraContext();
   const {pilotName} = useUser();
-  const {myPosition, riders, sendQuickMessage, setSos, subscribeRideEvents} = useRide();
+  const {myPosition, riders, sendQuickMessage, setSos, subscribeRideEvents, logMessage} = useRide();
   const connected = connectionState === 'connected';
 
   const [watches, setWatches] = useState<WatchInfo[]>([]);
@@ -62,6 +72,7 @@ export function WatchProvider({children}: {children: ReactNode}) {
   const [injecting, setInjecting] = useState(false);
   const [helloAt, setHelloAt] = useState<Partial<Record<WatchPlatform, number>>>({});
   const clipDirRef = useRef<string | null>(null);
+  const voiceWatchActiveRef = useRef(false);
 
   useEffect(() => {
     AsyncStorage.getItem(SETTING_KEY).then(v => {
@@ -94,6 +105,8 @@ export function WatchProvider({children}: {children: ReactNode}) {
   const garminActive =
     watches.some(w => isActiveWatch(w) && w.platform === 'garmin') ||
     (helloAt.garmin ?? 0) > now - HELLO_TTL_MS;
+
+  voiceWatchActiveRef.current = voiceWatchActive;
 
   const {watchMode, pttMode, override} = micPolicy({
     connected,
@@ -189,9 +202,13 @@ export function WatchProvider({children}: {children: ReactNode}) {
           break;
       }
     });
-    const clipSub = WatchBridge.onClip(({platform, path, durationMs}) => {
-      appLog('Watch', `clip from ${platform}: ${durationMs} ms`);
+    const clipSub = WatchBridge.onClip(({platform, path, durationMs, to}) => {
+      appLog('Watch', `clip from ${platform}: ${durationMs} ms${typeof to === 'number' ? ` to ${to}` : ''}`);
       setHelloAt(prev => ({...prev, [platform]: Date.now()}));
+      if (typeof to === 'number' && to !== 0) {
+        sendPrivateClipRef.current(path, to, durationMs);
+        return;
+      }
       clipQueueRef.current.push({path, durationMs});
       if (!playingRef.current) playNextClip();
     });
@@ -200,6 +217,57 @@ export function WatchProvider({children}: {children: ReactNode}) {
       clipSub?.remove();
     };
   }, [sendQuickMessage, setSos, playNextClip]);
+
+  // ---- Private voice messages (one rider) ----------------------------------
+  const ridersByUid = useRef(new Map<number, string>());
+  ridersByUid.current = new Map(riders.map(r => [r.uid, r.name]));
+
+  const sendPrivateClip = useCallback(async (path: string, to: number, durationMs: number) => {
+    const name = ridersByUid.current.get(to) ?? 'a rider';
+    const base64 = await WatchBridge.readClipBase64(path);
+    if (!base64 || base64.length > MAX_CLIP_CHARS) {
+      appLog('Watch', `private clip not sent (${base64 ? 'too long' : 'unreadable'})`);
+      logMessage('You', 'voice', `Voice message to ${name} not sent`);
+      return;
+    }
+    const ext = path.split('.').pop()?.toLowerCase() || 'm4a';
+    const chunks = splitClip(base64, `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`, to, durationMs, ext);
+    chunks.forEach((chunk, i) => {
+      setTimeout(() => sendStreamJson(chunk), i * CHUNK_INTERVAL_MS);
+    });
+    logMessage('You', 'voice', `🎤 Voice message to ${name}`);
+  }, [sendStreamJson, logMessage]);
+  const sendPrivateClipRef = useRef(sendPrivateClip);
+  sendPrivateClipRef.current = sendPrivateClip;
+
+  const assemblerRef = useRef(new ClipAssembler());
+  const localUidRef = useRef<number | null>(null);
+  localUidRef.current = localUid;
+
+  useEffect(() => {
+    return subscribeStream(async (fromUid, raw) => {
+      if (raw.type !== 'vc') return;
+      const chunk = parseVoiceChunk(raw);
+      if (!chunk || chunk.to !== localUidRef.current) return;
+      const clip = assemblerRef.current.add(fromUid, chunk, Date.now());
+      if (!clip) return;
+      const from = ridersByUid.current.get(fromUid) ?? 'A rider';
+      const path = await WatchBridge.writeClip(clip.base64, clip.ext);
+      logMessage(from, 'voice', '🎤 Voice message for you', fromUid);
+      if (!path) {
+        appLog('Watch', 'private clip received but could not be saved');
+        return;
+      }
+      if (voiceWatchActiveRef.current) {
+        WatchBridge.sendClip(path, {
+          v: PROTOCOL_VERSION, kind: 'clip', uid: fromUid, from, durationMs: clip.durationMs, private: true,
+        });
+      } else {
+        // No watch: play it on this phone only (loopback = not sent to the channel)
+        getEngine()?.startAudioMixing(path, true, 1);
+      }
+    });
+  }, [subscribeStream, logMessage, getEngine]);
 
   // ---- Channel → watches ----------------------------------------------------
   const stateRef = useRef<object | null>(null);

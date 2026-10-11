@@ -57,7 +57,7 @@ export function VoiceScreen({onLeft}: VoiceScreenProps) {
   }, [autoDisconnected, onLeft]);
 
   const handleLeave = () => {
-    Alert.alert('Leave Flight', 'Are you sure you want to leave this channel?', [
+    Alert.alert('Leave group', 'Are you sure you want to leave this group?', [
       {text: 'Cancel', style: 'cancel'},
       { text: 'Leave', style: 'destructive', onPress: async () => { await leaveChannel(); onLeft(); } },
     ]);
@@ -168,7 +168,7 @@ export function VoiceScreen({onLeft}: VoiceScreenProps) {
       </View>
 
       <TouchableOpacity style={styles.leaveButton} onPress={handleLeave} activeOpacity={0.6}>
-        <Text style={styles.leaveText}>Leave Flight</Text>
+        <Text style={styles.leaveText}>Leave group</Text>
       </TouchableOpacity>
     </View>
   );

@@ -22,6 +22,9 @@ interface NativeWatchBridge {
   sendClip(path: string, metaJson: string): void;
   getStatus(): Promise<WatchInfo[]>;
   getClipDir(): Promise<string>;
+  readClipBase64?(path: string): Promise<string>;
+  writeClip?(base64: string, ext: string): Promise<string>;
+  selectGarminDevices?(): Promise<void>;
 }
 
 const native: NativeWatchBridge | undefined = NativeModules.WatchBridge;
@@ -71,11 +74,37 @@ export const WatchBridge = {
     }
   },
 
+  /** Read a clip as base64 to send it to one rider over the data stream. */
+  async readClipBase64(path: string): Promise<string | null> {
+    if (!native?.readClipBase64) return null;
+    try {
+      return await native.readClipBase64(path);
+    } catch {
+      return null;
+    }
+  },
+
+  /** Save a received clip and return its path. */
+  async writeClip(base64: string, ext: string): Promise<string | null> {
+    if (!native?.writeClip) return null;
+    try {
+      return await native.writeClip(base64, ext);
+    } catch {
+      return null;
+    }
+  },
+
+  /** iOS: let the user pick Garmin watches in Garmin Connect. */
+  canSelectGarmin: !!native?.selectGarminDevices,
+  async selectGarminDevices(): Promise<void> {
+    await native?.selectGarminDevices?.();
+  },
+
   onMessage(cb: (e: {platform: WatchPlatform; json: string}) => void): EmitterSubscription | null {
     return emitter ? emitter.addListener('WatchMessage', cb) : null;
   },
 
-  onClip(cb: (e: {platform: WatchPlatform; path: string; durationMs: number}) => void): EmitterSubscription | null {
+  onClip(cb: (e: {platform: WatchPlatform; path: string; durationMs: number; to?: number | null}) => void): EmitterSubscription | null {
     return emitter ? emitter.addListener('WatchClip', cb) : null;
   },
 

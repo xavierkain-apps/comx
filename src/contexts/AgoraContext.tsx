@@ -62,6 +62,8 @@ interface AgoraContextValue {
    */
   setMicOverride: (mode: MicOverride) => void;
   micOverride: MicOverride;
+  /** Our Agora uid in the current channel, or null when not joined. */
+  localUid: number | null;
 }
 
 export type MicOverride = 'normal' | 'silenced' | 'open';
@@ -86,6 +88,7 @@ export function AgoraProvider({children}: {children: ReactNode}) {
   const audioInterruptedRef = useRef(false);
   const announcedUidsRef = useRef<Set<number>>(new Set());
   const streamListenersRef = useRef<Set<StreamListener>>(new Set());
+  const [localUid, setLocalUid] = useState<number | null>(null);
   const micOverrideRef = useRef<MicOverride>('normal');
   const [micOverride, setMicOverrideState] = useState<MicOverride>('normal');
 
@@ -198,11 +201,15 @@ export function AgoraProvider({children}: {children: ReactNode}) {
       AudioScenarioType.AudioScenarioChorus,
     );
 
+    engine.addListener('onJoinChannelSuccess', connection => {
+      setLocalUid(connection.localUid ?? null);
+    });
+
     // Remote user joined — add with temporary name, then broadcast our name
     engine.addListener('onUserJoined', (connection, remoteUid) => {
       setRemotePilots(prev => {
         if (prev.find(p => p.uid === remoteUid)) return prev;
-        const updated = [...prev, {uid: remoteUid, name: `Pilot`, status: 'listening' as const, audioVolume: 0}];
+        const updated = [...prev, {uid: remoteUid, name: `Rider`, status: 'listening' as const, audioVolume: 0}];
         remotePilotsRef.current = updated;
         return updated;
       });
@@ -216,7 +223,7 @@ export function AgoraProvider({children}: {children: ReactNode}) {
     engine.addListener('onUserOffline', (connection, remoteUid) => {
       // Announce departure with name before removing
       const pilot = remotePilotsRef.current.find(p => p.uid === remoteUid);
-      const departed = pilot && pilot.name !== 'Pilot' ? pilot.name : 'A pilot';
+      const departed = pilot && pilot.name !== 'Rider' ? pilot.name : 'A rider';
       speak(`${departed} left`);
       appLog('TTS', `${departed} left (uid=${remoteUid})`);
       announcedUidsRef.current.delete(remoteUid);
@@ -505,6 +512,7 @@ export function AgoraProvider({children}: {children: ReactNode}) {
     setIsPausedForVideo(false);
     micOverrideRef.current = 'normal';
     setMicOverrideState('normal');
+    setLocalUid(null);
     appLog('Agora', 'leaveChannel() END');
   }, [stopInactivityTimer]);
 
@@ -734,6 +742,7 @@ export function AgoraProvider({children}: {children: ReactNode}) {
         getEngine,
         setMicOverride,
         micOverride,
+        localUid,
       }}>
       {children}
     </AgoraContext.Provider>
