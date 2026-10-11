@@ -31,7 +31,9 @@ jobs:
           distribution: temurin
           java-version: 17
 
-      - uses: android-actions/setup-android@v3
+      # No android-actions/setup-android: v3 now fails installing the removed
+      # `tools` package. The runner image ships the Android SDK (ANDROID_HOME)
+      # and Gradle downloads any missing platform or build-tools.
 
       - uses: gradle/actions/setup-gradle@v4
 
