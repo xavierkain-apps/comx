@@ -121,13 +121,29 @@ jobs:
           path: garmin/bin/*.prg
           if-no-files-found: error
 
-      # Unit tests (source/Tests.mc) in the simulator, headless under Xvfb,
-      # with the image's own runner script (compiles with -t, runs monkeydo -t).
+      # Unit tests (source/Tests.mc) in the simulator, headless under Xvfb.
       - name: Unit tests in the simulator (fenix7)
         if: ${{ !cancelled() }}
+        timeout-minutes: 10
         run: |
           docker run --rm \
             -v "$GITHUB_WORKSPACE/garmin:/app" \
             -v "$RUNNER_TEMP/key:/key:ro" \
             -w /app \
-            "$CIQ_IMAGE" fenix7 /key/developer_key.der
+            --entrypoint /bin/bash \
+            "$CIQ_IMAGE" -c '
+              set -u
+              mkdir -p /tmp/test
+              monkeyc -f monkey.jungle -d fenix7 -y /key/developer_key.der \
+                -o /tmp/test/test.prg -t -w -l 3 || exit 1
+              export DISPLAY=:1
+              Xvfb "$DISPLAY" -screen 0 1280x1024x24 >/dev/null 2>&1 &
+              sleep 2
+              simulator >/tmp/test/sim.log 2>&1 &
+              sleep 15
+              # monkeydo exits non-zero even on success: judge by the output.
+              timeout 240 monkeydo /tmp/test/test.prg fenix7 -t 2>&1 | tee /tmp/test/out.txt
+              echo "--- simulator log (tail)"
+              tail -20 /tmp/test/sim.log
+              grep -q "^PASSED" /tmp/test/out.txt
+            '

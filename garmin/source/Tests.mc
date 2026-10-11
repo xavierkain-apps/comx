@@ -3,14 +3,18 @@
 // bridge sends, since that is where Garmin's numeric types bite.
 
 import Toybox.Lang;
+import Toybox.System;
 import Toybox.Test;
 
-//! assertEqual that accepts null on either side (strict typing forbids
-//! passing a nullable value to Test.assertEqual).
-(:test)
+//! Equality that accepts null on either side (strict typing forbids passing
+//! a nullable value to Test.assertEqual). Not annotated (:test) on purpose:
+//! the runner would try to call it as a test.
 function eq(actual as Object?, expected as Object?) as Void {
     var same = actual == null ? expected == null : actual.equals(expected);
-    Test.assertMessage(same, "expected " + expected + ", got " + actual);
+    if (!same) {
+        System.println("MISMATCH expected " + expected + ", got " + actual);
+    }
+    Test.assert(same);
 }
 
 (:test)
