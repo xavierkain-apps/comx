@@ -21,6 +21,15 @@ import {useTheme} from '../contexts/ThemeContext';
 import {soundFile} from '../utils/sounds';
 import {APP_VERSION} from '../version';
 import type {MuteFeedbackMode} from '../hooks/useMute';
+import {useWatch, WatchModeSetting} from '../contexts/WatchContext';
+
+const WATCH_MODES: {value: WatchModeSetting; label: string}[] = [
+  {value: 'auto', label: 'Auto'},
+  {value: 'on', label: 'On'},
+  {value: 'off', label: 'Off'},
+];
+
+const PLATFORM_NAMES = {watchos: 'Apple Watch', wearos: 'Wear OS', garmin: 'Garmin'} as const;
 
 const {BLEButtonManager} = NativeModules;
 const FEEDBACK_KEY = '@soarx_mute_feedback';
@@ -55,6 +64,7 @@ interface SettingsScreenProps {
 
 export function SettingsScreen({onDone}: SettingsScreenProps) {
   const {colors} = useTheme();
+  const watch = useWatch();
 
   // --- Debug ---
   const [logText, setLogText] = useState('');
@@ -249,6 +259,45 @@ export function SettingsScreen({onDone}: SettingsScreenProps) {
               thumbColor="#FFFFFF"
             />
           </View>
+        </View>
+
+        {/* --- Watch Section --- */}
+        <Text style={[styles.sectionTitle, {color: colors.textSecondary}]}>WATCH</Text>
+        <View style={[styles.card, {backgroundColor: colors.bgCard, borderColor: colors.cardBorder}]}>
+          <Text style={[styles.cardDescription, {color: colors.textSecondary}]}>
+            Watch mode: talk and listen on your watch while the phone stays in a waterproof pouch. The phone
+            mic is turned off. Auto switches it on when a watch with SoarX Voice is reachable and no headphones are
+            connected.
+          </Text>
+          <View style={styles.segmentedControl}>
+            {WATCH_MODES.map(mode => (
+              <TouchableOpacity
+                key={mode.value}
+                style={[
+                  styles.segmentButton,
+                  {borderColor: colors.cardBorder},
+                  watch.setting === mode.value && {backgroundColor: colors.primary, borderColor: colors.primary},
+                ]}
+                onPress={() => watch.setSetting(mode.value)}
+                activeOpacity={0.7}>
+                <Text style={[
+                  styles.segmentText,
+                  {color: colors.textSecondary},
+                  watch.setting === mode.value && {color: '#FFFFFF'},
+                ]}>{mode.label}</Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+          <Text style={[styles.toggleHint, {color: colors.textMuted, marginTop: spacing.md}]}>
+            {!watch.available
+              ? 'Watch support is not available in this build.'
+              : watch.watches.length === 0
+                ? 'No watch found. Install SoarX Voice on your watch.'
+                : watch.watches
+                    .map(w => `${PLATFORM_NAMES[w.platform] ?? w.platform} ${w.name}: ${
+                      !w.installed ? 'app not installed' : w.reachable ? 'connected' : 'not reachable'}`)
+                    .join('\n')}
+          </Text>
         </View>
 
         {/* --- Bluetooth Button Section --- */}

@@ -44,4 +44,21 @@ jest.mock('react-native-agora', () => ({
     AudioSessionOperationRestrictionNone: 0,
     AudioSessionOperationRestrictionAll: 127,
   },
+  AudioFileRecordingType: {AudioFileRecordingPlayback: 2},
+  AudioRecordingQualityType: {AudioRecordingQualityLow: 0},
+  AudioMixingStateType: {
+    AudioMixingStatePlaying: 710,
+    AudioMixingStateStopped: 713,
+    AudioMixingStateFailed: 714,
+  },
+}));
+
+jest.mock('@react-native-community/geolocation', () => ({
+  __esModule: true,
+  default: {
+    setRNConfiguration: jest.fn(),
+    requestAuthorization: jest.fn(success => success()),
+    watchPosition: jest.fn(() => 1),
+    clearWatch: jest.fn(),
+  },
 }));

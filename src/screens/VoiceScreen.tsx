@@ -8,6 +8,9 @@ import {useBluetoothHID} from '../hooks/useBluetoothHID';
 import {MuteButton} from '../components/MuteButton';
 import {PilotList} from '../components/PilotList';
 import {ChannelBadge} from '../components/ChannelBadge';
+import {RideBar} from '../components/RideBar';
+import {useRide} from '../contexts/RideContext';
+import {useWatch} from '../contexts/WatchContext';
 import {useTheme} from '../contexts/ThemeContext';
 import {soundFile} from '../utils/sounds';
 import {colors as defaultColors, fonts, spacing, radius} from '../theme';
@@ -23,6 +26,8 @@ export function VoiceScreen({onLeft}: VoiceScreenProps) {
   const {isMuted, toggle} = useMute();
   useBluetoothHID(toggle);
   const audioPlayedRef = useRef(false);
+  const {riders} = useRide();
+  const watch = useWatch();
 
   // Play audio warning for silence timeout
   useEffect(() => {
@@ -103,11 +108,22 @@ export function VoiceScreen({onLeft}: VoiceScreenProps) {
       )}
 
       <View style={styles.pilotListWrapper}>
-        <PilotList remotePilots={remotePilots} localPilotName={pilotName} isMuted={isMuted} />
+        <PilotList remotePilots={remotePilots} localPilotName={pilotName} isMuted={isMuted} riders={riders} />
       </View>
 
+      <RideBar />
+
       <View style={styles.controls}>
-        <MuteButton isMuted={isMuted} onPress={toggle} />
+        {watch.watchMode ? (
+          <View style={[styles.watchPill, {backgroundColor: colors.primaryLight, borderColor: colors.primary}]}>
+            <Text style={[styles.watchTitle, {color: colors.primary}]}>⌚ Watch mode</Text>
+            <Text style={[styles.watchHint, {color: colors.textSecondary}]}>
+              {watch.phonePtt ? 'Phone mic on (talk via phone)' : 'Talk and listen on your watch — phone mic off'}
+            </Text>
+          </View>
+        ) : (
+          <MuteButton isMuted={isMuted} onPress={toggle} />
+        )}
 
         {isHeadphonesConnected ? (
           <View style={[styles.speakerPill, {backgroundColor: colors.bgCard, borderColor: colors.green + '66'}]}>
@@ -223,6 +239,22 @@ const styles = StyleSheet.create({
   },
   speakerTextActive: {
     color: defaultColors.primary,
+  },
+  watchPill: {
+    borderWidth: 1,
+    borderRadius: radius.lg,
+    paddingVertical: spacing.md,
+    paddingHorizontal: spacing.xl,
+    alignItems: 'center',
+  },
+  watchTitle: {
+    fontSize: fonts.body,
+    fontWeight: '800',
+  },
+  watchHint: {
+    fontSize: fonts.sm,
+    marginTop: spacing.xs,
+    textAlign: 'center',
   },
   leaveButton: {
     paddingVertical: spacing.md,

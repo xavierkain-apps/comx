@@ -46,7 +46,22 @@ interface AgoraContextValue {
   isHeadphonesConnected: boolean;
   isInterrupted: boolean;
   playEffect: (soundId: number, filePath: string) => void;
+  /** Send a JSON message to everyone in the channel over the data stream. */
+  sendStreamJson: (msg: object) => boolean;
+  /** Receive every data-stream message except names. Returns an unsubscribe. */
+  subscribeStream: (listener: StreamListener) => () => void;
+  /** The live engine, or null before the first join. */
+  getEngine: () => IRtcEngine | null;
+  /**
+   * Silence the phone microphone while keeping our stream published, so audio
+   * mixed in (watch voice clips) still reaches the channel. Used in watch mode,
+   * when the phone sits in a waterproof pouch.
+   */
+  setPhoneMicSilenced: (silenced: boolean) => void;
+  isPhoneMicSilenced: boolean;
 }
+
+export type StreamListener = (remoteUid: number, msg: Record<string, unknown>) => void;
 
 const AgoraContext = createContext<AgoraContextValue | null>(null);
 
@@ -65,6 +80,9 @@ export function AgoraProvider({children}: {children: ReactNode}) {
   const leaveChannelRef = useRef<() => Promise<void>>(async () => {});
   const audioInterruptedRef = useRef(false);
   const announcedUidsRef = useRef<Set<number>>(new Set());
+  const streamListenersRef = useRef<Set<StreamListener>>(new Set());
+  const micSilencedRef = useRef(false);
+  const [isPhoneMicSilenced, setIsPhoneMicSilenced] = useState(false);
 
   const lastActivityRef = useRef<number>(Date.now());
   const aloneStartRef = useRef<number | null>(null);
@@ -129,20 +147,33 @@ export function AgoraProvider({children}: {children: ReactNode}) {
     appLog('TTS', text);
   }, []);
 
-  // Send pilot name to all users in the channel via data stream
-  const broadcastName = useCallback((engine: IRtcEngine) => {
+  // Send a JSON message to all users in the channel via the data stream
+  const sendJson = useCallback((engine: IRtcEngine, msg: object): boolean => {
     try {
       if (dataStreamIdRef.current === null) {
         const streamId = engine.createDataStream({syncWithAudio: false, ordered: true});
         dataStreamIdRef.current = streamId;
       }
-      const msg = JSON.stringify({type: 'name', name: pilotNameRef.current});
-      const data = utf8Encode(msg);
-      engine.sendStreamMessage(dataStreamIdRef.current!, data, data.length);
-      console.log('[Agora] Broadcast name:', pilotNameRef.current);
+      const data = utf8Encode(JSON.stringify(msg));
+      const ret = engine.sendStreamMessage(dataStreamIdRef.current!, data, data.length);
+      return ret === 0;
     } catch (e) {
-      console.warn('[Agora] broadcastName error:', e);
+      console.warn('[Agora] sendStreamMessage error:', e);
+      return false;
     }
+  }, []);
+
+  // Send pilot name to all users in the channel via data stream
+  const broadcastName = useCallback((engine: IRtcEngine) => {
+    if (sendJson(engine, {type: 'name', name: pilotNameRef.current})) {
+      console.log('[Agora] Broadcast name:', pilotNameRef.current);
+    }
+  }, [sendJson]);
+
+  // The stream must stay published while the phone mic is silenced, otherwise
+  // the watch clips mixed into it would never leave the phone.
+  const applyLocalStreamMute = useCallback((engine: IRtcEngine) => {
+    engine.muteLocalAudioStream(micSilencedRef.current ? false : isMutedRef.current);
   }, []);
 
   const initEngine = useCallback(async () => {
@@ -199,6 +230,16 @@ export function AgoraProvider({children}: {children: ReactNode}) {
       try {
         const text = utf8Decode(data);
         const msg = JSON.parse(text);
+        if (msg && msg.type !== 'name') {
+          streamListenersRef.current.forEach(listener => {
+            try {
+              listener(remoteUid, msg);
+            } catch (err) {
+              console.warn('[Agora] stream listener error:', err);
+            }
+          });
+          return;
+        }
         console.log('[Agora] Received name from', remoteUid, ':', msg.name);
         if (msg.type === 'name' && msg.name) {
           // Announce pilot on first name reception
@@ -288,7 +329,7 @@ export function AgoraProvider({children}: {children: ReactNode}) {
         appLog('Agora', 'Audio interruption ended — auto-resuming');
         audioInterruptedRef.current = false;
         engine.enableAudio();
-        engine.muteLocalAudioStream(isMutedRef.current);
+        applyLocalStreamMute(engine);
         setIsPausedForVideo(false);
       }
     });
@@ -307,7 +348,7 @@ export function AgoraProvider({children}: {children: ReactNode}) {
     engine.enableAudioVolumeIndication(250, 3, true);
     engineRef.current = engine;
     return engine;
-  }, [broadcastName, resetActivity, settleJoin, speak]);
+  }, [applyLocalStreamMute, broadcastName, resetActivity, settleJoin, speak]);
 
   const stopInactivityTimer = useCallback(() => {
     if (inactivityTimerRef.current) {
@@ -402,6 +443,7 @@ export function AgoraProvider({children}: {children: ReactNode}) {
     try {
       engine.joinChannel('', config.channelName, 0, {});
       engine.muteLocalAudioStream(false);
+      engine.adjustRecordingSignalVolume(micSilencedRef.current ? 0 : 100);
     } catch (e) {
       settleJoin(e instanceof Error ? e : new Error('Join call failed'));
     }
@@ -438,6 +480,9 @@ export function AgoraProvider({children}: {children: ReactNode}) {
     stopInactivityTimer();
     const engine = engineRef.current;
     if (engine) {
+      if (micSilencedRef.current) {
+        engine.adjustRecordingSignalVolume(100);
+      }
       appLog('Agora', 'calling engine.leaveChannel()');
       engine.leaveChannel();
       appLog('Agora', 'engine.leaveChannel() done');
@@ -453,6 +498,8 @@ export function AgoraProvider({children}: {children: ReactNode}) {
     announcedUidsRef.current.clear();
     audioInterruptedRef.current = false;
     setIsPausedForVideo(false);
+    micSilencedRef.current = false;
+    setIsPhoneMicSilenced(false);
     appLog('Agora', 'leaveChannel() END');
   }, [stopInactivityTimer]);
 
@@ -497,7 +544,7 @@ export function AgoraProvider({children}: {children: ReactNode}) {
       if (engine && connectionStateRef.current === 'connected') {
         // Restore mute state to what it was before interruption
         engine.enableAudio();
-        engine.muteLocalAudioStream(isMutedRef.current);
+        applyLocalStreamMute(engine);
         setIsInterrupted(false);
         appLog('AudioSession', `Mic restored to muted=${isMutedRef.current}`);
       }
@@ -509,7 +556,7 @@ export function AgoraProvider({children}: {children: ReactNode}) {
       interruptSub.remove();
       resumeSub.remove();
     };
-  }, []);
+  }, [applyLocalStreamMute]);
 
   // AppState backup: reclaim mic when app returns to foreground after audio interruption
   useEffect(() => {
@@ -518,21 +565,21 @@ export function AgoraProvider({children}: {children: ReactNode}) {
         console.log('[Agora] AppState active — reclaiming mic after interruption');
         audioInterruptedRef.current = false;
         engineRef.current.enableAudio();
-        engineRef.current.muteLocalAudioStream(isMutedRef.current);
+        applyLocalStreamMute(engineRef.current);
         setIsPausedForVideo(false);
       }
     };
     const sub = AppState.addEventListener('change', handleAppState);
     return () => sub.remove();
-  }, []);
+  }, [applyLocalStreamMute]);
 
   const toggleMute = useCallback(() => {
     appLog('Agora', `toggleMute() called — current=${isMutedRef.current} connState=${connectionStateRef.current}`);
     const engine = engineRef.current;
     if (engine) {
       const newMuted = !isMutedRef.current;
-      engine.muteLocalAudioStream(newMuted);
       isMutedRef.current = newMuted;
+      applyLocalStreamMute(engine);
       setIsMuted(newMuted);
       updateForegroundMuteStatus(newMuted, channelNameRef.current);
       dismissWarning();
@@ -540,7 +587,32 @@ export function AgoraProvider({children}: {children: ReactNode}) {
     } else {
       appLog('Agora', 'toggleMute() — no engine');
     }
-  }, [dismissWarning]);
+  }, [applyLocalStreamMute, dismissWarning]);
+
+  const setPhoneMicSilenced = useCallback((silenced: boolean) => {
+    micSilencedRef.current = silenced;
+    setIsPhoneMicSilenced(silenced);
+    const engine = engineRef.current;
+    if (!engine) return;
+    engine.adjustRecordingSignalVolume(silenced ? 0 : 100);
+    applyLocalStreamMute(engine);
+    appLog('Agora', `phone mic ${silenced ? 'silenced (watch mode)' : 'restored'}`);
+  }, [applyLocalStreamMute]);
+
+  const sendStreamJson = useCallback((msg: object): boolean => {
+    const engine = engineRef.current;
+    if (!engine || connectionStateRef.current !== 'connected') return false;
+    return sendJson(engine, msg);
+  }, [sendJson]);
+
+  const subscribeStream = useCallback((listener: StreamListener) => {
+    streamListenersRef.current.add(listener);
+    return () => {
+      streamListenersRef.current.delete(listener);
+    };
+  }, []);
+
+  const getEngine = useCallback(() => engineRef.current, []);
 
   const toggleSpeaker = useCallback(() => {
     appLog('Agora', `toggleSpeaker() called — current=${isSpeakerOn}`);
@@ -593,14 +665,14 @@ export function AgoraProvider({children}: {children: ReactNode}) {
       );
       // 3. Re-enable audio
       engine.enableAudio();
-      engine.muteLocalAudioStream(isMutedRef.current);
+      applyLocalStreamMute(engine);
     } else {
       engine.enableAudio();
-      engine.muteLocalAudioStream(isMutedRef.current);
+      applyLocalStreamMute(engine);
     }
     setIsPausedForVideo(false);
     appLog('Agora', 'resumeFromVideo — done');
-  }, []);
+  }, [applyLocalStreamMute]);
 
   // Auto-resume when app returns to foreground after video pause
   useEffect(() => {
@@ -651,6 +723,11 @@ export function AgoraProvider({children}: {children: ReactNode}) {
         isHeadphonesConnected,
         isInterrupted,
         playEffect: playEffectSound,
+        sendStreamJson,
+        subscribeStream,
+        getEngine,
+        setPhoneMicSilenced,
+        isPhoneMicSilenced,
       }}>
       {children}
     </AgoraContext.Provider>

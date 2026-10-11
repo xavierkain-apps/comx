@@ -7,6 +7,8 @@ if (!__DEV__) {
 }
 import {UserProvider} from './src/contexts/UserContext';
 import {AgoraProvider} from './src/contexts/AgoraContext';
+import {RideProvider} from './src/contexts/RideContext';
+import {WatchProvider} from './src/contexts/WatchContext';
 import {ThemeProvider, useTheme} from './src/contexts/ThemeContext';
 import {HomeScreen} from './src/screens/HomeScreen';
 import {VoiceScreen} from './src/screens/VoiceScreen';
@@ -42,7 +44,11 @@ export default function App() {
     <ThemeProvider>
       <UserProvider>
         <AgoraProvider>
-          <AppContent />
+          <RideProvider>
+            <WatchProvider>
+              <AppContent />
+            </WatchProvider>
+          </RideProvider>
         </AgoraProvider>
       </UserProvider>
     </ThemeProvider>
