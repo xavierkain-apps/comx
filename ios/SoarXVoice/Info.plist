@@ -36,7 +36,9 @@
 	<key>NSLocationWhenInUseUsageDescription</key>
 	<string>ComX shares your position with the riders in your channel so everyone can see distance and direction.</string>
 	<key>NSBluetoothAlwaysUsageDescription</key>
-	<string>ComX uses Bluetooth to connect your mute/unmute control buttons.</string>
+	<string>ComX uses Bluetooth to connect your mute/unmute control buttons and your Garmin watch.</string>
+	<key>NSBluetoothPeripheralUsageDescription</key>
+	<string>ComX uses Bluetooth to connect your mute/unmute control buttons and your Garmin watch.</string>
 	<key>NSCameraUsageDescription</key>
 	<string>ComX does not record video. This access is required by the real-time audio framework the app is built on.</string>
 	<key>NSMicrophoneUsageDescription</key>
@@ -80,10 +82,19 @@
 			<key>CFBundleURLName</key>
 			<string>com.soarxvoice.app</string>
 		</dict>
+		<dict>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<string>comx-ciq</string>
+			</array>
+			<key>CFBundleURLName</key>
+			<string>com.xavier.comx.connectiq</string>
+		</dict>
 	</array>
 	<key>LSApplicationQueriesSchemes</key>
 	<array>
 		<string>camera</string>
+		<string>gcm-ciq</string>
 	</array>
 </dict>
 </plist>

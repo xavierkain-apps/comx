@@ -1,7 +1,8 @@
 import AVFoundation
 import Foundation
 
-/// Records one push-to-talk clip: AAC in .m4a, mono, 16 kHz.
+/// Records one push-to-talk clip: AAC in .m4a, mono, 16 kHz, 16 kbit/s
+/// (about 20 KB for 10 s, small enough for the Agora data stream).
 final class ClipRecorder {
   private var recorder: AVAudioRecorder?
   private(set) var url: URL?
@@ -34,7 +35,7 @@ final class ClipRecorder {
       AVFormatIDKey: Int(kAudioFormatMPEG4AAC),
       AVSampleRateKey: 16_000,
       AVNumberOfChannelsKey: 1,
-      AVEncoderAudioQualityKey: AVAudioQuality.high.rawValue,
+      AVEncoderBitRateKey: 16_000,
     ]
     let rec = try AVAudioRecorder(url: url, settings: settings)
     guard rec.record() else {

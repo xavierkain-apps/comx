@@ -15,7 +15,8 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
     didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]? = nil
   ) -> Bool {
     // Activate the watch link before React Native loads so clips and messages
-    // the watch sends meanwhile are buffered rather than dropped.
+    // the watch sends meanwhile are buffered rather than dropped. This also
+    // re-registers the Garmin watches picked earlier (none: Garmin stays off).
     WatchHub.shared.activate()
 
     let delegate = ReactNativeDelegate()
@@ -38,6 +39,10 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
 
   // Handle URL scheme: soarxvoice://toggle
   func application(_ app: UIApplication, open url: URL, options: [UIApplication.OpenURLOptionsKey : Any] = [:]) -> Bool {
+    // Garmin Connect returning the watches the user picked (comx-ciq://...).
+    if GarminLink.shared.handle(url: url) {
+      return true
+    }
     NSLog("[HID] 🔗 URL scheme received: \(url.absoluteString)")
     if url.scheme == "soarxvoice" && url.host == "toggle" {
       NSLog("[HID] 🎯 URL scheme toggle → mute")

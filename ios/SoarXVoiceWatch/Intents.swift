@@ -3,9 +3,9 @@ import Foundation
 
 // Hands-off controls.
 //
-// - StartSessionIntent conforms to StartWorkoutIntent, which makes SoarX Voice
+// - StartSessionIntent conforms to StartWorkoutIntent, which makes ComX
 //   selectable as the workout app of the Apple Watch Ultra Action button
-//   (Settings > Action Button > Workout > SoarX Voice). The first press starts
+//   (Settings > Action Button > Workout > ComX). The first press starts
 //   the session.
 // - ToggleTalkIntent is exposed as an App Shortcut, so it can be put on the
 //   Action button through the Shortcuts app (Action Button > Shortcut) and run
@@ -22,7 +22,7 @@ enum SessionStyle: String, AppEnum {
 }
 
 struct StartSessionIntent: StartWorkoutIntent {
-  static var title: LocalizedStringResource = "Start SoarX session"
+  static var title: LocalizedStringResource = "Start ComX session"
 
   @Parameter(title: "Session")
   var workoutStyle: SessionStyle
@@ -39,6 +39,7 @@ struct StartSessionIntent: StartWorkoutIntent {
 
   @MainActor
   func perform() async throws -> some IntentResult {
+    InputLog.shared.record(.intent, "StartSessionIntent")
     AppModel.shared.startIfNeeded()
     AppModel.shared.startSession()
     return .result()
@@ -53,6 +54,12 @@ struct ToggleTalkIntent: AppIntent {
   @MainActor
   func perform() async throws -> some IntentResult {
     AppModel.shared.startIfNeeded()
+    // On the Input test page the press is only logged.
+    if InputLog.shared.testMode {
+      InputLog.shared.record(.intent, "ToggleTalkIntent (logged only)")
+      return .result()
+    }
+    InputLog.shared.record(.intent, "ToggleTalkIntent")
     AppModel.shared.toggleTalk()
     return .result()
   }

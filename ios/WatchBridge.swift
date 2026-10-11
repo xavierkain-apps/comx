@@ -12,8 +12,12 @@ import WatchConnectivity
 //    are buffered until the JS side listens.
 //  - WatchBridge: the React Native module. It forwards calls to the hub and
 //    emits the hub's events to JS.
+//
+// Garmin watches (Connect IQ iOS SDK) live in GarminLink.m; the hub fans
+// state and events out to both and merges their status.
 
 private let kPlatform = "watchos"
+private let kGarminPlatform = "garmin"
 private let kJsonKey = "json"
 
 final class WatchHub: NSObject, WCSessionDelegate {
@@ -28,6 +32,15 @@ final class WatchHub: NSObject, WCSessionDelegate {
       self.emit = emitter
       if emitter != nil { self.flushPending() }
     }
+  }
+
+  override private init() {
+    super.init()
+    let garmin = GarminLink.shared
+    garmin.onMessage = { [weak self] json in
+      self?.post("WatchMessage", ["platform": kGarminPlatform, "json": json])
+    }
+    garmin.onStatusChange = { [weak self] in self?.postStatus() }
   }
 
   private let queue = DispatchQueue(label: "soarx.watchhub")
@@ -59,6 +72,7 @@ final class WatchHub: NSObject, WCSessionDelegate {
   // MARK: - Activation
 
   func activate() {
+    GarminLink.shared.startIfConfigured()
     guard let session = session else {
       NSLog("[WatchBridge] WatchConnectivity not supported on this device")
       return
@@ -72,6 +86,7 @@ final class WatchHub: NSObject, WCSessionDelegate {
   // MARK: - Outgoing
 
   func sendState(_ json: String) {
+    GarminLink.shared.sendState(json)
     guard let session = readySession() else { return }
     do {
       try session.updateApplicationContext([kJsonKey: json])
@@ -85,6 +100,7 @@ final class WatchHub: NSObject, WCSessionDelegate {
   }
 
   func sendEvent(_ json: String) {
+    GarminLink.shared.sendEvent(json)
     guard let session = readySession() else { return }
     let payload = [kJsonKey: json]
     if session.isReachable {
@@ -125,6 +141,11 @@ final class WatchHub: NSObject, WCSessionDelegate {
   }
 
   func status() -> [[String: Any]] {
+    let garmin: [[String: Any]] = GarminLink.shared.status()
+    return appleWatchStatus() + garmin
+  }
+
+  private func appleWatchStatus() -> [[String: Any]] {
     guard let session = session, session.activationState == .activated else { return [] }
     guard session.isPaired else { return [] }
     return [[
@@ -235,14 +256,16 @@ final class WatchHub: NSObject, WCSessionDelegate {
       return
     }
     var durationMs: Double = 0
+    // `to`: uid of the one rider the clip is for; absent / null = the group.
+    var to: Any = NSNull()
     if let meta = file.metadata,
        let json = WatchHub.jsonString(from: meta),
        let data = json.data(using: .utf8),
-       let obj = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any],
-       let d = obj["durationMs"] as? NSNumber {
-      durationMs = d.doubleValue
+       let obj = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any] {
+      if let d = obj["durationMs"] as? NSNumber { durationMs = d.doubleValue }
+      if let t = obj["to"] as? NSNumber, CFGetTypeID(t) != CFBooleanGetTypeID() { to = t }
     }
-    post("WatchClip", ["platform": kPlatform, "path": dest.path, "durationMs": durationMs])
+    post("WatchClip", ["platform": kPlatform, "path": dest.path, "durationMs": durationMs, "to": to])
     WatchHub.pruneInbox()
   }
 
@@ -314,5 +337,51 @@ class WatchBridge: RCTEventEmitter {
 
   @objc func getClipDir(_ resolve: RCTPromiseResolveBlock, rejecter reject: RCTPromiseRejectBlock) {
     resolve(WatchHub.clipDir.path)
+  }
+
+  /// Base64 of a clip file (plain path or file:// URL), to send it over the
+  /// Agora data stream.
+  @objc func readClipBase64(_ path: String, resolver resolve: RCTPromiseResolveBlock,
+                            rejecter reject: RCTPromiseRejectBlock) {
+    let url = WatchHub.fileURL(from: path)
+    do {
+      let data = try Data(contentsOf: url)
+      resolve(data.base64EncodedString())
+    } catch {
+      reject("E_READ_CLIP", "Cannot read \(url.path): \(error.localizedDescription)", error)
+    }
+  }
+
+  /// Writes a received clip into getClipDir() and resolves its absolute path.
+  /// Like any file there, it is deleted by sendClip.
+  @objc func writeClip(_ base64: String, ext: String, resolver resolve: RCTPromiseResolveBlock,
+                       rejecter reject: RCTPromiseRejectBlock) {
+    guard let data = Data(base64Encoded: base64, options: .ignoreUnknownCharacters), !data.isEmpty else {
+      reject("E_WRITE_CLIP", "Clip is not valid base64", nil)
+      return
+    }
+    let clean = ext.lowercased().filter { $0.isLetter || $0.isNumber }
+    let suffix = clean.isEmpty || clean.count > 5 ? "m4a" : clean
+    let name = "vc-\(Int(Date().timeIntervalSince1970 * 1000))-\(UUID().uuidString.prefix(8)).\(suffix)"
+    let url = WatchHub.clipDir.appendingPathComponent(name)
+    do {
+      try data.write(to: url, options: .atomic)
+      resolve(url.path)
+    } catch {
+      reject("E_WRITE_CLIP", "Cannot write \(url.path): \(error.localizedDescription)", error)
+    }
+  }
+
+  /// Opens Garmin Connect so the user picks the Garmin watches ComX may use.
+  /// Rejects with E_GARMIN_CONNECT_MISSING when Garmin Connect is not installed.
+  @objc func selectGarminDevices(_ resolve: @escaping RCTPromiseResolveBlock,
+                                 rejecter reject: @escaping RCTPromiseRejectBlock) {
+    GarminLink.shared.selectDevices { error in
+      if let error = error {
+        reject("E_GARMIN_CONNECT_MISSING", error, nil)
+      } else {
+        resolve(nil)
+      }
+    }
   }
 }
