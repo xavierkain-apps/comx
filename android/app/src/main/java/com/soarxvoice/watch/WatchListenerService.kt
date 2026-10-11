@@ -61,6 +61,8 @@ class WatchListenerService : WearableListenerService() {
         val pending = synchronized(incoming) { incoming.remove(channel.path) } ?: return
         Wearable.getChannelClient(this).close(channel)
         if (closeReason == ChannelClient.ChannelCallback.CLOSE_REASON_NORMAL && pending.file.length() > 0) {
+            // JS never deletes watch clips after injecting them: keep the cache small.
+            WatchHub.pruneClips(this, maxAgeMs = 15 * 60 * 1000L)
             WatchHub.clip(WearLink.PLATFORM, pending.file.absolutePath, pending.durationMs)
         } else {
             Log.w(TAG, "clip dropped: reason=$closeReason size=${pending.file.length()}")

@@ -43,7 +43,11 @@ class MainActivity : ComponentActivity() {
 
     private var talkAfterGrant = false
     private val permissions = registerForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { res ->
-        if (res[Manifest.permission.RECORD_AUDIO] == true && talkAfterGrant) Talk.start(this)
+        if (res[Manifest.permission.RECORD_AUDIO] == true) {
+            // Restart in the foreground so the service now claims the microphone type.
+            RideService.start(this)
+            if (talkAfterGrant) Talk.start(this)
+        }
         talkAfterGrant = false
     }
 

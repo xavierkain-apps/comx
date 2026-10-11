@@ -55,9 +55,11 @@ class RideService : Service() {
     private var started = false
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+        // Re-run on every start: the activity starts the service again once the
+        // microphone is granted, which widens the type to include `microphone`.
+        goForeground()
         if (!started) {
             started = true
-            goForeground()
             main.post(hello)
         }
         return START_STICKY
