@@ -71,6 +71,8 @@ class SoarXApp extends Application.AppBase {
     private var _queue as Array<Proto.Msg> = [] as Array<Proto.Msg>;
     private var _tries as Array<Number> = [] as Array<Number>; // tries left, parallel to _queue
     private var _busy as Boolean = false;
+    private var _busyAt as Number = 0;
+    private var _txSeq as Number = 0;   // ignores listener calls for a transmit we gave up on
     private var _alarmKey as String? = null;
     private var _alarmLeft as Number = 0;
     private var _lastBuzz as Dictionary<String, Number> = {} as Dictionary<String, Number>;
@@ -102,7 +104,7 @@ class SoarXApp extends Application.AppBase {
         if (ptt) {
             ptt = false;
             try {
-                Communications.transmit(Proto.ptt(false), null, new TxListener(null));
+                Communications.transmit(Proto.ptt(false), null, new TxListener(-1));
             } catch (e) {
             }
         }
@@ -310,8 +312,10 @@ class SoarXApp extends Application.AppBase {
             return;
         }
         _busy = true;
+        _busyAt = System.getTimer();
+        _txSeq++;
         try {
-            Communications.transmit(_queue[0], null, new TxListener(method(:onTxDone)));
+            Communications.transmit(_queue[0], null, new TxListener(_txSeq));
         } catch (e) {
             onTxDone(false);
         }
@@ -322,7 +326,14 @@ class SoarXApp extends Application.AppBase {
         _tries = _tries.slice(1, null);
     }
 
-    function onTxDone(ok as Boolean) as Void {
+    //! Called by TxListener; drops answers for a transmit already abandoned.
+    function onTxResult(seq as Number, ok as Boolean) as Void {
+        if (seq == _txSeq && _busy) {
+            onTxDone(ok);
+        }
+    }
+
+    private function onTxDone(ok as Boolean) as Void {
         _busy = false;
         if (_queue.size() == 0) {
             return;
@@ -369,6 +380,12 @@ class SoarXApp extends Application.AppBase {
             if (ok) {
                 sendHello();
             }
+        }
+        // A transmit whose listener never fires would block the queue for
+        // good; after 20 s count it as failed.
+        if (_busy && now - _busyAt > 20000) {
+            _txSeq++; // a late answer for the abandoned transmit is ignored
+            onTxDone(false);
         }
         if (_tick % 2 == 0) {
             pump(); // retry anything that failed
@@ -618,22 +635,23 @@ class SoarXApp extends Application.AppBase {
 }
 
 class TxListener extends Communications.ConnectionListener {
-    private var _cb as Method?;
+    private var _seq as Number;
 
-    function initialize(cb as Method?) {
+    //! seq < 0: fire and forget.
+    function initialize(seq as Number) {
         ConnectionListener.initialize();
-        _cb = cb;
+        _seq = seq;
     }
 
     function onComplete() as Void {
-        if (_cb != null) {
-            _cb.invoke(true);
+        if (_seq >= 0) {
+            getApp().onTxResult(_seq, true);
         }
     }
 
     function onError() as Void {
-        if (_cb != null) {
-            _cb.invoke(false);
+        if (_seq >= 0) {
+            getApp().onTxResult(_seq, false);
         }
     }
 }

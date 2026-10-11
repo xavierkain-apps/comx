@@ -100,7 +100,7 @@ jobs:
               for d in $BUILD_DEVICES; do
                 echo "::group::$d"
                 if monkeyc -f monkey.jungle -d "$d" -y /key/developer_key.der \
-                     -o "bin/soarx-$d.prg" -w; then
+                     -o "bin/soarx-$d.prg" -w -l 3; then
                   echo "OK $d"
                 else
                   failed="$failed $d"
@@ -120,3 +120,14 @@ jobs:
           name: soarx-garmin-prg
           path: garmin/bin/*.prg
           if-no-files-found: error
+
+      # Unit tests (source/Tests.mc) in the simulator, headless under Xvfb,
+      # with the image's own runner script (compiles with -t, runs monkeydo -t).
+      - name: Unit tests in the simulator (fenix7)
+        if: ${{ !cancelled() }}
+        run: |
+          docker run --rm \
+            -v "$GITHUB_WORKSPACE/garmin:/app" \
+            -v "$RUNNER_TEMP/key:/key:ro" \
+            -w /app \
+            "$CIQ_IMAGE" fenix7 /key/developer_key.der
