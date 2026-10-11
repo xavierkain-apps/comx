@@ -22,6 +22,9 @@ default_platform(:ios)
 
 APP_ID = "com.xavier.soarxvoice"
 APP_NAME = "SoarXVoice"
+# Apple Watch companion, embedded in the iOS app (docs/watch-ios.md).
+WATCH_APP_ID = "#{APP_ID}.watchkitapp"
+WATCH_TARGET = "SoarXVoiceWatch"
 
 platform :ios do
   desc "List the distribution certificates on the account"
@@ -254,7 +257,7 @@ platform :ios do
 
     match(
       type: "appstore",
-      app_identifier: APP_ID,
+      app_identifier: [APP_ID, WATCH_APP_ID],
       api_key: api_key,
       readonly: false,
       storage_mode: "git",
@@ -270,6 +273,7 @@ platform :ios do
     # development profile and fails. Pin the target to the profile match just
     # placed in the shared store.
     profile_name = ENV.fetch("sigh_#{APP_ID}_appstore_profile-name", "match AppStore #{APP_ID}")
+    watch_profile_name = ENV.fetch("sigh_#{WATCH_APP_ID}_appstore_profile-name", "match AppStore #{WATCH_APP_ID}")
 
     update_code_signing_settings(
       use_automatic_signing: false,
@@ -281,13 +285,23 @@ platform :ios do
       targets: [APP_NAME]
     )
 
+    update_code_signing_settings(
+      use_automatic_signing: false,
+      path: "ios/#{APP_NAME}.xcodeproj",
+      team_id: ENV.fetch("APPLE_TEAM_ID"),
+      code_sign_identity: "Apple Distribution",
+      profile_name: watch_profile_name,
+      bundle_identifier: WATCH_APP_ID,
+      targets: [WATCH_TARGET]
+    )
+
     build_app(
       workspace: "ios/#{APP_NAME}.xcworkspace",
       scheme: APP_NAME,
       export_method: "app-store",
       export_team_id: ENV.fetch("APPLE_TEAM_ID"),
       export_options: {
-        provisioningProfiles: {APP_ID => profile_name}
+        provisioningProfiles: {APP_ID => profile_name, WATCH_APP_ID => watch_profile_name}
       }
     )
 

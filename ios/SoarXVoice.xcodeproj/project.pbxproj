@@ -9,34 +9,70 @@
 /* Begin PBXBuildFile section */
 		0B992BE36688F2DE4E5EA046 /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = 13B07FB81A68108700A75B9A /* PrivacyInfo.xcprivacy */; };
 		0C80B921A6F3F58F76C31292 /* libPods-SoarXVoice.a in Frameworks */ = {isa = PBXBuildFile; fileRef = 5DCACB8F33CDC322A6C60F78 /* libPods-SoarXVoice.a */; };
+		11673D5ADCDBB4B9F0FC2691 /* Sensors.swift in Sources */ = {isa = PBXBuildFile; fileRef = ED060D1026DF1618E569F407 /* Sensors.swift */; };
 		13B07FBF1A68108700A75B9A /* Images.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 13B07FB51A68108700A75B9A /* Images.xcassets */; };
+		1E34DEBEC3B9815B2C0678A5 /* AppModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5054D08A17FD631FE83BFBCD /* AppModel.swift */; };
 		251E6A2C2F6605900079205C /* HIDModule.m in Sources */ = {isa = PBXBuildFile; fileRef = 251E6A2A2F6605900079205C /* HIDModule.m */; };
 		251E6A2D2F6605900079205C /* HIDModule.swift in Sources */ = {isa = PBXBuildFile; fileRef = 251E6A2B2F6605900079205C /* HIDModule.swift */; };
 		251E6A312F6617440079205C /* BLEButtonManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 251E6A302F6617440079205C /* BLEButtonManager.swift */; };
 		251E6A322F6617440079205C /* BLEButtonManager.m in Sources */ = {isa = PBXBuildFile; fileRef = 251E6A2F2F6617440079205C /* BLEButtonManager.m */; };
+		2A1C5FCBFC131CC5D60D1BFF /* SoarXVoiceWatch.app in Embed Watch Content */ = {isa = PBXBuildFile; fileRef = 021D0002C5EAD9E0AFC05688 /* SoarXVoiceWatch.app */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 		356CD5CBC1C4AE7F28156711 /* inactivity_warning.mp3 in Resources */ = {isa = PBXBuildFile; fileRef = 93F3057EFF69D4E909C6D916 /* inactivity_warning.mp3 */; };
+		3C19CE8FC4D3ED89001205A5 /* Protocol.swift in Sources */ = {isa = PBXBuildFile; fileRef = 673C89F49B6497C51278E6CE /* Protocol.swift */; };
+		4D7FE641F4AA7B1F704D83A1 /* SoarXVoiceWatchApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9E95C1F8A1BC27223BD88309 /* SoarXVoiceWatchApp.swift */; };
 		50B06CE23F958A3699B2A995 /* voice_unmute.mp3 in Resources */ = {isa = PBXBuildFile; fileRef = 05834232ED914EEBA7C06F17 /* voice_unmute.mp3 */; };
-		A5D10C012F80000000000003 /* AudioSessionManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = A5D10C012F80000000000001 /* AudioSessionManager.swift */; };
-		A5D10C012F80000000000004 /* AudioSessionManager.m in Sources */ = {isa = PBXBuildFile; fileRef = A5D10C012F80000000000002 /* AudioSessionManager.m */; };
+		52561D880E0E1DBFB722365B /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 5E8337D89E96B19AB6945747 /* Assets.xcassets */; };
 		592D9806B2E304055F3CE3F7 /* TTSManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2351364724EC22A41F268D76 /* TTSManager.swift */; };
+		5A25232184B908FA8E59E696 /* WatchBridge.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5D52D1C7337F28C1523D64E6 /* WatchBridge.swift */; };
+		5F078D4A5DC0E8D84C43733D /* WatchBridge.m in Sources */ = {isa = PBXBuildFile; fileRef = AF9E717AA22B4B02F24149B4 /* WatchBridge.m */; };
 		761780ED2CA45674006654EE /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 761780EC2CA45674006654EE /* AppDelegate.swift */; };
 		81AB9BB82411601600AC10FF /* LaunchScreen.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = 81AB9BB72411601600AC10FF /* LaunchScreen.storyboard */; };
 		87AC5606BF35C49D94992060 /* HapticManager.m in Sources */ = {isa = PBXBuildFile; fileRef = 6B6333A8387ACC28B5B6A9CD /* HapticManager.m */; };
 		8893BBBBDAA170459889A681 /* beep_single.mp3 in Resources */ = {isa = PBXBuildFile; fileRef = FC0E281E0AFBFEC819D6D979 /* beep_single.mp3 */; };
+		9739BAD568656A95C6773DAF /* Intents.swift in Sources */ = {isa = PBXBuildFile; fileRef = DE9C44A7567B31232C6E7161 /* Intents.swift */; };
 		9D60CE20D2042E04EE36D6AC /* beep_double.mp3 in Resources */ = {isa = PBXBuildFile; fileRef = 355D75D50E6E2FC0FAF0567E /* beep_double.mp3 */; };
+		A5D10C012F80000000000003 /* AudioSessionManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = A5D10C012F80000000000001 /* AudioSessionManager.swift */; };
+		A5D10C012F80000000000004 /* AudioSessionManager.m in Sources */ = {isa = PBXBuildFile; fileRef = A5D10C012F80000000000002 /* AudioSessionManager.m */; };
 		A818D0CCEF987E2EFA2DC224 /* voice_mute.mp3 in Resources */ = {isa = PBXBuildFile; fileRef = A99F0168CA49634E8F39762D /* voice_mute.mp3 */; };
+		B0D281E952D6660F804FE237 /* Audio.swift in Sources */ = {isa = PBXBuildFile; fileRef = DFC03273D5D73C9C59C36D9C /* Audio.swift */; };
 		D398C0BBA36E17D2852BC08F /* TTSManager.m in Sources */ = {isa = PBXBuildFile; fileRef = F6F7EE5FC0A5AB17D84956F3 /* TTSManager.m */; };
+		E28F7F6B79ED856EF1F2D2CD /* Views.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3FFECBA0D1C53C08B74AA5F8 /* Views.swift */; };
+		E7E39ACF8BF094F35FFCBA16 /* PhoneLink.swift in Sources */ = {isa = PBXBuildFile; fileRef = CC3A2A6FCB9620F3033A6981 /* PhoneLink.swift */; };
 		F2D36FDBEA3E5F17654124D6 /* HapticManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = C6BE7A5A9CC84E9591B871ED /* HapticManager.swift */; };
 /* End PBXBuildFile section */
 
+/* Begin PBXContainerItemProxy section */
+		ADA1F51E1DEA7CA4309DE170 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 83CBB9F71A601CBA00E9B192 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 781CB3AB1211F73D9825DFD9;
+			remoteInfo = SoarXVoiceWatch;
+		};
+/* End PBXContainerItemProxy section */
+
+/* Begin PBXCopyFilesBuildPhase section */
+		EDE6275686C94661901F5103 /* Embed Watch Content */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
+			dstPath = "$(CONTENTS_FOLDER_PATH)/Watch";
+			dstSubfolderSpec = 16;
+			files = (
+				2A1C5FCBFC131CC5D60D1BFF /* SoarXVoiceWatch.app in Embed Watch Content */,
+			);
+			name = "Embed Watch Content";
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXCopyFilesBuildPhase section */
+
 /* Begin PBXFileReference section */
+		021D0002C5EAD9E0AFC05688 /* SoarXVoiceWatch.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = SoarXVoiceWatch.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		05834232ED914EEBA7C06F17 /* voice_unmute.mp3 */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = audio.mp3; path = voice_unmute.mp3; sourceTree = "<group>"; };
+		06FDE1EE20D8138FF7544A6A /* SoarXVoiceWatch.entitlements */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.plist.entitlements; path = SoarXVoiceWatch.entitlements; sourceTree = "<group>"; };
 		13B07F961A680F5B00A75B9A /* SoarXVoice.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = SoarXVoice.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		13B07FB51A68108700A75B9A /* Images.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; name = Images.xcassets; path = SoarXVoice/Images.xcassets; sourceTree = "<group>"; };
 		13B07FB61A68108700A75B9A /* Info.plist */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.plist.xml; name = Info.plist; path = SoarXVoice/Info.plist; sourceTree = "<group>"; };
 		13B07FB81A68108700A75B9A /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.plist.xml; name = PrivacyInfo.xcprivacy; path = SoarXVoice/PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
-		A5D10C012F80000000000001 /* AudioSessionManager.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = AudioSessionManager.swift; sourceTree = "<group>"; };
-		A5D10C012F80000000000002 /* AudioSessionManager.m */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.c.objc; path = AudioSessionManager.m; sourceTree = "<group>"; };
 		2351364724EC22A41F268D76 /* TTSManager.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = TTSManager.swift; sourceTree = "<group>"; };
 		251E6A2A2F6605900079205C /* HIDModule.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = HIDModule.m; sourceTree = "<group>"; };
 		251E6A2B2F6605900079205C /* HIDModule.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HIDModule.swift; sourceTree = "<group>"; };
@@ -45,14 +81,28 @@
 		251E6A302F6617440079205C /* BLEButtonManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BLEButtonManager.swift; sourceTree = "<group>"; };
 		355D75D50E6E2FC0FAF0567E /* beep_double.mp3 */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = audio.mp3; path = beep_double.mp3; sourceTree = "<group>"; };
 		3B4392A12AC88292D35C810B /* Pods-SoarXVoice.debug.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-SoarXVoice.debug.xcconfig"; path = "Target Support Files/Pods-SoarXVoice/Pods-SoarXVoice.debug.xcconfig"; sourceTree = "<group>"; };
+		3FFECBA0D1C53C08B74AA5F8 /* Views.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = Views.swift; sourceTree = "<group>"; };
+		5054D08A17FD631FE83BFBCD /* AppModel.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = AppModel.swift; sourceTree = "<group>"; };
 		5709B34CF0A7D63546082F79 /* Pods-SoarXVoice.release.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-SoarXVoice.release.xcconfig"; path = "Target Support Files/Pods-SoarXVoice/Pods-SoarXVoice.release.xcconfig"; sourceTree = "<group>"; };
+		5D52D1C7337F28C1523D64E6 /* WatchBridge.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = WatchBridge.swift; sourceTree = "<group>"; };
 		5DCACB8F33CDC322A6C60F78 /* libPods-SoarXVoice.a */ = {isa = PBXFileReference; explicitFileType = archive.ar; includeInIndex = 0; path = "libPods-SoarXVoice.a"; sourceTree = BUILT_PRODUCTS_DIR; };
+		5E8337D89E96B19AB6945747 /* Assets.xcassets */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
+		673C89F49B6497C51278E6CE /* Protocol.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = Protocol.swift; sourceTree = "<group>"; };
+		698F3A250F987F54F0E05B9C /* Info.plist */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 		6B6333A8387ACC28B5B6A9CD /* HapticManager.m */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.c.objc; path = HapticManager.m; sourceTree = "<group>"; };
 		761780EC2CA45674006654EE /* AppDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = AppDelegate.swift; path = SoarXVoice/AppDelegate.swift; sourceTree = "<group>"; };
 		81AB9BB72411601600AC10FF /* LaunchScreen.storyboard */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = file.storyboard; name = LaunchScreen.storyboard; path = SoarXVoice/LaunchScreen.storyboard; sourceTree = "<group>"; };
 		93F3057EFF69D4E909C6D916 /* inactivity_warning.mp3 */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = audio.mp3; path = inactivity_warning.mp3; sourceTree = "<group>"; };
+		9E95C1F8A1BC27223BD88309 /* SoarXVoiceWatchApp.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = SoarXVoiceWatchApp.swift; sourceTree = "<group>"; };
+		A5D10C012F80000000000001 /* AudioSessionManager.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = AudioSessionManager.swift; sourceTree = "<group>"; };
+		A5D10C012F80000000000002 /* AudioSessionManager.m */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.c.objc; path = AudioSessionManager.m; sourceTree = "<group>"; };
 		A99F0168CA49634E8F39762D /* voice_mute.mp3 */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = audio.mp3; path = voice_mute.mp3; sourceTree = "<group>"; };
+		AF9E717AA22B4B02F24149B4 /* WatchBridge.m */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.c.objc; path = WatchBridge.m; sourceTree = "<group>"; };
 		C6BE7A5A9CC84E9591B871ED /* HapticManager.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = HapticManager.swift; sourceTree = "<group>"; };
+		CC3A2A6FCB9620F3033A6981 /* PhoneLink.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = PhoneLink.swift; sourceTree = "<group>"; };
+		DE9C44A7567B31232C6E7161 /* Intents.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = Intents.swift; sourceTree = "<group>"; };
+		DFC03273D5D73C9C59C36D9C /* Audio.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = Audio.swift; sourceTree = "<group>"; };
+		ED060D1026DF1618E569F407 /* Sensors.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = Sensors.swift; sourceTree = "<group>"; };
 		ED297162215061F000B7C4FE /* JavaScriptCore.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = JavaScriptCore.framework; path = System/Library/Frameworks/JavaScriptCore.framework; sourceTree = SDKROOT; };
 		F6F7EE5FC0A5AB17D84956F3 /* TTSManager.m */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.c.objc; path = TTSManager.m; sourceTree = "<group>"; };
 		FC0E281E0AFBFEC819D6D979 /* beep_single.mp3 */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = audio.mp3; path = beep_single.mp3; sourceTree = "<group>"; };
@@ -64,6 +114,13 @@
 			buildActionMask = 2147483647;
 			files = (
 				0C80B921A6F3F58F76C31292 /* libPods-SoarXVoice.a in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		2421593E48D6EC7B997975A3 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -89,6 +146,8 @@
 				F6F7EE5FC0A5AB17D84956F3 /* TTSManager.m */,
 				A5D10C012F80000000000001 /* AudioSessionManager.swift */,
 				A5D10C012F80000000000002 /* AudioSessionManager.m */,
+				5D52D1C7337F28C1523D64E6 /* WatchBridge.swift */,
+				AF9E717AA22B4B02F24149B4 /* WatchBridge.m */,
 			);
 			name = SoarXVoice;
 			sourceTree = "<group>";
@@ -122,6 +181,7 @@
 				2D16E6871FA4F8E400B85C8A /* Frameworks */,
 				BBD78D7AC51CEA395F1C20DB /* Pods */,
 				251E6A2E2F66059C0079205C /* SoarXVoice-Bridging-Header.h */,
+				A9A659B1A2FC3606740065FE /* SoarXVoiceWatch */,
 			);
 			indentWidth = 2;
 			sourceTree = "<group>";
@@ -132,8 +192,28 @@
 			isa = PBXGroup;
 			children = (
 				13B07F961A680F5B00A75B9A /* SoarXVoice.app */,
+				021D0002C5EAD9E0AFC05688 /* SoarXVoiceWatch.app */,
 			);
 			name = Products;
+			sourceTree = "<group>";
+		};
+		A9A659B1A2FC3606740065FE /* SoarXVoiceWatch */ = {
+			isa = PBXGroup;
+			children = (
+				5054D08A17FD631FE83BFBCD /* AppModel.swift */,
+				DFC03273D5D73C9C59C36D9C /* Audio.swift */,
+				DE9C44A7567B31232C6E7161 /* Intents.swift */,
+				CC3A2A6FCB9620F3033A6981 /* PhoneLink.swift */,
+				673C89F49B6497C51278E6CE /* Protocol.swift */,
+				ED060D1026DF1618E569F407 /* Sensors.swift */,
+				9E95C1F8A1BC27223BD88309 /* SoarXVoiceWatchApp.swift */,
+				3FFECBA0D1C53C08B74AA5F8 /* Views.swift */,
+				5E8337D89E96B19AB6945747 /* Assets.xcassets */,
+				698F3A250F987F54F0E05B9C /* Info.plist */,
+				06FDE1EE20D8138FF7544A6A /* SoarXVoiceWatch.entitlements */,
+			);
+			name = SoarXVoiceWatch;
+			path = SoarXVoiceWatch;
 			sourceTree = "<group>";
 		};
 		BBD78D7AC51CEA395F1C20DB /* Pods */ = {
@@ -156,6 +236,7 @@
 				13B07F871A680F5B00A75B9A /* Sources */,
 				13B07F8C1A680F5B00A75B9A /* Frameworks */,
 				13B07F8E1A680F5B00A75B9A /* Resources */,
+				EDE6275686C94661901F5103 /* Embed Watch Content */,
 				00DD1BFF1BD5951E006B06BC /* Bundle React Native code and images */,
 				00EEFC60759A1932668264C0 /* [CP] Embed Pods Frameworks */,
 				E235C05ADACE081382539298 /* [CP] Copy Pods Resources */,
@@ -163,10 +244,28 @@
 			buildRules = (
 			);
 			dependencies = (
+				7CA6680F29437318F7B1DA06 /* PBXTargetDependency */,
 			);
 			name = SoarXVoice;
 			productName = SoarXVoice;
 			productReference = 13B07F961A680F5B00A75B9A /* SoarXVoice.app */;
+			productType = "com.apple.product-type.application";
+		};
+		781CB3AB1211F73D9825DFD9 /* SoarXVoiceWatch */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 8B1EAFED597050370817F76D /* Build configuration list for PBXNativeTarget "SoarXVoiceWatch" */;
+			buildPhases = (
+				88BF92349F592917971112B2 /* Sources */,
+				2421593E48D6EC7B997975A3 /* Frameworks */,
+				B6DC3D6AB4A0115B10B97BFB /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = SoarXVoiceWatch;
+			productName = SoarXVoiceWatch;
+			productReference = 021D0002C5EAD9E0AFC05688 /* SoarXVoiceWatch.app */;
 			productType = "com.apple.product-type.application";
 		};
 /* End PBXNativeTarget section */
@@ -179,6 +278,9 @@
 				TargetAttributes = {
 					13B07F861A680F5B00A75B9A = {
 						LastSwiftMigration = 2630;
+					};
+					781CB3AB1211F73D9825DFD9 = {
+						CreatedOnToolsVersion = 15.0;
 					};
 				};
 			};
@@ -196,6 +298,7 @@
 			projectRoot = "";
 			targets = (
 				13B07F861A680F5B00A75B9A /* SoarXVoice */,
+				781CB3AB1211F73D9825DFD9 /* SoarXVoiceWatch */,
 			);
 		};
 /* End PBXProject section */
@@ -213,6 +316,14 @@
 				8893BBBBDAA170459889A681 /* beep_single.mp3 in Resources */,
 				9D60CE20D2042E04EE36D6AC /* beep_double.mp3 in Resources */,
 				356CD5CBC1C4AE7F28156711 /* inactivity_warning.mp3 in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		B6DC3D6AB4A0115B10B97BFB /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				52561D880E0E1DBFB722365B /* Assets.xcassets in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -309,10 +420,36 @@
 				D398C0BBA36E17D2852BC08F /* TTSManager.m in Sources */,
 				A5D10C012F80000000000003 /* AudioSessionManager.swift in Sources */,
 				A5D10C012F80000000000004 /* AudioSessionManager.m in Sources */,
+				5A25232184B908FA8E59E696 /* WatchBridge.swift in Sources */,
+				5F078D4A5DC0E8D84C43733D /* WatchBridge.m in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		88BF92349F592917971112B2 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				1E34DEBEC3B9815B2C0678A5 /* AppModel.swift in Sources */,
+				B0D281E952D6660F804FE237 /* Audio.swift in Sources */,
+				9739BAD568656A95C6773DAF /* Intents.swift in Sources */,
+				E7E39ACF8BF094F35FFCBA16 /* PhoneLink.swift in Sources */,
+				3C19CE8FC4D3ED89001205A5 /* Protocol.swift in Sources */,
+				11673D5ADCDBB4B9F0FC2691 /* Sensors.swift in Sources */,
+				4D7FE641F4AA7B1F704D83A1 /* SoarXVoiceWatchApp.swift in Sources */,
+				E28F7F6B79ED856EF1F2D2CD /* Views.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 /* End PBXSourcesBuildPhase section */
+
+/* Begin PBXTargetDependency section */
+		7CA6680F29437318F7B1DA06 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			name = SoarXVoiceWatch;
+			target = 781CB3AB1211F73D9825DFD9 /* SoarXVoiceWatch */;
+			targetProxy = ADA1F51E1DEA7CA4309DE170 /* PBXContainerItemProxy */;
+		};
+/* End PBXTargetDependency section */
 
 /* Begin XCBuildConfiguration section */
 		13B07F941A680F5B00A75B9A /* Debug */ = {
@@ -376,6 +513,45 @@
 				VERSIONING_SYSTEM = "apple-generic";
 			};
 			name = Release;
+		};
+		20B93F05A4E53A8A0722D5CA /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_ENTITLEMENTS = SoarXVoiceWatch/SoarXVoiceWatch.entitlements;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 14;
+				DEVELOPMENT_TEAM = S96H22CQ8W;
+				ENABLE_PREVIEWS = YES;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = SoarXVoiceWatch/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = "SoarX Voice";
+				INFOPLIST_KEY_NSHealthShareUsageDescription = "SoarX Voice runs a water sports workout to stay on screen during your session.";
+				INFOPLIST_KEY_NSHealthUpdateUsageDescription = "SoarX Voice runs a water sports workout to stay on screen during your session. It does not save workouts.";
+				INFOPLIST_KEY_NSLocationWhenInUseUsageDescription = "SoarX Voice uses the compass to point the arrows at the other riders.";
+				INFOPLIST_KEY_NSMicrophoneUsageDescription = "SoarX Voice records your voice messages to the riders in your channel.";
+				INFOPLIST_KEY_UISupportedInterfaceOrientations = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown";
+				INFOPLIST_KEY_WKCompanionAppBundleIdentifier = com.xavier.soarxvoice;
+				INFOPLIST_KEY_WKRunsIndependentlyOfCompanionApp = NO;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				MARKETING_VERSION = 2.3;
+				PRODUCT_BUNDLE_IDENTIFIER = com.xavier.soarxvoice.watchkitapp;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = watchos;
+				SKIP_INSTALL = YES;
+				SUPPORTED_PLATFORMS = "watchos watchsimulator";
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "$(inherited) DEBUG";
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = 4;
+				WATCHOS_DEPLOYMENT_TARGET = 10.0;
+			};
+			name = Debug;
 		};
 		83CBBA201A601CBA00E9B192 /* Debug */ = {
 			isa = XCBuildConfiguration;
@@ -533,6 +709,44 @@
 			};
 			name = Release;
 		};
+		87A06696C2ECF17ADC96852A /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_ENTITLEMENTS = SoarXVoiceWatch/SoarXVoiceWatch.entitlements;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 14;
+				DEVELOPMENT_TEAM = S96H22CQ8W;
+				ENABLE_PREVIEWS = YES;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = SoarXVoiceWatch/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = "SoarX Voice";
+				INFOPLIST_KEY_NSHealthShareUsageDescription = "SoarX Voice runs a water sports workout to stay on screen during your session.";
+				INFOPLIST_KEY_NSHealthUpdateUsageDescription = "SoarX Voice runs a water sports workout to stay on screen during your session. It does not save workouts.";
+				INFOPLIST_KEY_NSLocationWhenInUseUsageDescription = "SoarX Voice uses the compass to point the arrows at the other riders.";
+				INFOPLIST_KEY_NSMicrophoneUsageDescription = "SoarX Voice records your voice messages to the riders in your channel.";
+				INFOPLIST_KEY_UISupportedInterfaceOrientations = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown";
+				INFOPLIST_KEY_WKCompanionAppBundleIdentifier = com.xavier.soarxvoice;
+				INFOPLIST_KEY_WKRunsIndependentlyOfCompanionApp = NO;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				MARKETING_VERSION = 2.3;
+				PRODUCT_BUNDLE_IDENTIFIER = com.xavier.soarxvoice.watchkitapp;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = watchos;
+				SKIP_INSTALL = YES;
+				SUPPORTED_PLATFORMS = "watchos watchsimulator";
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = 4;
+				VALIDATE_PRODUCT = YES;
+				WATCHOS_DEPLOYMENT_TARGET = 10.0;
+			};
+			name = Release;
+		};
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
@@ -550,6 +764,15 @@
 			buildConfigurations = (
 				83CBBA201A601CBA00E9B192 /* Debug */,
 				83CBBA211A601CBA00E9B192 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		8B1EAFED597050370817F76D /* Build configuration list for PBXNativeTarget "SoarXVoiceWatch" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				87A06696C2ECF17ADC96852A /* Release */,
+				20B93F05A4E53A8A0722D5CA /* Debug */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;

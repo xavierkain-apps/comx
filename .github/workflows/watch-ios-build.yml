@@ -1,0 +1,86 @@
+name: iOS — watch build check
+
+# Compiles the iOS app and its embedded Apple Watch app for the simulator,
+# unsigned. Proves the native code builds; it does not sign or ship anything.
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - feature/watch-ios
+      - feature/watch-companion
+
+permissions:
+  contents: read
+
+concurrency:
+  group: watch-ios-build-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: macos-26
+    timeout-minutes: 75
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: "3.3"
+          bundler-cache: true
+
+      - name: Install JS dependencies
+        run: npm ci
+
+      - name: Write .env
+        run: cp .env.example .env
+
+      - name: Install CocoaPods
+        run: bundle exec pod install --project-directory=ios
+
+      - name: Show Xcode and SDKs
+        run: |
+          xcodebuild -version
+          xcodebuild -showsdks
+
+      - name: Ensure the watchOS platform is installed
+        run: |
+          if xcodebuild -showsdks | grep -q watchsimulator; then
+            echo "watchOS simulator SDK present."
+          else
+            xcodebuild -downloadPlatform watchOS
+          fi
+
+      - name: Build iOS app with embedded watch app (simulator, unsigned)
+        run: |
+          set -o pipefail
+          mkdir -p build-logs
+          xcodebuild \
+            -workspace ios/SoarXVoice.xcworkspace \
+            -scheme SoarXVoice \
+            -configuration Debug \
+            -destination 'generic/platform=iOS Simulator' \
+            -derivedDataPath build/DerivedData \
+            CODE_SIGNING_ALLOWED=NO \
+            build 2>&1 | tee build-logs/xcodebuild.log
+
+      - name: Check the watch app is embedded
+        run: |
+          app=$(find build/DerivedData/Build/Products -maxdepth 2 -name SoarXVoice.app -type d | head -n 1)
+          echo "iOS app: $app"
+          ls -la "$app/Watch"
+          plutil -p "$app/Watch/SoarXVoiceWatch.app/Info.plist" | tee build-logs/watch-info-plist.txt
+
+      - name: Upload build log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: watch-ios-build-log
+          path: build-logs/
+          if-no-files-found: error
