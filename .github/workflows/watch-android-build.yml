@@ -1,0 +1,85 @@
+name: Watch — Android build
+
+# Compiles the phone-side WatchBridge module and the Wear OS app, runs their
+# unit tests and publishes debug APKs for on-device testing
+# (docs/watch-android.md). Debug signing only: no secrets are used.
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [feature/watch-android, feature/watch-companion]
+
+concurrency:
+  group: watch-android-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+
+      # No android-actions/setup-android: v3 now fails installing the removed
+      # `tools` package. The runner image ships the Android SDK (ANDROID_HOME)
+      # and Gradle downloads any missing platform or build-tools.
+
+      - uses: gradle/actions/setup-gradle@v4
+
+      - name: Install JS dependencies
+        run: npm ci
+
+      - name: Write .env
+        run: cp .env.example .env
+
+      - name: Build and test the Wear OS app
+        working-directory: android
+        # assembleRelease runs lintVital, as the tagged release build will
+        # (it builds every module). Unsigned here: it falls back to debug keys.
+        run: ./gradlew --no-daemon :wear:assembleDebug :wear:testDebugUnitTest :wear:assembleRelease
+
+      - name: Build and test the phone app
+        working-directory: android
+        # The repo default heap (2 GB) ran out packaging the debug APKs with
+        # Agora's native libraries. The runner has 16 GB.
+        run: >-
+          ./gradlew --no-daemon "-Dorg.gradle.jvmargs=-Xmx6g -XX:MaxMetaspaceSize=1g"
+          :app:assembleDebug :app:testDebugUnitTest -PreactNativeArchitectures=arm64-v8a
+
+      - name: Upload test reports
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: watch-android-test-reports
+          retention-days: 7
+          if-no-files-found: ignore
+          path: |
+            android/app/build/reports/tests/
+            android/wear/build/reports/tests/
+            android/wear/build/reports/lint-results-release.html
+            android/wear/build/intermediates/lint_intermediate_text_report/
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: soarxvoice-wear-debug
+          retention-days: 14
+          if-no-files-found: error
+          path: android/wear/build/outputs/apk/debug/*.apk
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: soarxvoice-phone-debug
+          retention-days: 14
+          if-no-files-found: error
+          path: android/app/build/outputs/apk/debug/*.apk

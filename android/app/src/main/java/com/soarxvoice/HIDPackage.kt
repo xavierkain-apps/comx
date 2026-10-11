@@ -14,6 +14,7 @@ class HIDPackage : ReactPackage {
             ForegroundServiceModule(reactContext),
             BLEButtonManager(reactContext),
             TTSModule(reactContext),
+            com.soarxvoice.watch.WatchBridgeModule(reactContext),
         )
     }
     override fun createViewManagers(reactContext: ReactApplicationContext): List<ViewManager<View, ReactShadowNode<*>>> {
