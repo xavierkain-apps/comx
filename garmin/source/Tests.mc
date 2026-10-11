@@ -112,3 +112,43 @@ function testNorm(logger as Test.Logger) as Boolean {
     eq(Ui.norm(45.0 - 270.0), 135.0);
     return true;
 }
+
+(:test)
+function testFocusRule(logger as Test.Logger) as Boolean {
+    var keys = ["9", "1", "2"] as Array<String>;
+    // Nothing selected, no SOS: nearest (first in display order).
+    eq(Focus.pick(keys, null, null, false), "9");
+    // Selected rider still present wins over the nearest.
+    eq(Focus.pick(keys, null, "2", false), "2");
+    // Selected rider gone: back to the nearest.
+    eq(Focus.pick(keys, null, "7", false), "9");
+    // SOS overrides an older selection...
+    eq(Focus.pick(keys, "9", "2", false), "9");
+    // ... but not one made after the SOS started.
+    eq(Focus.pick(keys, "9", "2", true), "2");
+    // SOS known only from an event (rider not in the state).
+    eq(Focus.pick([] as Array<String>, "5", null, false), "5");
+    Test.assert(Focus.pick([] as Array<String>, null, null, false) == null);
+    return true;
+}
+
+(:test)
+function testFocusStep(logger as Test.Logger) as Boolean {
+    var keys = ["a", "b", "c"] as Array<String>;
+    eq(Focus.step(keys, "a", 1), "b");
+    eq(Focus.step(keys, "c", 1), "a");
+    eq(Focus.step(keys, "a", -1), "c");
+    eq(Focus.step(keys, "x", 1), "a");
+    eq(Focus.step(keys, null, -1), "a");
+    Test.assert(Focus.step([] as Array<String>, "a", 1) == null);
+    return true;
+}
+
+(:test)
+function testAligned(logger as Test.Logger) as Boolean {
+    Test.assert(Focus.aligned(10.0, 355.0, 20.0));
+    Test.assert(Focus.aligned(350.0, 5.0, 20.0));
+    Test.assert(!Focus.aligned(40.0, 10.0, 20.0));
+    Test.assert(!Focus.aligned(180.0, 0.0, 20.0));
+    return true;
+}

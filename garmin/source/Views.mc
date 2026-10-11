@@ -1,12 +1,17 @@
-// Views and input delegates.
+// Views and their button delegates (all delegates extend ButtonDelegate,
+// source/Input.mc: buttons only, taps ignored).
 //
-// Navigation (5-button watches; touch watches map swipe/tap to the same
-// behaviours):
-//   List   UP/DOWN move, START selects (rider -> compass, last row -> menu),
-//          MENU (hold UP) -> menu, BACK exits.
-//   Menu   Talk via phone (toggle), Quick message, SOS / Cancel my SOS.
-//   Compass  UP/DOWN next rider, START -> menu, BACK -> list.
-//   Message / SOS alert  START or BACK dismisses (SOS: START only silences).
+//   Compass (start screen)  one rider big: arrow, distance, name.
+//       UP / DOWN  previous / next rider (short buzz)
+//       START      actions menu            MENU (hold UP)  actions menu
+//       hold START (1.5 s)  SOS / cancel my SOS, then a confirmation
+//       BACK       exit confirmation
+//   Actions  Quick message, Talk via phone, All riders, Heading cue, SOS.
+//       UP/DOWN move, START chooses, BACK closes.
+//   All riders  list sorted SOS first then by distance; START focuses the
+//       compass on that rider, BACK returns.
+//   Confirmation  START = yes, BACK = no; unanswered for 15 s = no.
+//   Message / SOS alert  START or BACK dismisses (SOS: START first silences).
 
 import Toybox.Graphics;
 import Toybox.Lang;
@@ -15,7 +20,478 @@ import Toybox.System;
 import Toybox.WatchUi;
 
 // =========================================================================
-// Rider list
+// Big compass towards one rider (start screen, and the SOS alert)
+// =========================================================================
+
+class CompassView extends WatchUi.View {
+    var key as String?;
+    private var _follow as Boolean; // true: always show the app's focused rider
+
+    //! k == null: follow the focus rule (start screen); else a fixed rider.
+    function initialize(k as String?) {
+        View.initialize();
+        key = k;
+        _follow = k == null;
+    }
+
+    function onUpdate(dc as Graphics.Dc) as Void {
+        var app = getApp();
+        if (_follow) {
+            key = app.focusKey();
+        }
+        var k = key;
+        var w = dc.getWidth();
+        var h = dc.getHeight();
+        var cx = w / 2;
+        var cy = h / 2;
+        var r = k != null ? app.findRider(k) : null;
+        var alert = k != null ? app.sosAlerts.get(k) : null;
+        var isSos = (r != null && app.isSos(r)) || alert != null;
+
+        var bg = isSos ? Ui.sosBg() : Graphics.COLOR_BLACK;
+        var fg = isSos ? Ui.sosFg() : Ui.fg();
+        dc.setColor(fg, bg);
+        dc.clear();
+
+        var name = null;
+        var dist = null;
+        var brg = null;
+        var stale = false;
+        if (r != null) {
+            name = Proto.str(r.get("name"));
+            dist = Proto.num(r.get("dist"));
+            brg = Proto.num(r.get("brg"));
+            stale = Proto.flag(r.get("stale"));
+        }
+        if (alert != null) {
+            if (name == null) {
+                name = alert.get("from") as String?;
+            }
+            if (brg == null) {
+                brg = alert.get("brg") as Float?;
+                dist = alert.get("dist") as Float?;
+            }
+        }
+        if (name == null) {
+            name = k == null ? "No riders" : "Rider gone";
+        }
+
+        var fh = dc.getFontHeight(Graphics.FONT_SMALL);
+        var title = isSos ? "SOS " + name : name;
+        Ui.drawWrapped(dc, cx, h / 10, Ui.halfWidthAt(dc, h / 10 + fh / 2) * 2, fh, title, Graphics.FONT_SMALL,
+            app.isSpeaking(r != null ? r : {}) && !isSos ? Ui.talkColor() : fg);
+
+        // North tick on the rim when the heading is known.
+        var heading = app.headingDeg;
+        var ring = (h < w ? h : w) * 3 / 10;
+        if (heading != null) {
+            var a = Math.toRadians(Ui.norm(-heading));
+            var nx = cx + (ring + fh / 2) * Math.sin(a);
+            var ny = cy - (ring + fh / 2) * Math.cos(a);
+            dc.setColor(isSos ? fg : Ui.warnColor(), Graphics.COLOR_TRANSPARENT);
+            dc.drawText(nx, ny, Graphics.FONT_XTINY, "N", Graphics.TEXT_JUSTIFY_CENTER | Graphics.TEXT_JUSTIFY_VCENTER);
+        }
+
+        var color = (stale && !isSos) ? Ui.staleColor() : fg;
+        var angle = app.arrowAngle(brg);
+        if (angle == null) {
+            Ui.drawNoBearing(dc, cx, cy, ring * 3 / 4, color);
+        } else {
+            Ui.drawArrow(dc, cx, cy, ring * 3 / 4, angle, color);
+        }
+
+        var bottom = Ui.fmtDist(dist);
+        if (stale) {
+            bottom = bottom + " (old)";
+        }
+        dc.setColor(color, Graphics.COLOR_TRANSPARENT);
+        var df = Graphics.FONT_MEDIUM;
+        dc.drawText(cx, cy + ring - dc.getFontHeight(df) / 4 + 4, df, bottom, Graphics.TEXT_JUSTIFY_CENTER);
+
+        // Footer: own SOS, else link problem, else toast, else phone mic,
+        // else heading source and the rider's position in the list.
+        var foot = null;
+        var footColor = isSos ? fg : Ui.staleColor();
+        if (app.mySos && !isSos) {
+            foot = "MY SOS ON";
+            footColor = Ui.warnColor();
+        }
+        if (foot == null) {
+            foot = app.linkProblem();
+        }
+        if (foot == null) {
+            foot = app.toast;
+        }
+        if (foot == null && app.ptt) {
+            foot = "PHONE MIC ON";
+            footColor = isSos ? fg : Ui.talkColor();
+        }
+        if (foot == null) {
+            var hl = app.headingLabel();
+            if (_follow && k != null) {
+                var keys = app.riderKeys();
+                var i = keys.indexOf(k);
+                if (i >= 0) {
+                    hl = hl + "  " + (i + 1).toString() + "/" + keys.size().toString();
+                }
+            }
+            foot = hl;
+        }
+        var xf = dc.getFontHeight(Graphics.FONT_XTINY);
+        var fy = h - h / 10 - xf;
+        Ui.drawWrapped(dc, cx, fy - xf / 2, Ui.halfWidthAt(dc, fy) * 2, xf * 2, foot as String, Graphics.FONT_XTINY, footColor);
+    }
+}
+
+class CompassDelegate extends ButtonDelegate {
+    function initialize() {
+        ButtonDelegate.initialize();
+    }
+
+    function onUp() as Void {
+        getApp().stepFocus(-1);
+    }
+
+    function onDown() as Void {
+        getApp().stepFocus(1);
+    }
+
+    function onStart() as Void {
+        openActions();
+    }
+
+    function onMenuKey() as Void {
+        openActions();
+    }
+
+    function hasLongStart() as Boolean {
+        return true;
+    }
+
+    //! Hold START: SOS (or cancel my SOS), behind a confirmation.
+    function onLongStart() as Void {
+        var app = getApp();
+        app.buzzShort();
+        openConfirm(app.mySos ? CONFIRM_SOS_OFF : CONFIRM_SOS_ON, 1);
+    }
+
+    //! BACK never exits straight away: a wave on the button must not close
+    //! the app in the water.
+    function onBackKey() as Void {
+        openConfirm(CONFIRM_EXIT, 1);
+    }
+}
+
+// =========================================================================
+// Button-driven pick list (actions menu, quick messages)
+// =========================================================================
+
+class PickView extends WatchUi.View {
+    var sel as Number = 0;
+
+    function initialize() {
+        View.initialize();
+    }
+
+    function title() as String {
+        return "";
+    }
+
+    function count() as Number {
+        return 0;
+    }
+
+    function label(i as Number) as String {
+        return "";
+    }
+
+    function sub(i as Number) as String? {
+        return null;
+    }
+
+    function danger(i as Number) as Boolean {
+        return false;
+    }
+
+    function pick(i as Number) as Void {
+    }
+
+    function move(delta as Number) as Void {
+        var n = count();
+        if (n > 0) {
+            sel = ((sel + delta) % n + n) % n;
+            WatchUi.requestUpdate();
+        }
+    }
+
+    function onUpdate(dc as Graphics.Dc) as Void {
+        var w = dc.getWidth();
+        var h = dc.getHeight();
+        var cx = w / 2;
+        dc.setColor(Ui.fg(), Graphics.COLOR_BLACK);
+        dc.clear();
+
+        dc.setColor(Ui.staleColor(), Graphics.COLOR_TRANSPARENT);
+        dc.drawText(cx, h / 10, Graphics.FONT_XTINY, title(), Graphics.TEXT_JUSTIFY_CENTER);
+
+        var rowH = h / 5;
+        var n = count();
+        for (var k = -1; k <= 1; k++) {
+            var i = sel + k;
+            if (i < 0 || i >= n) {
+                continue;
+            }
+            drawRow(dc, i, h / 2 + k * rowH - rowH / 2, rowH, k == 0);
+        }
+
+        var toast = getApp().toast;
+        if (toast != null) {
+            var fh = dc.getFontHeight(Graphics.FONT_XTINY);
+            var fy = h - h / 10 - fh;
+            Ui.drawWrapped(dc, cx, fy - fh / 2, Ui.halfWidthAt(dc, fy) * 2, fh * 2, toast, Graphics.FONT_XTINY, Ui.fg());
+        }
+    }
+
+    private function drawRow(dc as Graphics.Dc, i as Number, y as Number, rowH as Number, selected as Boolean) as Void {
+        var cx = dc.getWidth() / 2;
+        var mid = y + rowH / 2;
+        var half = Ui.halfWidthAt(dc, mid < dc.getHeight() / 2 ? y : y + rowH);
+        if (half < rowH) {
+            half = rowH;
+        }
+        var fg = Ui.fg();
+        if (selected) {
+            var bg = danger(i) ? Ui.sosBg() : Ui.hiBg();
+            dc.setColor(bg, bg);
+            dc.fillRectangle(cx - half, y + 2, half * 2, rowH - 4);
+            fg = danger(i) ? Ui.sosFg() : Ui.hiFg();
+        } else if (danger(i)) {
+            fg = Ui.warnColor();
+        }
+
+        var font = selected ? Graphics.FONT_MEDIUM : Graphics.FONT_SMALL;
+        var fh = dc.getFontHeight(font);
+        var s = selected ? sub(i) : null;
+        var xf = dc.getFontHeight(Graphics.FONT_XTINY);
+        var ty = s == null ? mid - fh / 2 : mid - (fh + xf) / 2;
+        var fitted = Graphics.fitTextToArea(label(i), font, half * 2 - 8, fh, true);
+        dc.setColor(fg, Graphics.COLOR_TRANSPARENT);
+        if (fitted != null) {
+            dc.drawText(cx, ty, font, fitted, Graphics.TEXT_JUSTIFY_CENTER);
+        }
+        if (s != null) {
+            dc.drawText(cx, ty + fh, Graphics.FONT_XTINY, s, Graphics.TEXT_JUSTIFY_CENTER);
+        }
+    }
+}
+
+class PickDelegate extends ButtonDelegate {
+    private var _view as PickView;
+
+    function initialize(view as PickView) {
+        ButtonDelegate.initialize();
+        _view = view;
+    }
+
+    function onUp() as Void {
+        _view.move(-1);
+    }
+
+    function onDown() as Void {
+        _view.move(1);
+    }
+
+    function onStart() as Void {
+        _view.pick(_view.sel);
+    }
+
+    function onBackKey() as Void {
+        WatchUi.popView(WatchUi.SLIDE_DOWN);
+    }
+}
+
+// =========================================================================
+// Actions menu
+// =========================================================================
+
+function openActions() as Void {
+    var v = new ActionsView();
+    WatchUi.pushView(v, new PickDelegate(v), WatchUi.SLIDE_UP);
+}
+
+//! Order matters: SOS is last so START, START from the compass never
+//! reaches it.
+class ActionsView extends PickView {
+    function initialize() {
+        PickView.initialize();
+    }
+
+    function title() as String {
+        return "ComX";
+    }
+
+    function count() as Number {
+        return 5;
+    }
+
+    function label(i as Number) as String {
+        if (i == 0) {
+            return "Quick message";
+        } else if (i == 1) {
+            return "Talk via phone";
+        } else if (i == 2) {
+            return "All riders";
+        } else if (i == 3) {
+            return "Heading cue";
+        }
+        return getApp().mySos ? "Cancel my SOS" : "SOS";
+    }
+
+    function sub(i as Number) as String? {
+        var app = getApp();
+        if (i == 1) {
+            return app.ptt ? "Phone mic ON" : "Phone mic off";
+        } else if (i == 2) {
+            return app.riders.size().toString() + " riders";
+        } else if (i == 3) {
+            return app.cueOn ? "On: buzz when facing" : "Off";
+        } else if (i == 4) {
+            return app.mySos ? "SOS is active" : "Alert every rider";
+        }
+        return null;
+    }
+
+    function danger(i as Number) as Boolean {
+        return i == 4;
+    }
+
+    function pick(i as Number) as Void {
+        var app = getApp();
+        if (i == 0) {
+            var q = new QuickView();
+            WatchUi.pushView(q, new PickDelegate(q), WatchUi.SLIDE_LEFT);
+        } else if (i == 1) {
+            app.setPtt(!app.ptt);
+            WatchUi.requestUpdate();
+        } else if (i == 2) {
+            var l = new ListView();
+            WatchUi.pushView(l, new ListDelegate(l), WatchUi.SLIDE_LEFT);
+        } else if (i == 3) {
+            app.setCue(!app.cueOn);
+            WatchUi.requestUpdate();
+        } else {
+            openConfirm(app.mySos ? CONFIRM_SOS_OFF : CONFIRM_SOS_ON, 2);
+        }
+    }
+}
+
+class QuickView extends PickView {
+    function initialize() {
+        PickView.initialize();
+    }
+
+    function title() as String {
+        return "Message";
+    }
+
+    function count() as Number {
+        return Proto.QUICK_IDS.size();
+    }
+
+    function label(i as Number) as String {
+        return Proto.QUICK_TEXT[i];
+    }
+
+    //! Send, then back to the compass (pop this list and the actions menu).
+    function pick(i as Number) as Void {
+        getApp().sendQuick(i);
+        WatchUi.popView(WatchUi.SLIDE_IMMEDIATE);
+        WatchUi.popView(WatchUi.SLIDE_RIGHT);
+    }
+}
+
+// =========================================================================
+// Confirmation (buttons only): exit, SOS, cancel SOS
+// =========================================================================
+
+enum {
+    CONFIRM_EXIT,
+    CONFIRM_SOS_ON,
+    CONFIRM_SOS_OFF
+}
+
+//! depth: views to pop on "yes" (1 = just the confirmation; 2 = also the
+//! menu it came from). For CONFIRM_EXIT the compass is popped too, which
+//! closes the app.
+function openConfirm(kind as Number, depth as Number) as Void {
+    var v = new ConfirmView(kind, depth);
+    WatchUi.pushView(v, new ConfirmDelegate(v), WatchUi.SLIDE_IMMEDIATE);
+}
+
+class ConfirmView extends WatchUi.View {
+    var kind as Number;
+    var depth as Number;
+    var shownAt as Number;
+
+    function initialize(k as Number, d as Number) {
+        View.initialize();
+        kind = k;
+        depth = d;
+        shownAt = System.getTimer();
+    }
+
+    function onUpdate(dc as Graphics.Dc) as Void {
+        var w = dc.getWidth();
+        var h = dc.getHeight();
+        var cx = w / 2;
+        var red = kind == CONFIRM_SOS_ON;
+        var fg = red ? Ui.sosFg() : Ui.fg();
+        dc.setColor(fg, red ? Ui.sosBg() : Graphics.COLOR_BLACK);
+        dc.clear();
+
+        var q = "Exit ComX?";
+        if (kind == CONFIRM_SOS_ON) {
+            q = "Send SOS to all riders?";
+        } else if (kind == CONFIRM_SOS_OFF) {
+            q = "Cancel your SOS?";
+        }
+        Ui.drawWrapped(dc, cx, h / 5, Ui.halfWidthAt(dc, h / 5) * 2, h * 3 / 10, q, Graphics.FONT_MEDIUM, fg);
+
+        var fh = dc.getFontHeight(Graphics.FONT_SMALL);
+        dc.setColor(fg, Graphics.COLOR_TRANSPARENT);
+        dc.drawText(cx, h * 11 / 20, Graphics.FONT_SMALL, "START: yes", Graphics.TEXT_JUSTIFY_CENTER);
+        dc.drawText(cx, h * 11 / 20 + fh + 2, Graphics.FONT_SMALL, "BACK: no", Graphics.TEXT_JUSTIFY_CENTER);
+    }
+}
+
+class ConfirmDelegate extends ButtonDelegate {
+    private var _view as ConfirmView;
+
+    function initialize(view as ConfirmView) {
+        ButtonDelegate.initialize();
+        _view = view;
+    }
+
+    function onStart() as Void {
+        var kind = _view.kind;
+        var n = _view.depth;
+        if (kind == CONFIRM_EXIT) {
+            n = 2; // the confirmation, then the compass: the app closes
+        } else {
+            getApp().setMySos(kind == CONFIRM_SOS_ON);
+        }
+        for (var i = 0; i < n; i++) {
+            WatchUi.popView(WatchUi.SLIDE_IMMEDIATE);
+        }
+    }
+
+    function onBackKey() as Void {
+        WatchUi.popView(WatchUi.SLIDE_IMMEDIATE);
+    }
+}
+
+// =========================================================================
+// All riders (SOS first, then by distance)
 // =========================================================================
 
 class ListView extends WatchUi.View {
@@ -24,24 +500,27 @@ class ListView extends WatchUi.View {
 
     function initialize() {
         View.initialize();
+        _selKey = getApp().focusKey();
     }
 
-    //! Number of rows: one per rider plus the "Menu" row.
     function rowCount() as Number {
-        return getApp().riders.size() + 1;
+        return getApp().riders.size();
     }
 
     function move(delta as Number) as Void {
         var n = rowCount();
-        sel = (sel + delta + n) % n;
+        if (n == 0) {
+            return;
+        }
+        sel = ((sel + delta) % n + n) % n;
         _selKey = keyAt(sel);
         WatchUi.requestUpdate();
     }
 
-    //! Rider key at a row, or null for the menu row.
+    //! Rider key at a row, or null.
     function keyAt(i as Number) as String? {
         var riders = getApp().riders;
-        if (i < riders.size()) {
+        if (i >= 0 && i < riders.size()) {
             return Proto.uidKey(riders[i].get("uid"));
         }
         return null;
@@ -50,16 +529,17 @@ class ListView extends WatchUi.View {
     //! Re-anchor the selection on the same rider after a new state.
     private function resync() as Void {
         var riders = getApp().riders;
-        if (_selKey != null) {
+        var sk = _selKey;
+        if (sk != null) {
             for (var i = 0; i < riders.size(); i++) {
-                if (_selKey.equals(Proto.uidKey(riders[i].get("uid")))) {
+                if (sk.equals(Proto.uidKey(riders[i].get("uid")))) {
                     sel = i;
                     return;
                 }
             }
         }
         if (sel >= rowCount()) {
-            sel = rowCount() - 1;
+            sel = rowCount() > 0 ? rowCount() - 1 : 0;
         }
         _selKey = keyAt(sel);
     }
@@ -96,9 +576,9 @@ class ListView extends WatchUi.View {
         // ---- rows: selected row centred, one above and one below ----
         var rowH = h / 5;
         var n = rowCount();
-        if (n == 1) {
+        if (n == 0) {
             dc.setColor(Ui.staleColor(), Graphics.COLOR_TRANSPARENT);
-            dc.drawText(cx, h / 2 - rowH, Graphics.FONT_SMALL, "No riders", Graphics.TEXT_JUSTIFY_CENTER);
+            dc.drawText(cx, h / 2 - dc.getFontHeight(Graphics.FONT_SMALL) / 2, Graphics.FONT_SMALL, "No riders", Graphics.TEXT_JUSTIFY_CENTER);
         }
         for (var k = -1; k <= 1; k++) {
             var i = sel + k;
@@ -124,6 +604,10 @@ class ListView extends WatchUi.View {
 
     private function drawRow(dc as Graphics.Dc, i as Number, y as Number, rowH as Number, selected as Boolean) as Void {
         var app = getApp();
+        var riders = app.riders;
+        if (i >= riders.size()) {
+            return;
+        }
         var w = dc.getWidth();
         var cx = w / 2;
         var mid = y + rowH / 2;
@@ -135,12 +619,8 @@ class ListView extends WatchUi.View {
         var left = cx - half;
         var right = cx + half;
 
-        var riders = app.riders;
-        var isSos = false;
-        if (i < riders.size()) {
-            isSos = app.isSos(riders[i]);
-        }
-
+        var r = riders[i];
+        var isSos = app.isSos(r);
         var fg = Ui.fg();
         if (isSos) {
             dc.setColor(Ui.sosBg(), Ui.sosBg());
@@ -163,13 +643,6 @@ class ListView extends WatchUi.View {
         var fhh = dc.getFontHeight(font);
         var ty = mid - fhh / 2;
 
-        if (i >= riders.size()) {
-            dc.setColor(fg, Graphics.COLOR_TRANSPARENT);
-            dc.drawText(cx, ty, font, "Menu", Graphics.TEXT_JUSTIFY_CENTER);
-            return;
-        }
-
-        var r = riders[i];
         var stale = Proto.flag(r.get("stale"));
         var talking = app.isSpeaking(r);
         var color = fg;
@@ -219,265 +692,31 @@ class ListView extends WatchUi.View {
     }
 }
 
-class ListDelegate extends WatchUi.BehaviorDelegate {
+class ListDelegate extends ButtonDelegate {
     private var _view as ListView;
 
     function initialize(view as ListView) {
-        BehaviorDelegate.initialize();
+        ButtonDelegate.initialize();
         _view = view;
     }
 
-    function onNextPage() as Boolean {
-        _view.move(1);
-        return true;
-    }
-
-    function onPreviousPage() as Boolean {
+    function onUp() as Void {
         _view.move(-1);
-        return true;
     }
 
-    function onSelect() as Boolean {
+    function onDown() as Void {
+        _view.move(1);
+    }
+
+    //! Focus the compass on this rider and go back to it.
+    function onStart() as Void {
         var key = _view.keyAt(_view.sel);
         if (key == null) {
-            openActions();
-        } else {
-            var v = new CompassView(key);
-            WatchUi.pushView(v, new CompassDelegate(v), WatchUi.SLIDE_LEFT);
-        }
-        return true;
-    }
-
-    function onMenu() as Boolean {
-        openActions();
-        return true;
-    }
-}
-
-// =========================================================================
-// Actions menu
-// =========================================================================
-
-function openActions() as Void {
-    var menu = new WatchUi.Menu2({:title => "ComX"});
-    var app = getApp();
-    menu.addItem(new WatchUi.MenuItem("Talk via phone", app.ptt ? "Phone mic ON" : "Phone mic off", :ptt, null));
-    menu.addItem(new WatchUi.MenuItem("Quick message", null, :quick, null));
-    menu.addItem(new WatchUi.MenuItem(app.mySos ? "Cancel my SOS" : "SOS", app.mySos ? "SOS is active" : null, :sos, null));
-    WatchUi.pushView(menu, new ActionsDelegate(), WatchUi.SLIDE_UP);
-}
-
-class ActionsDelegate extends WatchUi.Menu2InputDelegate {
-    function initialize() {
-        Menu2InputDelegate.initialize();
-    }
-
-    function onSelect(item as WatchUi.MenuItem) as Void {
-        var app = getApp();
-        var id = item.getId();
-        if (id == :ptt) {
-            app.setPtt(!app.ptt);
-            item.setSubLabel(app.ptt ? "Phone mic ON" : "Phone mic off");
-            WatchUi.requestUpdate();
-        } else if (id == :quick) {
-            var m = new WatchUi.Menu2({:title => "Message"});
-            for (var i = 0; i < Proto.QUICK_IDS.size(); i++) {
-                m.addItem(new WatchUi.MenuItem(Proto.QUICK_TEXT[i], null, i, null));
-            }
-            WatchUi.pushView(m, new QuickDelegate(), WatchUi.SLIDE_LEFT);
-        } else if (id == :sos) {
-            var c = new WatchUi.Confirmation(app.mySos ? "Cancel your SOS?" : "Send SOS to all riders?");
-            WatchUi.pushView(c, new SosConfirmDelegate(!app.mySos, item), WatchUi.SLIDE_IMMEDIATE);
-        }
-    }
-
-    function onBack() as Void {
-        WatchUi.popView(WatchUi.SLIDE_DOWN);
-    }
-}
-
-class QuickDelegate extends WatchUi.Menu2InputDelegate {
-    function initialize() {
-        Menu2InputDelegate.initialize();
-    }
-
-    function onSelect(item as WatchUi.MenuItem) as Void {
-        getApp().sendQuick(item.getId() as Number);
-        // Back to the list: pop this menu and the actions menu.
-        WatchUi.popView(WatchUi.SLIDE_IMMEDIATE);
-        WatchUi.popView(WatchUi.SLIDE_RIGHT);
-    }
-
-    function onBack() as Void {
-        WatchUi.popView(WatchUi.SLIDE_RIGHT);
-    }
-}
-
-class SosConfirmDelegate extends WatchUi.ConfirmationDelegate {
-    private var _raise as Boolean;
-    private var _item as WatchUi.MenuItem;
-
-    function initialize(raise as Boolean, item as WatchUi.MenuItem) {
-        ConfirmationDelegate.initialize();
-        _raise = raise;
-        _item = item;
-    }
-
-    function onResponse(response as WatchUi.Confirm) as Boolean {
-        if (response == WatchUi.CONFIRM_YES) {
-            getApp().setMySos(_raise);
-            _item.setLabel(_raise ? "Cancel my SOS" : "SOS");
-            _item.setSubLabel(_raise ? "SOS is active" : null);
-        }
-        return true;
-    }
-}
-
-// =========================================================================
-// Big compass towards one rider
-// =========================================================================
-
-class CompassView extends WatchUi.View {
-    var key as String;
-
-    function initialize(k as String) {
-        View.initialize();
-        key = k;
-    }
-
-    function onUpdate(dc as Graphics.Dc) as Void {
-        var app = getApp();
-        var w = dc.getWidth();
-        var h = dc.getHeight();
-        var cx = w / 2;
-        var cy = h / 2;
-        var r = app.findRider(key);
-        var alert = app.sosAlerts.get(key);
-        var isSos = (r != null && app.isSos(r)) || alert != null;
-
-        var bg = isSos ? Ui.sosBg() : Graphics.COLOR_BLACK;
-        var fg = isSos ? Ui.sosFg() : Ui.fg();
-        dc.setColor(fg, bg);
-        dc.clear();
-
-        var name = null;
-        var dist = null;
-        var brg = null;
-        var stale = false;
-        if (r != null) {
-            name = Proto.str(r.get("name"));
-            dist = Proto.num(r.get("dist"));
-            brg = Proto.num(r.get("brg"));
-            stale = Proto.flag(r.get("stale"));
-        }
-        if (alert != null) {
-            if (name == null) {
-                name = alert.get("from") as String?;
-            }
-            if (brg == null) {
-                brg = alert.get("brg") as Float?;
-                dist = alert.get("dist") as Float?;
-            }
-        }
-        if (name == null) {
-            name = "Rider gone";
-        }
-
-        var fh = dc.getFontHeight(Graphics.FONT_SMALL);
-        var title = isSos ? "SOS " + name : name;
-        Ui.drawWrapped(dc, cx, h / 10, Ui.halfWidthAt(dc, h / 10 + fh / 2) * 2, fh, title, Graphics.FONT_SMALL,
-            app.isSpeaking(r != null ? r : {}) && !isSos ? Ui.talkColor() : fg);
-
-        // North tick on the rim when the heading is known.
-        var heading = app.headingDeg;
-        var ring = (h < w ? h : w) * 3 / 10;
-        if (heading != null) {
-            var a = Math.toRadians(Ui.norm(-heading));
-            var nx = cx + (ring + fh / 2) * Math.sin(a);
-            var ny = cy - (ring + fh / 2) * Math.cos(a);
-            dc.setColor(isSos ? fg : Ui.warnColor(), Graphics.COLOR_TRANSPARENT);
-            dc.drawText(nx, ny, Graphics.FONT_XTINY, "N", Graphics.TEXT_JUSTIFY_CENTER | Graphics.TEXT_JUSTIFY_VCENTER);
-        }
-
-        var color = (stale && !isSos) ? Ui.staleColor() : fg;
-        var angle = app.arrowAngle(brg);
-        if (angle == null) {
-            Ui.drawNoBearing(dc, cx, cy, ring * 3 / 4, color);
-        } else {
-            Ui.drawArrow(dc, cx, cy, ring * 3 / 4, angle, color);
-        }
-
-        var bottom = Ui.fmtDist(dist);
-        if (stale) {
-            bottom = bottom + " (old)";
-        }
-        dc.setColor(color, Graphics.COLOR_TRANSPARENT);
-        var df = Graphics.FONT_MEDIUM;
-        dc.drawText(cx, cy + ring - dc.getFontHeight(df) / 4 + 4, df, bottom, Graphics.TEXT_JUSTIFY_CENTER);
-
-        var foot = app.linkProblem();
-        if (foot == null) {
-            foot = app.toast != null ? app.toast : app.headingLabel();
-        }
-        var xf = dc.getFontHeight(Graphics.FONT_XTINY);
-        var fy = h - h / 10 - xf;
-        Ui.drawWrapped(dc, cx, fy - xf / 2, Ui.halfWidthAt(dc, fy) * 2, xf * 2, foot as String, Graphics.FONT_XTINY,
-            isSos ? fg : Ui.staleColor());
-    }
-}
-
-class CompassDelegate extends WatchUi.BehaviorDelegate {
-    private var _view as CompassView;
-
-    function initialize(view as CompassView) {
-        BehaviorDelegate.initialize();
-        _view = view;
-    }
-
-    private function step(delta as Number) as Void {
-        var riders = getApp().riders;
-        var n = riders.size();
-        if (n == 0) {
             return;
         }
-        var idx = -1;
-        for (var i = 0; i < n; i++) {
-            if (_view.key.equals(Proto.uidKey(riders[i].get("uid")))) {
-                idx = i;
-                break;
-            }
-        }
-        idx = idx < 0 ? 0 : (idx + delta + n) % n;
-        var k = Proto.uidKey(riders[idx].get("uid"));
-        if (k != null) {
-            _view.key = k;
-        }
-        WatchUi.requestUpdate();
-    }
-
-    function onNextPage() as Boolean {
-        step(1);
-        return true;
-    }
-
-    function onPreviousPage() as Boolean {
-        step(-1);
-        return true;
-    }
-
-    function onSelect() as Boolean {
-        openActions();
-        return true;
-    }
-
-    function onMenu() as Boolean {
-        openActions();
-        return true;
-    }
-
-    function onBack() as Boolean {
-        WatchUi.popView(WatchUi.SLIDE_RIGHT);
-        return true;
+        getApp().selectRider(key);
+        WatchUi.popView(WatchUi.SLIDE_IMMEDIATE); // the list
+        WatchUi.popView(WatchUi.SLIDE_RIGHT);     // the actions menu
     }
 }
 
@@ -518,19 +757,17 @@ class MessageView extends WatchUi.View {
     }
 }
 
-class MessageDelegate extends WatchUi.BehaviorDelegate {
+class MessageDelegate extends ButtonDelegate {
     function initialize() {
-        BehaviorDelegate.initialize();
+        ButtonDelegate.initialize();
     }
 
-    function onSelect() as Boolean {
+    function onStart() as Void {
         WatchUi.popView(WatchUi.SLIDE_IMMEDIATE);
-        return true;
     }
 
-    function onBack() as Boolean {
+    function onBackKey() as Void {
         WatchUi.popView(WatchUi.SLIDE_IMMEDIATE);
-        return true;
     }
 }
 
@@ -560,13 +797,14 @@ class SosView extends CompassView {
     }
 }
 
-class SosDelegate extends WatchUi.BehaviorDelegate {
+class SosDelegate extends ButtonDelegate {
     function initialize() {
-        BehaviorDelegate.initialize();
+        ButtonDelegate.initialize();
     }
 
-    //! First press silences, the next one closes (the rider stays red in the list).
-    function onSelect() as Boolean {
+    //! First press silences, the next one closes (the compass then stays on
+    //! the SOS rider, red, until the phone sends `sos` `active: false`).
+    function onStart() as Void {
         var app = getApp();
         if (app.alarmActive()) {
             app.silenceAlarm();
@@ -574,17 +812,14 @@ class SosDelegate extends WatchUi.BehaviorDelegate {
         } else {
             WatchUi.popView(WatchUi.SLIDE_IMMEDIATE);
         }
-        return true;
     }
 
-    function onBack() as Boolean {
+    function onBackKey() as Void {
         getApp().silenceAlarm();
         WatchUi.popView(WatchUi.SLIDE_IMMEDIATE);
-        return true;
     }
 
-    function onMenu() as Boolean {
+    function onMenuKey() as Void {
         openActions();
-        return true;
     }
 }
