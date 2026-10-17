@@ -56,20 +56,19 @@ Local checks that are cheap: `npx tsc --noEmit`, `npx eslint src --quiet`,
 
 ## Status (2026-10-17)
 
-- All CI builds green. **Nothing has run on a real device yet.**
-- First TestFlight build not sent. Blocked on the owner:
-  1. Create the App Store Connect record (Apps → + → New App: iOS, name ComX,
-     bundle `com.xavier.comx`, SKU `comx`). The `register_ids` lane checks it
-     and stops with a clear message if it is missing.
-  2. Decide whether to accept Garmin's Connect IQ iOS SDK licence (the iOS
-     build pulls it as a Swift Package). If not, remove the Garmin link from
-     the iOS build first.
-  Then: `git tag comx-v0.1.0 && git push org comx-v0.1.0`.
+- All CI builds green. First TestFlight build sent: **0.1 (1)**, tag
+  `comx-v0.1.0`, distributed to internal testers. **Not yet tested on a real
+  device.**
+- App Store Connect record exists (`com.xavier.comx`).
+- Next release: bump the tag (`git tag comx-v0.1.1 && git push org comx-v0.1.1`);
+  the build number is read from TestFlight and incremented.
 - Signing uses the shared match store (`xavierkain-apps/apple-certs`); see the
   owner's global notes on certificates before touching signing.
 
 ## Decisions taken with the owner
 
+- Garmin Connect IQ iOS SDK licence accepted (2026-10-17): the iOS build
+  keeps the Garmin link.
 - Phone in a pouch first; a watch working alone (cellular, needs a server)
   comes later.
 - Voice = voice messages (to the group, or private to one rider), not live
