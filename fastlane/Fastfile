@@ -167,11 +167,35 @@ platform :ios do
 
     app = Spaceship::ConnectAPI::App.find(APP_ID)
     group = app.get_beta_groups.find(&:is_internal_group)
-    UI.user_error!("No internal beta group on #{APP_ID}") if group.nil?
-    UI.important("Internal group: #{group.name} (#{group.id})")
 
     require "net/http"
     require "json"
+
+    # A new app has no beta group at all, so the uploaded build reaches nobody.
+    # Create the internal group, with access to every build.
+    if group.nil?
+      uri = URI("https://api.appstoreconnect.apple.com/v1/betaGroups")
+      req = Net::HTTP::Post.new(uri)
+      req["Authorization"] = "Bearer #{Spaceship::ConnectAPI.token.text}"
+      req["Content-Type"] = "application/json"
+      req.body = {
+        data: {
+          type: "betaGroups",
+          attributes: {name: "Team", isInternalGroup: true, hasAccessToAllBuilds: true},
+          relationships: {app: {data: {type: "apps", id: app.id}}}
+        }
+      }.to_json
+      res = Net::HTTP.start(uri.hostname, uri.port, use_ssl: true) { |http| http.request(req) }
+      unless res.code.to_i.between?(200, 299)
+        UI.error("HTTP #{res.code}")
+        UI.error(res.body.to_s)
+        UI.user_error!("Could not create the internal beta group.")
+      end
+      UI.success("Created internal group Team.")
+      group = app.get_beta_groups.find(&:is_internal_group)
+      UI.user_error!("Internal group created but not found on #{APP_ID}") if group.nil?
+    end
+    UI.important("Internal group: #{group.name} (#{group.id})")
 
     def asc_get(path)
       uri = URI("https://api.appstoreconnect.apple.com/#{path}")
