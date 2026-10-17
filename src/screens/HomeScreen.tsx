@@ -8,6 +8,7 @@ import {colors as defaultColors, fonts, spacing, radius} from '../theme';
 import {useTheme} from '../contexts/ThemeContext';
 import {APP_VERSION} from '../version';
 import {appLog} from '../utils/logger';
+import {useRide} from '../contexts/RideContext';
 
 const FAVORITES_KEY = '@soarx_favorite_channels';
 const DEFAULT_CHANNEL = 'TARIFA-01';
@@ -21,6 +22,7 @@ export function HomeScreen({onJoined, onSettings}: HomeScreenProps) {
   const {pilotName, setPilotName} = useUser();
   const {joinChannel} = useAgoraContext();
   const {colors, mode, toggleTheme} = useTheme();
+  const {demo} = useRide();
   const [channel, setChannel] = useState(DEFAULT_CHANNEL);
   const [isJoining, setIsJoining] = useState(false);
   const [favorites, setFavorites] = useState<string[]>([]);
@@ -118,6 +120,14 @@ export function HomeScreen({onJoined, onSettings}: HomeScreenProps) {
         <Text style={[styles.subtitle, {color: colors.primary}]}>VOICE</Text>
       </View>
 
+      {demo && (
+        <TouchableOpacity onPress={onSettings} activeOpacity={0.7}>
+          <Text style={[styles.demoBanner, {color: colors.primary, borderColor: colors.primary}]}>
+            Demo riders on: open ComX on your watch. Turn off in Settings.
+          </Text>
+        </TouchableOpacity>
+      )}
+
       <View style={[styles.card, {backgroundColor: colors.bgCard, borderColor: defaultColors.cardBorder}]}>
         <View style={styles.fieldBlock}>
           <Text style={[styles.label, {color: colors.textSecondary}]}>PILOT NAME</Text>
@@ -213,6 +223,14 @@ export function HomeScreen({onJoined, onSettings}: HomeScreenProps) {
 }
 
 const styles = StyleSheet.create({
+  demoBanner: {
+    borderWidth: 1,
+    borderRadius: radius.md,
+    padding: spacing.sm,
+    marginBottom: spacing.md,
+    textAlign: 'center',
+    fontSize: 13,
+  },
   container: {
     flex: 1,
     backgroundColor: defaultColors.bg,

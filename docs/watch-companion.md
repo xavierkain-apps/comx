@@ -54,6 +54,20 @@ phone**: its mic stays off, so the group does not hear wind in the pouch, and
 opens only while the watch sends `ptt` `active: true`. The voice is muffled by
 the pouch — it is a fallback, not the main use.
 
+## Demo mode
+
+Settings → Demo → *Demo riders* (`src/ride/demo.ts`, stored under
+`@comx_demo`). For testing alone with one phone and one watch:
+
+- Three virtual riders (uids 990001–990003) circle around where the phone was
+  when the demo started, at 150 m, 450 m and 900 m.
+- No channel is needed: the watch receives `connected: true`, channel `Demo`.
+- They send a quick message every 45–90 s, answer ours after 3 s and answer an
+  SOS after 4 s. Settings can raise an SOS from Tom.
+- A voice clip from the watch comes back from a virtual rider 2 s later (a
+  private clip from its recipient), with `speaking` events around it. In a
+  real channel only clips addressed to a virtual rider are echoed.
+
 ## Phone ↔ phone (Agora data stream)
 
 JSON, UTF-8 (see `src/utils/encoding.ts`), each message < 1 KB.

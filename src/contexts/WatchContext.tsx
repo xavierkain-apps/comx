@@ -23,6 +23,7 @@ import {
   parseVoiceChunk,
   splitClip,
 } from '../ride/voiceClips';
+import {DEMO_RIDERS, demoRider, isDemoUid} from '../ride/demo';
 
 export type {WatchModeSetting};
 const SETTING_KEY = '@soarx_watch_mode';
@@ -38,6 +39,8 @@ const SPEAKING_END_MS = 1500;
 const HELLO_TTL_MS = 5 * 60_000;
 /** "Talk via phone" closes by itself after this long. */
 const PTT_TIMEOUT_MS = 60_000;
+/** Demo mode: a virtual rider answers a voice message after this long. */
+const DEMO_ECHO_DELAY_MS = 2000;
 
 interface WatchContextValue {
   available: boolean;
@@ -63,8 +66,12 @@ export function WatchProvider({children}: {children: ReactNode}) {
     sendStreamJson, subscribeStream, localUid,
   } = useAgoraContext();
   const {pilotName} = useUser();
-  const {myPosition, riders, sendQuickMessage, setSos, subscribeRideEvents, logMessage} = useRide();
+  const {myPosition, riders, sendQuickMessage, setSos, subscribeRideEvents, logMessage, demo} = useRide();
   const connected = connectionState === 'connected';
+  const connectedRef = useRef(connected);
+  connectedRef.current = connected;
+  const demoRef = useRef(demo);
+  demoRef.current = demo;
 
   const [watches, setWatches] = useState<WatchInfo[]>([]);
   const [setting, setSettingState] = useState<WatchModeSetting>('auto');
@@ -205,6 +212,13 @@ export function WatchProvider({children}: {children: ReactNode}) {
     const clipSub = WatchBridge.onClip(({platform, path, durationMs, to}) => {
       appLog('Watch', `clip from ${platform}: ${durationMs} ms${typeof to === 'number' ? ` to ${to}` : ''}`);
       setHelloAt(prev => ({...prev, [platform]: Date.now()}));
+      // Demo: a virtual rider plays the clip back, for a message to it or
+      // to a group that has no real channel
+      const toDemo = typeof to === 'number' && isDemoUid(to);
+      if (demoRef.current && (toDemo || !connectedRef.current)) {
+        echoDemoClipRef.current(path, durationMs, toDemo ? (to as number) : null);
+        return;
+      }
       if (typeof to === 'number' && to !== 0) {
         sendPrivateClipRef.current(path, to, durationMs);
         return;
@@ -240,6 +254,24 @@ export function WatchProvider({children}: {children: ReactNode}) {
   const sendPrivateClipRef = useRef(sendPrivateClip);
   sendPrivateClipRef.current = sendPrivateClip;
 
+  // ---- Demo mode: voice messages come back from a virtual rider -------------
+  const echoDemoClip = (path: string, durationMs: number, to: number | null) => {
+    const rider = (to !== null && demoRider(to)) || DEMO_RIDERS[0];
+    logMessage('You', 'voice', to !== null ? `🎤 Voice message to ${rider.name}` : '🎤 Voice message');
+    const meta = {uid: rider.uid, from: rider.name};
+    setTimeout(() => {
+      if (!demoRef.current) return;
+      WatchBridge.sendEvent({v: PROTOCOL_VERSION, kind: 'event', type: 'speaking', ...meta, active: true});
+      WatchBridge.sendClip(path, {v: PROTOCOL_VERSION, kind: 'clip', ...meta, durationMs, private: to !== null});
+      logMessage(rider.name, 'voice', '🎤 Voice message (demo echo)', rider.uid);
+      setTimeout(() => {
+        WatchBridge.sendEvent({v: PROTOCOL_VERSION, kind: 'event', type: 'speaking', ...meta, active: false});
+      }, Math.max(durationMs, 1000));
+    }, DEMO_ECHO_DELAY_MS);
+  };
+  const echoDemoClipRef = useRef(echoDemoClip);
+  echoDemoClipRef.current = echoDemoClip;
+
   const assemblerRef = useRef(new ClipAssembler());
   const localUidRef = useRef<number | null>(null);
   localUidRef.current = localUid;
@@ -271,9 +303,11 @@ export function WatchProvider({children}: {children: ReactNode}) {
 
   // ---- Channel → watches ----------------------------------------------------
   const stateRef = useRef<object | null>(null);
+  // Demo mode without a channel still looks like one to the watch
+  const demoOnly = demo && !connected;
   stateRef.current = buildWatchState({
-    connected,
-    channel: channelName,
+    connected: connected || demo,
+    channel: demoOnly ? 'Demo' : channelName,
     watchMode,
     myName: pilotName,
     me: myPosition,
@@ -288,7 +322,7 @@ export function WatchProvider({children}: {children: ReactNode}) {
       if (stateRef.current) WatchBridge.sendState(stateRef.current);
     }, STATE_INTERVAL_MS);
     return () => clearInterval(timer);
-  }, [connected, watchMode]);
+  }, [connected, watchMode, demo]);
 
   // Text and SOS events
   const ridersRef = useRef(riders);

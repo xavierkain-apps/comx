@@ -59,7 +59,10 @@ Local checks that are cheap: `npx tsc --noEmit`, `npx eslint src --quiet`,
 - All CI builds green. First TestFlight build sent: **0.1 (1)**, tag
   `comx-v0.1.0`, distributed to internal testers. **Not yet tested on a real
   device.**
-- App Store Connect record exists (`com.xavier.comx`).
+- App Store Connect record exists (`com.xavier.comx`, name "ComX Rider").
+  Internal TestFlight group "Team" (all builds) with the owner in it.
+- Demo mode (Settings → Demo) gives virtual riders for testing alone; see
+  `docs/watch-companion.md`.
 - Next release: bump the tag (`git tag comx-v0.1.1 && git push org comx-v0.1.1`);
   the build number is read from TestFlight and incremented.
 - Signing uses the shared match store (`xavierkain-apps/apple-certs`); see the

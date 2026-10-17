@@ -24,6 +24,7 @@ import {APP_VERSION} from '../version';
 import type {MuteFeedbackMode} from '../hooks/useMute';
 import {useWatch, WatchModeSetting} from '../contexts/WatchContext';
 import {WatchBridge} from '../services/WatchBridge';
+import {useRide} from '../contexts/RideContext';
 
 const WATCH_MODES: {value: WatchModeSetting; label: string}[] = [
   {value: 'auto', label: 'Auto'},
@@ -67,6 +68,7 @@ interface SettingsScreenProps {
 export function SettingsScreen({onDone}: SettingsScreenProps) {
   const {colors} = useTheme();
   const watch = useWatch();
+  const ride = useRide();
 
   // --- Debug ---
   const [logText, setLogText] = useState('');
@@ -310,6 +312,36 @@ export function SettingsScreen({onDone}: SettingsScreenProps) {
               }
               activeOpacity={0.7}>
               <Text style={[styles.segmentText, {color: colors.primary}]}>Connect a Garmin watch</Text>
+            </TouchableOpacity>
+          )}
+        </View>
+
+        {/* --- Demo Section --- */}
+        <Text style={[styles.sectionTitle, {color: colors.textSecondary}]}>DEMO</Text>
+        <View style={[styles.card, {backgroundColor: colors.bgCard, borderColor: colors.cardBorder}]}>
+          <View style={styles.toggleRow}>
+            <View style={{flex: 1}}>
+              <Text style={[styles.toggleLabel, {color: colors.text}]}>Demo riders</Text>
+              <Text style={[styles.toggleHint, {color: colors.textMuted}]}>
+                Three virtual riders circle around you (150 m, 450 m, 900 m), send quick messages, answer
+                yours and play your voice messages back. No channel needed: open ComX on the watch.
+              </Text>
+            </View>
+            <Switch
+              value={ride.demo}
+              onValueChange={ride.setDemo}
+              trackColor={{false: colors.cardBorder, true: colors.primary}}
+              thumbColor="#FFFFFF"
+            />
+          </View>
+          {ride.demo && (
+            <TouchableOpacity
+              style={[styles.segmentButton, {borderColor: colors.red, marginTop: spacing.md}]}
+              onPress={() => ride.setDemoSos(ride.demoSosUid === null)}
+              activeOpacity={0.7}>
+              <Text style={[styles.segmentText, {color: colors.red}]}>
+                {ride.demoSosUid === null ? 'Simulate an SOS from Tom' : 'Cancel Tom\'s SOS'}
+              </Text>
             </TouchableOpacity>
           )}
         </View>
