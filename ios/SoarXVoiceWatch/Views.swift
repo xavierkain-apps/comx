@@ -15,7 +15,7 @@ struct ContentView: View {
       NavigationStack {
         // Horizontal paging: the Digital Crown stays free for the compass.
         TabView(selection: $page) {
-          CompassView().tag(0)
+          CompassView(isCurrentPage: page == 0).tag(0)
           RidersView(onSelect: { uid in
             model.select(uid)
             page = 0
@@ -62,6 +62,9 @@ private extension ScenePhase {
 /// Double tap (watchOS 11+) or the Action button: talk.
 struct CompassView: View {
   @EnvironmentObject var model: AppModel
+  @Environment(\.scenePhase) private var scenePhase
+  /// Only the visible page may take the crown, or the lists could not scroll.
+  var isCurrentPage: Bool
   @State private var crown: Double = 0
   @State private var crownStep = 0
   @FocusState private var crownFocused: Bool
@@ -121,7 +124,23 @@ struct CompassView: View {
       model.crownStep(step > crownStep ? 1 : -1)
       crownStep = step
     }
-    .onAppear { crownFocused = true }
+    // Without focus the crown goes to the system and leaves the app. Focus
+    // requested in onAppear is ignored inside a paged TabView, so ask again
+    // once the page is on screen, and whenever it comes back.
+    .onAppear { claimCrown() }
+    .onChange(of: isCurrentPage) { _, current in if current { claimCrown() } }
+    .onChange(of: scenePhase) { _, phase in if phase == .active { claimCrown() } }
+    .onChange(of: crownFocused) { _, focused in
+      InputLog.shared.record(.focus, focused ? "compass has the crown" : "compass lost the crown")
+      if !focused && isCurrentPage { claimCrown() }
+    }
+  }
+
+  private func claimCrown() {
+    guard isCurrentPage else { return }
+    DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+      if isCurrentPage { crownFocused = true }
+    }
   }
 }
 
