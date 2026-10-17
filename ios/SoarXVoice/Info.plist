@@ -35,6 +35,8 @@
 	</dict>
 	<key>NSLocationWhenInUseUsageDescription</key>
 	<string>ComX shares your position with the riders in your channel so everyone can see distance and direction.</string>
+	<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
+	<string>ComX shares your position with the riders in your channel so everyone can see distance and direction, including while the phone is locked in its pouch.</string>
 	<key>NSBluetoothAlwaysUsageDescription</key>
 	<string>ComX uses Bluetooth to connect your mute/unmute control buttons and your Garmin watch.</string>
 	<key>NSBluetoothPeripheralUsageDescription</key>
