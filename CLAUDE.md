@@ -16,8 +16,8 @@ ComX is built from the SoarX Voice code (React Native + Agora) but is a
   `iOS — TestFlight` or `Android — Release` workflows from here.
 - Separate identifiers: iOS `com.xavier.comx`, watch
   `com.xavier.comx.watchkitapp` (both App IDs exist, HealthKit enabled on the
-  watch one). Android still uses `com.soarxvoice` — rename before any
-  Android release. Garmin app id `8ac2d628-66c4-40a4-96b0-10061a6d6519`.
+  watch one). Android: `com.xavier.comx` (phone and Wear OS; Kotlin
+  namespaces stay `com.soarxvoice`). No Play Console listing yet. Garmin app id `8ac2d628-66c4-40a4-96b0-10061a6d6519`.
 - It stays in the SoarX repo because GitHub secrets (App Store Connect key,
   match passphrase) cannot be copied: a separate repo means re-supplying them
   from the original sources.
@@ -48,7 +48,7 @@ builds locally.** Everything compiles on GitHub Actions:
 | --- | --- | --- |
 | `watch-ios-build.yml` | iOS app + watch app, simulator, unsigned | push on `comx` |
 | `watch-garmin-build.yml` | Connect IQ `.prg` for 14 devices (artifact `comx-garmin-prg`) | push on `comx` touching `garmin/**` |
-| `watch-android-build.yml` | Phone + Wear OS debug APKs | push on `feature/watch-android`, `feature/watch-companion` (add `comx` when needed) |
+| `watch-android-build.yml` | Phone APK (release build, debug-signed, no Agora App ID: demo mode only) + Wear OS APK, artifacts `comx-phone` / `comx-wear` | push on `comx` |
 | `comx-testflight.yml` | Signed ComX build to TestFlight | tag `comx-v*` |
 
 Local checks that are cheap: `npx tsc --noEmit`, `npx eslint src --quiet`,

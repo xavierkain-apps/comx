@@ -1,13 +1,19 @@
 name: Watch — Android build
 
 # Compiles the phone-side WatchBridge module and the Wear OS app, runs their
-# unit tests and publishes debug APKs for on-device testing
+# unit tests and publishes APKs for on-device and emulator testing
 # (docs/watch-android.md). Debug signing only: no secrets are used.
+#
+# The phone APK is a release build (JS bundled, no Metro needed) signed with
+# the debug key, so it installs directly and pairs with the Wear APK. The repo
+# is public, so its artifacts are too: no Agora App ID is embedded. Demo mode
+# works; joining a real channel does not.
 
 on:
   workflow_dispatch:
   push:
-    branches: [feature/watch-android, feature/watch-companion]
+    branches: [comx, feature/watch-android, feature/watch-companion]
+    paths-ignore: ['garmin/**', 'docs/**', '**.md']
 
 concurrency:
   group: watch-android-${{ github.ref }}
@@ -53,9 +59,10 @@ jobs:
         working-directory: android
         # The repo default heap (2 GB) ran out packaging the debug APKs with
         # Agora's native libraries. The runner has 16 GB.
+        # arm64-v8a for phones and Apple Silicon emulators, x86_64 for Intel ones.
         run: >-
           ./gradlew --no-daemon "-Dorg.gradle.jvmargs=-Xmx6g -XX:MaxMetaspaceSize=1g"
-          :app:assembleDebug :app:testDebugUnitTest -PreactNativeArchitectures=arm64-v8a
+          :app:testDebugUnitTest :app:assembleRelease -PreactNativeArchitectures=arm64-v8a,x86_64
 
       - name: Upload test reports
         if: failure()
@@ -72,14 +79,14 @@ jobs:
 
       - uses: actions/upload-artifact@v4
         with:
-          name: soarxvoice-wear-debug
+          name: comx-wear
           retention-days: 14
           if-no-files-found: error
-          path: android/wear/build/outputs/apk/debug/*.apk
+          path: android/wear/build/outputs/apk/release/*.apk
 
       - uses: actions/upload-artifact@v4
         with:
-          name: soarxvoice-phone-debug
+          name: comx-phone
           retention-days: 14
           if-no-files-found: error
-          path: android/app/build/outputs/apk/debug/*.apk
+          path: android/app/build/outputs/apk/release/*universal*.apk

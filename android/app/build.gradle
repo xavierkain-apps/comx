@@ -100,11 +100,11 @@ android {
 
     namespace "com.soarxvoice"
     defaultConfig {
-        applicationId "com.soarxvoice"
+        applicationId "com.xavier.comx"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
-        versionCode 14
-        versionName "2.3"
+        versionCode 1
+        versionName "0.1"
         ndk {
             abiFilters "armeabi-v7a", "arm64-v8a", "x86_64"
         }

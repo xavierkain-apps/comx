@@ -7,7 +7,7 @@ apply plugin: "org.jetbrains.kotlin.plugin.compose"
  *
  * The Wearable Data Layer only pairs a watch app with a phone app that has the
  * SAME applicationId and the SAME signing key. So:
- *   - applicationId is com.soarxvoice, exactly like :app;
+ *   - applicationId is com.xavier.comx, exactly like :app;
  *   - signing resolves exactly like :app (keystore.properties, then env vars,
  *     falling back to the shared debug keystore in app/).
  *
@@ -29,11 +29,11 @@ android {
     buildToolsVersion rootProject.ext.buildToolsVersion
 
     defaultConfig {
-        applicationId "com.soarxvoice"
+        applicationId "com.xavier.comx"
         minSdkVersion 30
         targetSdkVersion rootProject.ext.targetSdkVersion
         versionCode 100001
-        versionName "2.3"
+        versionName "0.1"
     }
 
     signingConfigs {
