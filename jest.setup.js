@@ -62,3 +62,12 @@ jest.mock('@react-native-community/geolocation', () => ({
     clearWatch: jest.fn(),
   },
 }));
+
+// The library's own jest/mock.tsx is not transformed by the react-native preset.
+jest.mock('react-native-safe-area-context', () => {
+  const insets = {top: 0, right: 0, bottom: 0, left: 0};
+  return {
+    SafeAreaProvider: ({children}) => children,
+    useSafeAreaInsets: () => insets,
+  };
+});

@@ -54,13 +54,6 @@ const darkColors = {
 };
 
 export type ThemeColors = typeof darkColors;
-export type ThemeMode = 'dark' | 'light';
-
-/** Kept until HomeScreen is gone (Task 18); ComX has one palette. */
-export function getColors(_mode: ThemeMode): ThemeColors {
-  return darkColors;
-}
-
 export const colors = darkColors;
 
 // Bundled from assets/fonts (OFL). The family name is the file name, which is

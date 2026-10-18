@@ -146,7 +146,7 @@ export function AgoraProvider({children}: {children: ReactNode}) {
   }, [resetActivity]);
 
   // A join is only "done" once Agora reports CONNECTED. joinChannel() used to be
-  // fire-and-forget, so HomeScreen's try/catch could never fire and a failed join
+  // fire-and-forget, so JoinScreen's try/catch could never fire and a failed join
   // left the user staring at an empty channel.
   const joinSettleRef = useRef<{
     resolve: () => void;
