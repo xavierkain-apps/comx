@@ -33,6 +33,7 @@ export function ControlRow(p: ControlRowProps) {
         }}
         delayLongPress={1000}
         activeOpacity={0.7}
+        accessibilityRole="button"
         accessibilityLabel={p.mySos ? 'Cancel my SOS' : 'SOS, hold one second'}>
         <Text style={[styles.sosText, p.mySos && styles.sosCancel]}>{p.mySos ? 'CANCEL' : 'SOS'}</Text>
       </TouchableOpacity>
@@ -44,6 +45,8 @@ export function ControlRow(p: ControlRowProps) {
         disabled={memoDisabled}
         onPress={p.onMemo}
         activeOpacity={0.7}
+        accessibilityRole="button"
+        accessibilityState={{disabled: memoDisabled}}
         accessibilityLabel={p.memoRecording ? `Send the memo, ${p.memoSecondsLeft} seconds left` : 'Record a voice memo'}>
         {p.memoRecording ? (
           <>
@@ -55,7 +58,7 @@ export function ControlRow(p: ControlRowProps) {
         )}
       </TouchableOpacity>
 
-      <TouchableOpacity style={[styles.round, styles.secondary]} onPress={p.onMsg} activeOpacity={0.7} accessibilityLabel="Messages">
+      <TouchableOpacity style={[styles.round, styles.secondary]} onPress={p.onMsg} activeOpacity={0.7} accessibilityRole="button" accessibilityLabel="Messages">
         <Text style={styles.secondaryText}>MSG</Text>
       </TouchableOpacity>
     </View>
@@ -67,7 +70,7 @@ function TalkButton({state, onPress}: {state: TalkState; onPress: () => void}) {
     const title = state === 'watch' ? 'WATCH MODE' : 'GARMIN';
     const sub = state === 'watch' ? 'TALK ON YOUR WATCH' : state === 'garminTalking' ? 'PHONE MIC ON' : 'TALK VIA PHONE';
     return (
-      <View style={[styles.talk, styles.talkWatch]} accessibilityLabel={`${title}, ${sub}`}>
+      <View style={[styles.talk, styles.talkWatch]} accessible accessibilityLabel={`${title}, ${sub}`}>
         <Text style={styles.watchTitle} numberOfLines={1} adjustsFontSizeToFit>
           {title}
         </Text>
@@ -83,6 +86,7 @@ function TalkButton({state, onPress}: {state: TalkState; onPress: () => void}) {
       style={[styles.talk, {backgroundColor: live ? signal.yellow : signal.teal}]}
       onPress={onPress}
       activeOpacity={0.75}
+      accessibilityRole="button"
       accessibilityLabel={live ? 'Live, tap to mute' : 'Muted, tap to talk'}>
       <Text style={styles.talkText}>{live ? 'LIVE' : 'TALK'}</Text>
       <Text style={styles.talkSub} numberOfLines={1} adjustsFontSizeToFit>

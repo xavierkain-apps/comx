@@ -17,7 +17,7 @@ export function Banner({text, tone = 'amber', action}: BannerProps) {
     <View style={[styles.pill, {backgroundColor: bg}]} accessibilityRole="alert">
       <Text style={[styles.text, {color: ink}]}>{text}</Text>
       {action && (
-        <TouchableOpacity style={[styles.action, {backgroundColor: ink}]} onPress={action.onPress} hitSlop={8}>
+        <TouchableOpacity style={[styles.action, {backgroundColor: ink}]} onPress={action.onPress} hitSlop={8} accessibilityRole="button">
           <Text style={[styles.actionText, {color: bg}]}>{action.label}</Text>
         </TouchableOpacity>
       )}

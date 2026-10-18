@@ -29,6 +29,7 @@ export function RiderRow({rider, heading, onPress, selected = false}: RiderRowPr
       disabled={!onPress}
       onPress={onPress}
       activeOpacity={0.6}
+      accessibilityRole={onPress ? 'button' : undefined}
       accessibilityState={{selected}}
       accessibilityLabel={`${rider.name}, ${located ? formatDistance(rider.dist) : 'no GPS'}${rider.sos ? ', SOS' : ''}${onPress ? (selected ? ', memo recipient, tap again for the group' : ', tap to send the memo to this rider') : ''}`}
       style={[
@@ -52,7 +53,7 @@ export function RiderRow({rider, heading, onPress, selected = false}: RiderRowPr
         </View>
       )}
       {located ? (
-        <Text style={[styles.distance, {color: ink}]}>{formatDistance(rider.dist).toUpperCase()}</Text>
+        <Text style={[styles.distance, {color: ink}]}>{formatDistance(rider.dist)}</Text>
       ) : (
         <Text style={[styles.noGpsText, {color: ink}]}>No GPS</Text>
       )}
@@ -62,6 +63,7 @@ export function RiderRow({rider, heading, onPress, selected = false}: RiderRowPr
 
 const styles = StyleSheet.create({
   row: {
+    minHeight: 44,
     flexDirection: 'row',
     alignItems: 'center',
     gap: 14,
