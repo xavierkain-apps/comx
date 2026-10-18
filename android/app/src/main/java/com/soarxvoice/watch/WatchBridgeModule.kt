@@ -96,7 +96,13 @@ class WatchBridgeModule(private val reactContext: ReactApplicationContext) :
         }
     }
 
-    /** Reads a clip as base64 (no line breaks), to send it over the data stream. */
+    /**
+     * Reads a clip as base64 (no line breaks), to send it over the data stream.
+     *
+     * [path] may lie outside [getClipDir] (Agora's recorder writes its memo files
+     * wherever the JS side asks), so it is not checked against that folder: it is
+     * trusted input from our own JS code, never from a remote rider.
+     */
     @ReactMethod
     fun readClipBase64(path: String, promise: Promise) {
         try {
