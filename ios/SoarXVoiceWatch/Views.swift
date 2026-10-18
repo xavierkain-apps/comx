@@ -800,45 +800,60 @@ struct MessagesView: View {
         ForEach(QuickMessage.allCases) { m in
           Button { model.send(m) } label: {
             VStack(spacing: 2) {
-              Image(systemName: m.symbol).font(.system(size: 20, weight: .bold))
+              Image(systemName: m.symbol).font(.system(size: 18, weight: .bold))
               Text(m.label)
-                .font(.system(size: 13, weight: .semibold))
+                .font(.condensed(15, .bold))
+                .tracking(1)
+                .textCase(.uppercase)
                 .multilineTextAlignment(.center)
                 .lineLimit(2)
                 .minimumScaleFactor(0.7)
             }
+            .foregroundStyle(m == .help ? Theme.amber : Theme.text)
             .frame(maxWidth: .infinity, minHeight: 64)
+            .background(RoundedRectangle(cornerRadius: 22).fill(Theme.surfaceAlt))
           }
-          .tint(m == .help ? .orange : .blue)
+          .buttonStyle(.plain)
         }
       }
 
       if model.mySOSActive {
-        Button(role: .cancel) { model.setSOS(false) } label: {
-          Text("Cancel my SOS").font(.system(size: 18, weight: .heavy))
+        Button { model.setSOS(false) } label: {
+          Text("Cancel my SOS")
+            .font(.condensed(20))
+            .tracking(1)
+            .textCase(.uppercase)
+            .foregroundStyle(Theme.text)
             .frame(maxWidth: .infinity, minHeight: 56)
+            .background(Capsule().fill(Theme.red))
         }
-        .tint(.green)
+        .buttonStyle(.plain)
         .padding(.top, 6)
       } else {
         // Long press, then confirm: a wet screen must not raise an SOS.
-        Text("SOS")
-          .font(.system(size: 26, weight: .heavy))
-          .foregroundStyle(.white)
-          .frame(maxWidth: .infinity, minHeight: 60)
-          .background(RoundedRectangle(cornerRadius: 14).fill(Color.red))
+        Text("Hold · SOS")
+          .font(.condensed(22))
+          .tracking(1)
+          .textCase(.uppercase)
+          .foregroundStyle(Theme.red)
+          .frame(maxWidth: .infinity, minHeight: 58)
+          .overlay(Capsule().strokeBorder(Theme.red, lineWidth: 2))
+          .contentShape(Capsule())
           .onLongPressGesture(minimumDuration: 1.2) {
             WKInterfaceDevice.current().play(.click)
             confirmSOS = true
           }
+          .accessibilityHint("Hold, then confirm, to send an SOS")
+          .accessibilityAddTraits(.isButton)
           .padding(.top, 6)
-        Text("Hold to send SOS").font(.footnote).foregroundStyle(.secondary)
       }
 
       Button {
         WKInterfaceDevice.current().enableWaterLock()
       } label: {
         Label("Water lock", systemImage: "drop.fill")
+          .font(.plain(14))
+          .foregroundStyle(Theme.textMuted)
       }
       .padding(.top, 8)
 
@@ -846,15 +861,21 @@ struct MessagesView: View {
         InputTestView()
       } label: {
         Label("Input test", systemImage: "hand.tap")
+          .font(.plain(14))
+          .foregroundStyle(Theme.textMuted)
       }
 
       if model.workoutRunning {
         Button(role: .destructive) { model.endSession() } label: {
           Label("End session", systemImage: "stop.fill")
+          .font(.plain(14))
+          .foregroundStyle(Theme.textMuted)
         }
       } else {
         Button { model.startSession() } label: {
           Label("Start session", systemImage: "play.fill")
+          .font(.plain(14))
+          .foregroundStyle(Theme.textMuted)
         }
       }
     }
