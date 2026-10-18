@@ -21,7 +21,7 @@ repository (`xavierkain-apps/soarx-voice`).
 
 ```
 npm ci
-    cp .env.example .env   # AGORA_APP_ID, never committed
+cp .env.example .env   # AGORA_APP_ID, never committed
 npx tsc --noEmit && npx eslint src --quiet && npx jest --maxWorkers=1
 ```
 
