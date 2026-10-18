@@ -171,6 +171,8 @@ android {
     sourceSets {
         // Wear OS Data Layer protocol, compiled verbatim into :wear as well.
         main.java.srcDirs += rootProject.file("watch-shared/src")
+        // Barlow fonts: React Native loads assets/fonts/<family>.ttf.
+        main.assets.srcDirs += rootProject.file("../assets")
     }
     testOptions {
         unitTests.returnDefaultValues = true

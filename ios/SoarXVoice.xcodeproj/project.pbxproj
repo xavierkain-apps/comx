@@ -22,12 +22,17 @@
 		356CD5CBC1C4AE7F28156711 /* inactivity_warning.mp3 in Resources */ = {isa = PBXBuildFile; fileRef = 93F3057EFF69D4E909C6D916 /* inactivity_warning.mp3 */; };
 		3C19CE8FC4D3ED89001205A5 /* Protocol.swift in Sources */ = {isa = PBXBuildFile; fileRef = 673C89F49B6497C51278E6CE /* Protocol.swift */; };
 		3EEBC61D0C7909C7597B6781 /* SoarXVoiceWatchControls.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = 56CDA5D398BFF9A58B61FE67 /* SoarXVoiceWatchControls.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
+		4B37493DAD6B4E14EA3D46B8 /* Barlow-Bold.ttf in Resources */ = {isa = PBXBuildFile; fileRef = 665913BC7F776607753F3BF6 /* Barlow-Bold.ttf */; };
 		4D7FE641F4AA7B1F704D83A1 /* SoarXVoiceWatchApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9E95C1F8A1BC27223BD88309 /* SoarXVoiceWatchApp.swift */; };
 		50B06CE23F958A3699B2A995 /* voice_unmute.mp3 in Resources */ = {isa = PBXBuildFile; fileRef = 05834232ED914EEBA7C06F17 /* voice_unmute.mp3 */; };
 		52561D880E0E1DBFB722365B /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 5E8337D89E96B19AB6945747 /* Assets.xcassets */; };
+		54BCD3ECD1EDCE26BB681EE6 /* BarlowCondensed-Bold.ttf in Resources */ = {isa = PBXBuildFile; fileRef = B14B8EDFD31F545115E3E859 /* BarlowCondensed-Bold.ttf */; };
 		592D9806B2E304055F3CE3F7 /* TTSManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2351364724EC22A41F268D76 /* TTSManager.swift */; };
+		5962CF71D5A506D9E9E85A3F /* Barlow-Medium.ttf in Resources */ = {isa = PBXBuildFile; fileRef = A79F9D1FCE401F99D9E56E7A /* Barlow-Medium.ttf */; };
 		5A25232184B908FA8E59E696 /* WatchBridge.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5D52D1C7337F28C1523D64E6 /* WatchBridge.swift */; };
 		5F078D4A5DC0E8D84C43733D /* WatchBridge.m in Sources */ = {isa = PBXBuildFile; fileRef = AF9E717AA22B4B02F24149B4 /* WatchBridge.m */; };
+		6446738FA0576638F0F6E57E /* BarlowCondensed-ExtraBold.ttf in Resources */ = {isa = PBXBuildFile; fileRef = 6C0837EEC686ECE8E8EE6563 /* BarlowCondensed-ExtraBold.ttf */; };
+		726BED672FF772B77D7A50AE /* BarlowCondensed-SemiBold.ttf in Resources */ = {isa = PBXBuildFile; fileRef = 31AF5610EB4415976D010614 /* BarlowCondensed-SemiBold.ttf */; };
 		761780ED2CA45674006654EE /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 761780EC2CA45674006654EE /* AppDelegate.swift */; };
 		8187BE3D11B3ADA0763B117B /* Theme.swift in Sources */ = {isa = PBXBuildFile; fileRef = EDBDE2E1F1859F2F8C7E976E /* Theme.swift */; };
 		81AB9BB82411601600AC10FF /* LaunchScreen.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = 81AB9BB72411601600AC10FF /* LaunchScreen.storyboard */; };
@@ -41,6 +46,7 @@
 		A5D10C012F80000000000004 /* AudioSessionManager.m in Sources */ = {isa = PBXBuildFile; fileRef = A5D10C012F80000000000002 /* AudioSessionManager.m */; };
 		A818D0CCEF987E2EFA2DC224 /* voice_mute.mp3 in Resources */ = {isa = PBXBuildFile; fileRef = A99F0168CA49634E8F39762D /* voice_mute.mp3 */; };
 		B0D281E952D6660F804FE237 /* Audio.swift in Sources */ = {isa = PBXBuildFile; fileRef = DFC03273D5D73C9C59C36D9C /* Audio.swift */; };
+		B749F3B4B6B9B3F34247297F /* Barlow-SemiBold.ttf in Resources */ = {isa = PBXBuildFile; fileRef = 9789B3E067BAC41F04177CF5 /* Barlow-SemiBold.ttf */; };
 		D398C0BBA36E17D2852BC08F /* TTSManager.m in Sources */ = {isa = PBXBuildFile; fileRef = F6F7EE5FC0A5AB17D84956F3 /* TTSManager.m */; };
 		E28F7F6B79ED856EF1F2D2CD /* Views.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3FFECBA0D1C53C08B74AA5F8 /* Views.swift */; };
 		E5B4F6084C92CCE92B52EEAD /* TalkControl.swift in Sources */ = {isa = PBXBuildFile; fileRef = E3B28A541969B6483C137576 /* TalkControl.swift */; };
@@ -107,6 +113,7 @@
 		251E6A2F2F6617440079205C /* BLEButtonManager.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = BLEButtonManager.m; sourceTree = "<group>"; };
 		251E6A302F6617440079205C /* BLEButtonManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BLEButtonManager.swift; sourceTree = "<group>"; };
 		2A42CB0B24BA5481F7C3CADA /* History.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = History.swift; sourceTree = "<group>"; };
+		31AF5610EB4415976D010614 /* BarlowCondensed-SemiBold.ttf */ = {isa = PBXFileReference; includeInIndex = 1; path = "BarlowCondensed-SemiBold.ttf"; sourceTree = "<group>"; };
 		355D75D50E6E2FC0FAF0567E /* beep_double.mp3 */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = audio.mp3; path = beep_double.mp3; sourceTree = "<group>"; };
 		3B4392A12AC88292D35C810B /* Pods-SoarXVoice.debug.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-SoarXVoice.debug.xcconfig"; path = "Target Support Files/Pods-SoarXVoice/Pods-SoarXVoice.debug.xcconfig"; sourceTree = "<group>"; };
 		3FFECBA0D1C53C08B74AA5F8 /* Views.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = Views.swift; sourceTree = "<group>"; };
@@ -118,18 +125,23 @@
 		5D52D1C7337F28C1523D64E6 /* WatchBridge.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = WatchBridge.swift; sourceTree = "<group>"; };
 		5DCACB8F33CDC322A6C60F78 /* libPods-SoarXVoice.a */ = {isa = PBXFileReference; explicitFileType = archive.ar; includeInIndex = 0; path = "libPods-SoarXVoice.a"; sourceTree = BUILT_PRODUCTS_DIR; };
 		5E8337D89E96B19AB6945747 /* Assets.xcassets */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
+		665913BC7F776607753F3BF6 /* Barlow-Bold.ttf */ = {isa = PBXFileReference; includeInIndex = 1; path = "Barlow-Bold.ttf"; sourceTree = "<group>"; };
 		673C89F49B6497C51278E6CE /* Protocol.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = Protocol.swift; sourceTree = "<group>"; };
 		698F3A250F987F54F0E05B9C /* Info.plist */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 		6B6333A8387ACC28B5B6A9CD /* HapticManager.m */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.c.objc; path = HapticManager.m; sourceTree = "<group>"; };
+		6C0837EEC686ECE8E8EE6563 /* BarlowCondensed-ExtraBold.ttf */ = {isa = PBXFileReference; includeInIndex = 1; path = "BarlowCondensed-ExtraBold.ttf"; sourceTree = "<group>"; };
 		761780EC2CA45674006654EE /* AppDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = AppDelegate.swift; path = SoarXVoice/AppDelegate.swift; sourceTree = "<group>"; };
 		81AB9BB72411601600AC10FF /* LaunchScreen.storyboard */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = file.storyboard; name = LaunchScreen.storyboard; path = SoarXVoice/LaunchScreen.storyboard; sourceTree = "<group>"; };
 		93F3057EFF69D4E909C6D916 /* inactivity_warning.mp3 */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = audio.mp3; path = inactivity_warning.mp3; sourceTree = "<group>"; };
+		9789B3E067BAC41F04177CF5 /* Barlow-SemiBold.ttf */ = {isa = PBXFileReference; includeInIndex = 1; path = "Barlow-SemiBold.ttf"; sourceTree = "<group>"; };
 		9E95C1F8A1BC27223BD88309 /* SoarXVoiceWatchApp.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = SoarXVoiceWatchApp.swift; sourceTree = "<group>"; };
 		A5D10C012F80000000000001 /* AudioSessionManager.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = AudioSessionManager.swift; sourceTree = "<group>"; };
 		A5D10C012F80000000000002 /* AudioSessionManager.m */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.c.objc; path = AudioSessionManager.m; sourceTree = "<group>"; };
+		A79F9D1FCE401F99D9E56E7A /* Barlow-Medium.ttf */ = {isa = PBXFileReference; includeInIndex = 1; path = "Barlow-Medium.ttf"; sourceTree = "<group>"; };
 		A99F0168CA49634E8F39762D /* voice_mute.mp3 */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = audio.mp3; path = voice_mute.mp3; sourceTree = "<group>"; };
 		AE2F3657C7F05C325788C312 /* TalkControlWidget.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = TalkControlWidget.swift; sourceTree = "<group>"; };
 		AF9E717AA22B4B02F24149B4 /* WatchBridge.m */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.c.objc; path = WatchBridge.m; sourceTree = "<group>"; };
+		B14B8EDFD31F545115E3E859 /* BarlowCondensed-Bold.ttf */ = {isa = PBXFileReference; includeInIndex = 1; path = "BarlowCondensed-Bold.ttf"; sourceTree = "<group>"; };
 		C6BE7A5A9CC84E9591B871ED /* HapticManager.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = HapticManager.swift; sourceTree = "<group>"; };
 		CC3A2A6FCB9620F3033A6981 /* PhoneLink.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = PhoneLink.swift; sourceTree = "<group>"; };
 		DE9C44A7567B31232C6E7161 /* Intents.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = Intents.swift; sourceTree = "<group>"; };
@@ -239,6 +251,7 @@
 				251E6A2E2F66059C0079205C /* SoarXVoice-Bridging-Header.h */,
 				A9A659B1A2FC3606740065FE /* SoarXVoiceWatch */,
 				54B4A620C6F29B57D0ED69CE /* SoarXVoiceWatchControls */,
+				DFBA782A097C5D96EA4E1349 /* Fonts */,
 			);
 			indentWidth = 2;
 			sourceTree = "<group>";
@@ -285,6 +298,20 @@
 				5709B34CF0A7D63546082F79 /* Pods-SoarXVoice.release.xcconfig */,
 			);
 			path = Pods;
+			sourceTree = "<group>";
+		};
+		DFBA782A097C5D96EA4E1349 /* Fonts */ = {
+			isa = PBXGroup;
+			children = (
+				665913BC7F776607753F3BF6 /* Barlow-Bold.ttf */,
+				A79F9D1FCE401F99D9E56E7A /* Barlow-Medium.ttf */,
+				9789B3E067BAC41F04177CF5 /* Barlow-SemiBold.ttf */,
+				B14B8EDFD31F545115E3E859 /* BarlowCondensed-Bold.ttf */,
+				6C0837EEC686ECE8E8EE6563 /* BarlowCondensed-ExtraBold.ttf */,
+				31AF5610EB4415976D010614 /* BarlowCondensed-SemiBold.ttf */,
+			);
+			name = Fonts;
+			path = ../assets/fonts;
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
@@ -407,6 +434,12 @@
 				8893BBBBDAA170459889A681 /* beep_single.mp3 in Resources */,
 				9D60CE20D2042E04EE36D6AC /* beep_double.mp3 in Resources */,
 				356CD5CBC1C4AE7F28156711 /* inactivity_warning.mp3 in Resources */,
+				4B37493DAD6B4E14EA3D46B8 /* Barlow-Bold.ttf in Resources */,
+				5962CF71D5A506D9E9E85A3F /* Barlow-Medium.ttf in Resources */,
+				B749F3B4B6B9B3F34247297F /* Barlow-SemiBold.ttf in Resources */,
+				54BCD3ECD1EDCE26BB681EE6 /* BarlowCondensed-Bold.ttf in Resources */,
+				6446738FA0576638F0F6E57E /* BarlowCondensed-ExtraBold.ttf in Resources */,
+				726BED672FF772B77D7A50AE /* BarlowCondensed-SemiBold.ttf in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
