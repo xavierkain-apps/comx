@@ -10,7 +10,7 @@
 
 **Spec:** `docs/superpowers/specs/2026-10-18-comx-standalone-signal-radar-design.md` ("Visual system", "Step 2: Apple Watch restyle") and `design_handoff_comx_signal_radar/README.md` ("Watch: three main pages"). Open `design_handoff_comx_signal_radar/comx-2b-signal-radar.html` in a browser for the target look.
 
-**Testing note:** the watch target has no XCTest target, and adding one is out of scope. Each task is verified by building the watch target and by a simulator screenshot checked against the "Expected" list of the task. Logic is not touched, so the existing `npx jest` suite and the CI watch build check stay the safety net.
+**Testing note:** the watch target has no XCTest target, and adding one is out of scope (this includes `Format.short`, checked on screen: "180" under 1000 m, "1.4K" above, "--" without a distance). Each task is verified by building the watch target and by a simulator screenshot checked against the "Expected" list of the task. Logic is not touched, so the existing `npx jest` suite and the CI watch build check stay the safety net.
 
 **Repository rules:** work on branch `watch-signal-radar` from `main` of `xavierkain-apps/comx`; open a pull request, never push to `main` (the ComX server session reviews and merges); commit messages without any AI attribution trailer.
 
@@ -830,9 +830,22 @@ red for SOS, the system font's condensed width in uppercase for names,
 distances and labels. Palette and type helpers: `Theme.swift`.
 ```
 
-- [ ] **Step 2: Check on the Ultra size**
+- [ ] **Step 2: Check the smallest and the largest case**
 
-Boot the Apple Watch Ultra 3 (49 mm) simulator, install and launch as above (it can run without the phone). Expected: the radar, the talk circle (150 pt fits with its overline), History and Messages pages are not clipped; nothing overlaps the clock.
+Boot the smallest watch simulator available (Apple Watch Series 11 42 mm; `xcrun simctl list devices | grep -i "watch"`) and the Apple Watch Ultra 3 (49 mm); install and launch on each as above (they run without the phone; pair the 42 mm one with an iPhone simulator in demo mode to see riders). Expected on both: the radar, the talk page (overline + 150 pt circle), a rider page ("150 M" at 40 pt), History and Messages are not clipped and nothing overlaps the clock.
+
+If the talk circle or the overline is cut on the 42 mm case, cap the circle to the page: in `TalkCircle`, wrap the `Button` in
+
+```swift
+    GeometryReader { geo in
+      let side = min(150, geo.size.width - 8, geo.size.height - 8)
+      Button(action: { model.toggleTalk() }) { /* same label as above */ }
+        .frame(width: side, height: side)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+```
+
+replacing `.frame(maxWidth: 150, maxHeight: 150).aspectRatio(1, contentMode: .fit)` by `.frame(width: side, height: side)` on the label. If the rider page distance is cut, lower `.minimumScaleFactor(0.6)` to `0.45` on it.
 
 - [ ] **Step 3: Full iOS scheme still builds**
 
@@ -843,7 +856,16 @@ xcodebuild -workspace SoarXVoice.xcworkspace -scheme SoarXVoice -configuration D
   CODE_SIGNING_ALLOWED=NO IPHONEOS_DEPLOYMENT_TARGET=15.1 build 2>&1 | grep -E "error:|\*\* BUILD"; cd ..
 ```
 
-Expected: `** BUILD SUCCEEDED **`. Then `git checkout -- ios/Podfile.lock ios/SoarXVoice.xcodeproj/project.pbxproj` if `pod install` touched them (only the `Theme.swift` lines from Task 1 belong in the branch: `git diff main -- ios/SoarXVoice.xcodeproj/project.pbxproj` must show only those).
+Expected: `** BUILD SUCCEEDED **`.
+
+`pod install` adds its own lines to `project.pbxproj` and `Podfile.lock`; they must not reach the branch, but a plain checkout of `project.pbxproj` would also drop the `Theme.swift` lines of Task 1. Restore, then re-add `Theme.swift`:
+
+```bash
+git checkout -- ios/Podfile.lock ios/SoarXVoice.xcodeproj/project.pbxproj
+git diff main -- ios/SoarXVoice.xcodeproj/project.pbxproj | grep '^[+-][^+-]'
+```
+
+Expected: only lines mentioning `Theme.swift` (the committed Task 1 change). If anything else shows, it was committed by mistake: fix the commit before the pull request.
 
 - [ ] **Step 4: Commit, push the branch, open the pull request**
 
@@ -853,7 +875,7 @@ git commit -m "docs(watch): Signal · Radar look"
 git push -u origin watch-signal-radar
 gh pr create -R xavierkain-apps/comx --base main --head watch-signal-radar \
   --title "Apple Watch: Signal · Radar restyle" \
-  --body "Step 2 of docs/superpowers/specs/2026-10-18-comx-standalone-signal-radar-design.md. Restyle only: palette and condensed type (Theme.swift), radar badges, Talk circle on the talk and recipient pages, rider page and list, history rows, quick messages and SOS pill, SOS alert and banner. Navigation, crown paging, Action button and logic unchanged. Checked in the Series 11 and Ultra 3 simulators with demo riders."
+  --body "Step 2 of docs/superpowers/specs/2026-10-18-comx-standalone-signal-radar-design.md. Restyle only: palette and condensed type (Theme.swift), radar badges, Talk circle on the talk and recipient pages, rider page and list, history rows, quick messages and SOS pill, SOS alert and banner. Navigation, crown paging, Action button and logic unchanged. Checked in the Series 11 42 mm and 46 mm and Ultra 3 simulators with demo riders."
 ```
 
 The PR description carries no AI attribution line (owner's rule).
@@ -866,7 +888,7 @@ Tell the ComX server session the PR URL; it reviews, merges and ships a TestFlig
 
 ## Done when
 
-- Every watch page matches its "Expected" list in the Series 11 and Ultra 3 simulators.
+- Every watch page matches its "Expected" list in the 42 mm, 46 mm and Ultra 3 (49 mm) simulators.
 - The watch target and the full iOS scheme build; CI (`iOS — watch build check`) is green on the pull request.
 - The crown paging, the Action button Talk control, double tap, the history replay and the SOS long press behave exactly as before.
 - The pull request is merged by the ComX session and a TestFlight build is on Xavier's watch.
