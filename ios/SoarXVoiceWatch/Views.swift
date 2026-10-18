@@ -58,31 +58,34 @@ private extension ScenePhase {
 // MARK: - Compass (main page)
 
 /// Overview of every rider first, then one rider big (AppModel.compassRider),
-/// both full screen; the talk page is above the overview (swipe down or crown
-/// up from it). Crown: overview, then next / previous rider, one vertical page
-/// each; while talking, the recipient, one page per talk target. A vertical page TabView takes the
-/// crown natively, like the List on the riders page: a .focusable view with
-/// .digitalCrownRotation never got it on a real watch (the system took the
-/// rotation and went back to the watch face).
+/// both full screen; the talk page is above the overview (crown up or swipe
+/// down from it). Crown: overview, then next / previous rider, one page each;
+/// while talking, the recipient, one page per talk target.
+///
+/// The pages are a paged vertical ScrollView, which takes the crown natively
+/// in both directions. A .focusable view with .digitalCrownRotation never got
+/// the crown on a real watch (the system went back to the watch face), and a
+/// vertical page TabView opened on its second page could not be crowned up
+/// to the first one until the user had scrolled down once.
 /// Double tap (watchOS 11+) or the Action button: talk.
 struct CompassView: View {
   @EnvironmentObject var model: AppModel
-  /// Page on screen: a rider uid or `overview`; while recording a talk target
-  /// (nil = group). The overview page does not exist while recording.
+  /// Page on screen: a rider uid, `overview` or `talk`; while recording a talk
+  /// target uid or `group`. There is no overview or talk page while recording.
   @State private var page: Int?
-  /// Tags of the overview and talk pages, never a rider uid.
+  /// Page ids that are never a rider uid.
   static let overview = Int.min
   static let talk = Int.min + 1
+  static let group = Int.min + 2
 
   var body: some View {
     Group {
       if model.isRecording {
-        TabView(selection: $page) {
+        PagedColumn(page: $page) {
           ForEach(model.talkTargets, id: \.self) { uid in
-            CompassPage { TalkTargetPage(uid: uid) }.tag(uid)
+            CompassPage { TalkTargetPage(uid: uid) }.page(uid ?? CompassView.group)
           }
         }
-        .tabViewStyle(.verticalPage)
       } else if model.riders.isEmpty {
         CompassPage {
           Spacer(minLength: 0)
@@ -92,41 +95,118 @@ struct CompassView: View {
           Spacer(minLength: 0)
         }
       } else if let alert = model.sosAlert, let rider = model.rider(alert.uid) {
-        // No pages under the SOS alert: their indicator draws over it.
+        // Nothing to scroll under the SOS alert.
         CompassPage(talk: .none) { RiderPage(rider: rider) }
       } else {
-        TabView(selection: $page) {
-          CompassPage(talk: .big) { EmptyView() }.tag(Optional(CompassView.talk))
-          CompassPage(talk: .none, statusOver: true) { OverviewPage() }.tag(Optional(CompassView.overview))
+        PagedColumn(page: $page) {
+          CompassPage(talk: .big) { EmptyView() }.page(CompassView.talk)
+          CompassPage(talk: .none, statusOver: true) { OverviewPage() }.page(CompassView.overview)
           ForEach(model.riders) { rider in
-            CompassPage(talk: .none) { RiderPage(rider: rider) }.tag(Optional(rider.uid))
+            CompassPage(talk: .none) { RiderPage(rider: rider) }.page(rider.uid)
           }
         }
-        .tabViewStyle(.verticalPage)
       }
     }
     // The model decides who is on screen (an SOS wins); the crown, through
     // the pages, tells the model what the user picked.
     .onAppear { page = shownByModel }
+    .onChange(of: model.riders.isEmpty) { _, _ in page = shownByModel }
     .onChange(of: model.compassRider?.uid) { _, _ in if !model.isRecording { page = shownByModel } }
     .onChange(of: model.talkTarget) { _, _ in if model.isRecording { page = shownByModel } }
     .onChange(of: model.isRecording) { _, _ in page = shownByModel }
     .onChange(of: page) { _, picked in
       // The talk page is a place to go, not a pick: the model keeps its rider.
-      guard picked != shownByModel, picked != CompassView.talk || model.isRecording else { return }
+      guard let picked = picked, picked != shownByModel else { return }
       if model.isRecording {
-        model.setTalkTarget(picked)
+        model.setTalkTarget(picked == CompassView.group ? nil : picked)
       } else if picked == CompassView.overview {
         model.showOverview()
-      } else if let uid = picked {
-        model.select(uid)
+      } else if picked != CompassView.talk {
+        model.select(picked)
       }
     }
   }
 
-  private var shownByModel: Int? {
-    model.isRecording ? model.talkTarget : model.compassRider?.uid ?? CompassView.overview
+  private var shownByModel: Int {
+    model.isRecording
+      ? model.talkTarget ?? CompassView.group
+      : model.compassRider?.uid ?? CompassView.overview
   }
+}
+
+/// Full-screen pages stacked vertically, one page per crown or swipe step.
+/// `page` is the id (`.page(_:)`) of the page on screen, read and written.
+struct PagedColumn<Content: View>: View {
+  @Binding var page: Int?
+  @ViewBuilder var content: Content
+
+  var body: some View {
+    // Pages are the whole screen (the scroll view runs under the clock on
+    // watchOS); each page keeps the clock row and the bottom edge free.
+    GeometryReader { geo in
+      ScrollViewReader { proxy in
+        ScrollView(.vertical) {
+          LazyVStack(spacing: 0) { content }
+            .scrollTargetLayout()
+            .environment(\.pageHeight, geo.size.height + geo.safeAreaInsets.top + geo.safeAreaInsets.bottom)
+            .environment(\.pageInsets, EdgeInsets(top: geo.safeAreaInsets.top, leading: 0,
+                                                    bottom: geo.safeAreaInsets.bottom, trailing: 0))
+        }
+        .contentMargins(0, for: .scrollContent)
+        .ignoresSafeArea()
+        .scrollTargetBehavior(.paging)
+        .scrollPosition(id: $page)
+        .scrollIndicators(.visible)
+        .onAppear {
+          // Before layout, the binding alone does not move the scroll view.
+          let wanted = page
+          DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+            if let wanted = wanted { proxy.scrollTo(wanted, anchor: .top) }
+          }
+        }
+      }
+    }
+  }
+}
+
+private struct PageHeightKey: EnvironmentKey {
+  static let defaultValue: CGFloat? = nil
+}
+
+private struct PageInsetsKey: EnvironmentKey {
+  static let defaultValue = EdgeInsets()
+}
+
+extension EnvironmentValues {
+  /// Height of a PagedColumn page: the column's own height.
+  var pageHeight: CGFloat? {
+    get { self[PageHeightKey.self] }
+    set { self[PageHeightKey.self] = newValue }
+  }
+
+  /// Space a PagedColumn page leaves free: the clock row and the bottom edge.
+  var pageInsets: EdgeInsets {
+    get { self[PageInsetsKey.self] }
+    set { self[PageInsetsKey.self] = newValue }
+  }
+}
+
+private struct PageFrame: ViewModifier {
+  @Environment(\.pageHeight) private var height
+  @Environment(\.pageInsets) private var insets
+  let id: Int
+
+  func body(content: Content) -> some View {
+    content
+      .padding(insets)
+      .frame(height: height, alignment: .top)
+      .id(id)
+  }
+}
+
+private extension View {
+  /// One page of a PagedColumn: as tall as the column, identified by `id`.
+  func page(_ id: Int) -> some View { modifier(PageFrame(id: id)) }
 }
 
 /// Every rider on one radar: me in the centre, the top of the screen is the

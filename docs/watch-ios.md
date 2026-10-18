@@ -119,15 +119,22 @@ the riders, one page each. A rider whose SOS started after your last crown
 pick takes over the compass. Pages swipe **horizontally** so the crown never
 scrolls pages; it belongs to the compass.
 
-How the compass gets the crown: a `TabView` with `.tabViewStyle(.verticalPage)`,
-the overview and one page per rider (one per recipient while recording, no
-overview then), nested in the horizontal page `TabView`. Vertical pages are
-full screen, so each one carries the status line and the talk button. The vertical pages take the crown natively, like the `List` on
-the Riders page. The first version used a `.focusable()` view with
-`.digitalCrownRotation`: it worked in the simulator, but on a real watch
-(Watch7,5, watchOS 26.6, workout session running) the rotation never reached
-the app and the system went back to the watch face. The Input test log showed
-no crown event at all, only the compass gaining and losing focus.
+How the compass gets the crown: a paged vertical `ScrollView`
+(`.scrollTargetBehavior(.paging)`, `.scrollPosition(id:)`, `PagedColumn` in
+`Views.swift`) holding the talk page, the overview and one page per rider
+(one per recipient while recording, no talk page or overview then), nested in
+the horizontal page `TabView`. A scroll view takes the crown natively, like
+the `List` on the Riders page, in both directions. Each page is the whole
+screen (the scroll view runs under the clock), padded to keep the clock row
+and the bottom edge free.
+
+What did not work: a `.focusable()` view with `.digitalCrownRotation` worked
+in the simulator, but on a real watch (Watch7,5, watchOS 26.6, workout
+session running) the rotation never reached the app and the system went back
+to the watch face; the Input test log showed no crown event at all. A
+`TabView` with `.tabViewStyle(.verticalPage)` took the crown, but opened on
+its second page (the overview) it could not be crowned up to the first one
+(the talk page) until the user had scrolled down once, in the simulator.
 
 Voice is recorded at **16 kbit/s** AAC (`AVEncoderBitRateKey`), mono, 16 kHz:
 about 20 KB for 10 s. Not yet checked on a watch that the encoder accepts it
