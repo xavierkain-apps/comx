@@ -354,11 +354,15 @@ export function MemoProvider({children}: {children: ReactNode}) {
     return () => clearInterval(timer);
   }, [recording, sendMemo]);
 
-  // Leaving the channel ends a recording without sending it
+  // Leaving the channel ends a recording without sending it. A short
+  // 'reconnecting' keeps it; sending while still reconnecting is refused by
+  // transmit ("not connected").
+  const outOfChannel = !connected && connectionState !== 'reconnecting';
   useEffect(() => {
-    if (connected) return;
-    if (recRef.current) stopRecorder();
-  }, [connected, stopRecorder]);
+    if (!outOfChannel || !recRef.current) return;
+    stopRecorder();
+    logMessage('You', 'voice', 'Voice memo not sent: connection lost');
+  }, [outOfChannel, stopRecorder, logMessage]);
 
   const targetLabel = memoTargetLabel(target, target === GROUP_UID ? undefined : nameOf(target));
   const value = useMemo(
