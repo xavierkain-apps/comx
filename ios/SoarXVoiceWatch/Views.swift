@@ -15,7 +15,7 @@ struct ContentView: View {
       NavigationStack {
         // Horizontal paging: the Digital Crown stays free for the compass.
         TabView(selection: $page) {
-          CompassView(isCurrentPage: page == 0).tag(0)
+          CompassView().tag(0)
           RidersView(onSelect: { uid in
             model.select(uid)
             page = 0
@@ -58,52 +58,40 @@ private extension ScenePhase {
 // MARK: - Compass (main page)
 
 /// One rider big, chosen without touching (AppModel.focusedRider).
-/// Crown: next / previous rider; while talking, the recipient.
+/// Crown: next / previous rider, one vertical page per rider; while talking,
+/// the recipient, one page per talk target. A vertical page TabView takes the
+/// crown natively, like the List on the riders page: a .focusable view with
+/// .digitalCrownRotation never got it on a real watch (the system took the
+/// rotation and went back to the watch face).
 /// Double tap (watchOS 11+) or the Action button: talk.
 struct CompassView: View {
   @EnvironmentObject var model: AppModel
-  @Environment(\.scenePhase) private var scenePhase
-  /// Only the visible page may take the crown, or the lists could not scroll.
-  var isCurrentPage: Bool
-  @State private var crown: Double = 0
-  @State private var crownStep = 0
-  @FocusState private var crownFocused: Bool
+  /// Page on screen: a rider uid, or while recording a talk target (nil = group).
+  @State private var page: Int?
 
   var body: some View {
-    let rider = model.focusedRider
     VStack(spacing: 1) {
       StatusLine()
-      if let rider = rider {
-        HStack(spacing: 4) {
-          if rider.isSOS {
-            Text("SOS").font(.system(size: 16, weight: .heavy)).foregroundStyle(.red)
-          }
-          Text(rider.displayName)
-            .font(.system(size: 20, weight: .heavy))
-            .lineLimit(1)
-            .minimumScaleFactor(0.6)
-          if rider.isSpeaking {
-            Image(systemName: "waveform").foregroundStyle(.yellow)
-          }
-          if let pos = model.focusPosition, pos.1 > 1 {
-            Text("\(pos.0)/\(pos.1)").font(.system(size: 13, weight: .semibold)).foregroundStyle(.secondary)
+      if model.isRecording {
+        TabView(selection: $page) {
+          ForEach(model.talkTargets, id: \.self) { uid in
+            TalkTargetPage(uid: uid).tag(uid)
           }
         }
-        DirectionArrow(angle: model.arrowAngle(bearing: rider.brg),
-                       color: rider.isSOS ? .red : .cyan)
-          .frame(maxWidth: .infinity, maxHeight: .infinity)
-          .padding(2)
-          .opacity(rider.isStale ? 0.4 : 1)
-        Text(rider.isStale ? "\(Format.distance(rider.dist)) old" : Format.distance(rider.dist))
-          .font(.system(size: 30, weight: .heavy, design: .rounded))
-          .lineLimit(1)
-          .minimumScaleFactor(0.6)
-      } else {
+        .tabViewStyle(.verticalPage)
+      } else if model.riders.isEmpty {
         Spacer(minLength: 0)
         Text(model.linkUp ? "No riders yet" : "Waiting for phone")
           .font(.title3)
           .foregroundStyle(.secondary)
         Spacer(minLength: 0)
+      } else {
+        TabView(selection: $page) {
+          ForEach(model.riders) { rider in
+            RiderPage(rider: rider).tag(Optional(rider.uid))
+          }
+        }
+        .tabViewStyle(.verticalPage)
       }
       if let who = model.speakingLabel, !model.isRecording {
         Text(who)
@@ -114,33 +102,89 @@ struct CompassView: View {
       TalkButton()
     }
     .padding(.horizontal, 2)
-    .focusable()
-    .focused($crownFocused)
-    .digitalCrownRotation($crown, from: -1_000_000, through: 1_000_000, by: 1,
-                          sensitivity: .low, isContinuous: false, isHapticFeedbackEnabled: true)
-    .onChange(of: crown) { _, value in
-      let step = Int(value.rounded())
-      guard step != crownStep else { return }
-      model.crownStep(step > crownStep ? 1 : -1)
-      crownStep = step
-    }
-    // Without focus the crown goes to the system and leaves the app. Focus
-    // requested in onAppear is ignored inside a paged TabView, so ask again
-    // once the page is on screen, and whenever it comes back.
-    .onAppear { claimCrown() }
-    .onChange(of: isCurrentPage) { _, current in if current { claimCrown() } }
-    .onChange(of: scenePhase) { _, phase in if phase == .active { claimCrown() } }
-    .onChange(of: crownFocused) { _, focused in
-      InputLog.shared.record(.focus, focused ? "compass has the crown" : "compass lost the crown")
-      if !focused && isCurrentPage { claimCrown() }
+    // The model decides who is on screen (an SOS wins); the crown, through
+    // the pages, tells the model what the user picked.
+    .onAppear { page = shownByModel }
+    .onChange(of: model.focusedRider?.uid) { _, _ in if !model.isRecording { page = shownByModel } }
+    .onChange(of: model.talkTarget) { _, _ in if model.isRecording { page = shownByModel } }
+    .onChange(of: model.isRecording) { _, _ in page = shownByModel }
+    .onChange(of: page) { _, picked in
+      guard picked != shownByModel else { return }
+      if model.isRecording {
+        model.setTalkTarget(picked)
+      } else if let uid = picked {
+        model.select(uid)
+      }
     }
   }
 
-  private func claimCrown() {
-    guard isCurrentPage else { return }
-    DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
-      if isCurrentPage { crownFocused = true }
+  private var shownByModel: Int? {
+    model.isRecording ? model.talkTarget : model.focusedRider?.uid
+  }
+}
+
+/// One rider: name, arrow, distance.
+struct RiderPage: View {
+  @EnvironmentObject var model: AppModel
+  let rider: Rider
+
+  var body: some View {
+    VStack(spacing: 1) {
+      HStack(spacing: 4) {
+        if rider.isSOS {
+          Text("SOS").font(.system(size: 16, weight: .heavy)).foregroundStyle(.red)
+        }
+        Text(rider.displayName)
+          .font(.system(size: 20, weight: .heavy))
+          .lineLimit(1)
+          .minimumScaleFactor(0.6)
+        if rider.isSpeaking {
+          Image(systemName: "waveform").foregroundStyle(.yellow)
+        }
+        if let pos = position, pos.1 > 1 {
+          Text("\(pos.0)/\(pos.1)").font(.system(size: 13, weight: .semibold)).foregroundStyle(.secondary)
+        }
+      }
+      DirectionArrow(angle: model.arrowAngle(bearing: rider.brg),
+                     color: rider.isSOS ? .red : .cyan)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .padding(2)
+        .opacity(rider.isStale ? 0.4 : 1)
+      Text(rider.isStale ? "\(Format.distance(rider.dist)) old" : Format.distance(rider.dist))
+        .font(.system(size: 30, weight: .heavy, design: .rounded))
+        .lineLimit(1)
+        .minimumScaleFactor(0.6)
     }
+  }
+
+  private var position: (Int, Int)? {
+    let list = model.riders
+    guard let i = list.firstIndex(where: { $0.uid == rider.uid }) else { return nil }
+    return (i + 1, list.count)
+  }
+}
+
+/// While recording: who the clip goes to (nil = the whole group).
+struct TalkTargetPage: View {
+  @EnvironmentObject var model: AppModel
+  let uid: Int?
+
+  var body: some View {
+    let rider = uid.flatMap { model.rider($0) }
+    VStack(spacing: 2) {
+      Text("To").font(.system(size: 14, weight: .semibold)).foregroundStyle(.secondary)
+      Text(uid == nil ? "Group" : rider?.displayName ?? "Rider \(uid!)")
+        .font(.system(size: 26, weight: .heavy))
+        .foregroundStyle(uid == nil ? .white : .yellow)
+        .lineLimit(1)
+        .minimumScaleFactor(0.6)
+      if let rider = rider {
+        Text(Format.distance(rider.dist))
+          .font(.system(size: 18, weight: .bold, design: .rounded))
+          .foregroundStyle(.secondary)
+      }
+    }
+    .frame(maxWidth: .infinity, maxHeight: .infinity)
   }
 }
 

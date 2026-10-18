@@ -14,7 +14,6 @@ enum InputKind: String, CaseIterable {
   case intent = "Action"
   case wrist = "Wrist"
   case waterLock = "Lock"
-  case focus = "Focus"
 }
 
 struct InputEvent: Identifiable {

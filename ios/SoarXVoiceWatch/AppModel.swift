@@ -160,30 +160,9 @@ final class AppModel: ObservableObject {
     return list.first
   }
 
-  /// Position of the focused rider, 1-based, and the rider count.
-  var focusPosition: (Int, Int)? {
-    let list = riders
-    guard let f = focusedRider, let i = list.firstIndex(where: { $0.uid == f.uid }) else { return nil }
-    return (i + 1, list.count)
-  }
-
   func select(_ uid: Int) {
     selectedUid = uid
     selectedAt = Date()
-  }
-
-  /// One Digital Crown detent. While recording it picks the recipient,
-  /// otherwise it moves the compass to the next / previous rider.
-  func crownStep(_ delta: Int) {
-    if isRecording {
-      cycleTalkTarget(delta)
-      return
-    }
-    let list = riders
-    guard list.count > 1 else { return }
-    let index = focusedRider.flatMap { f in list.firstIndex { $0.uid == f.uid } } ?? 0
-    let n = list.count
-    select(list[((index + delta) % n + n) % n].uid)
   }
 
   /// Recipients in crown order: group, the rider on the compass, the others.
@@ -202,6 +181,13 @@ final class AppModel: ObservableObject {
     let n = targets.count
     talkTarget = targets[((index + delta) % n + n) % n]
     WKInterfaceDevice.current().play(talkTarget == nil ? .directionDown : .directionUp)
+  }
+
+  /// Recipient picked with the crown (a page of the compass) while recording.
+  func setTalkTarget(_ uid: Int?) {
+    guard isRecording, uid != talkTarget else { return }
+    talkTarget = uid
+    WKInterfaceDevice.current().play(uid == nil ? .directionDown : .directionUp)
   }
 
   var talkTargetName: String {

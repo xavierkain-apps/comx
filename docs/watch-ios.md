@@ -85,7 +85,7 @@ Payload notes for the JS side:
 
 | Input | Not recording | Recording |
 | --- | --- | --- |
-| Digital Crown, one detent | Next / previous rider on the compass (system detent haptic) | Choose the recipient: Group → the rider on the compass → the other riders → Group (`directionUp` haptic for a rider, `directionDown` for Group) |
+| Digital Crown | Next / previous rider on the compass, one vertical page per rider; stops at the first and last rider | Choose the recipient, one page per recipient: Group → the rider on the compass → the other riders (`directionUp` haptic for a rider, `directionDown` for Group) |
 | Double tap (watchOS 11+, Series 9 / Ultra 2 and later) | Start talking **to the group** | Stop and send to the chosen recipient |
 | Action button (Ultra), assigned to the *Talk* shortcut | Same as double tap | Same as double tap |
 | Action button, assigned to *Workout > ComX* | Starts the session | — |
@@ -95,13 +95,22 @@ Why this mapping: talk must default to the group with nothing to choose, so a
 private message needs a deliberate extra step. Turning the crown *while
 recording* is that step: it is unused otherwise, needs no touch, and the
 first detent lands on the rider already on the compass, so "Talk to Carlos"
-is: crown to Carlos, double tap, one crown click, speak, double tap. A
+is: crown to Carlos, double tap, one crown step, speak, double tap. A
 "double tap while focused > 2 s = private" rule was rejected: the compass
 always has a focused rider, so it would make nearly every message private.
 
 The compass shows one rider: a rider whose SOS started after your last crown
 pick, else the rider you picked, else the nearest. Pages swipe
 **horizontally** so the crown never scrolls pages; it belongs to the compass.
+
+How the compass gets the crown: a `TabView` with `.tabViewStyle(.verticalPage)`,
+one page per rider (per recipient while recording), nested in the horizontal
+page `TabView`. The vertical pages take the crown natively, like the `List` on
+the Riders page. The first version used a `.focusable()` view with
+`.digitalCrownRotation`: it worked in the simulator, but on a real watch
+(Watch7,5, watchOS 26.6, workout session running) the rotation never reached
+the app and the system went back to the watch face. The Input test log showed
+no crown event at all, only the compass gaining and losing focus.
 
 Voice is recorded at **16 kbit/s** AAC (`AVEncoderBitRateKey`), mono, 16 kHz:
 about 20 KB for 10 s. Not yet checked on a watch that the encoder accepts it
@@ -223,7 +232,7 @@ console (`[InputTest]`, visible in Console.app with the watch attached).
 
 | Counter | What increments it |
 | --- | --- |
-| Crown | One Digital Crown detent (`+1` / `-1`) |
+| Crown | One Digital Crown detent (`+1` / `-1`). Simulator only: the page uses `.focusable()` + `.digitalCrownRotation`, which never receives the crown on a real watch (see the input mapping), so this counter stays at 0 there |
 | Dbl tap | The blue button fired **without** a finger on it: the double-tap gesture (watchOS 11+) |
 | Btn touch | The blue button fired by a finger |
 | Tap | A finger anywhere else on the page |
