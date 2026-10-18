@@ -126,7 +126,7 @@ object PhoneLink {
         synchronized(uploads) { uploads.remove(path) }?.file?.delete()
     }
 
-    /** Phones running SoarX Voice; every connected node if the capability is unknown. */
+    /** Phones running ComX; every connected node if the capability is unknown. */
     private fun withPhones(context: Context, block: (List<Node>) -> Unit) {
         val connected = Wearable.getNodeClient(context).connectedNodes
         val capable = Wearable.getCapabilityClient(context)

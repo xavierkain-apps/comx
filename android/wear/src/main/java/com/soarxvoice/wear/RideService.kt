@@ -20,7 +20,7 @@ import androidx.wear.ongoing.Status
 
 /**
  * Keeps the app alive for a session (screen off, wrist down): a foreground
- * service with a Wear OS Ongoing Activity, so the watch face shows a SoarX
+ * service with a Wear OS Ongoing Activity, so the watch face shows a ComX
  * icon that returns to the app with one tap.
  *
  * Started from the activity (foreground services cannot be started from the
@@ -32,7 +32,7 @@ import androidx.wear.ongoing.Status
 class RideService : Service() {
 
     companion object {
-        private const val CHANNEL_ID = "soarx_ride"
+        private const val CHANNEL_ID = "comx_ride"
         private const val NOTIFICATION_ID = 7
         private const val HELLO_INTERVAL_MS = 120_000L
 
@@ -77,7 +77,7 @@ class RideService : Service() {
         )
         val builder = NotificationCompat.Builder(this, CHANNEL_ID)
             .setSmallIcon(R.drawable.ic_soarx)
-            .setContentTitle("SoarX")
+            .setContentTitle("ComX")
             .setContentText("Ride session")
             .setCategory(NotificationCompat.CATEGORY_WORKOUT)
             .setOngoing(true)
@@ -85,7 +85,7 @@ class RideService : Service() {
         OngoingActivity.Builder(this, NOTIFICATION_ID, builder)
             .setStaticIcon(R.drawable.ic_soarx)
             .setTouchIntent(open)
-            .setStatus(Status.Builder().addTemplate("SoarX").build())
+            .setStatus(Status.Builder().addTemplate("ComX").build())
             .build()
             .apply(this)
 

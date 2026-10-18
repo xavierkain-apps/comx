@@ -54,7 +54,7 @@ class AudioForegroundService : Service() {
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
-        val channelName = intent?.getStringExtra(EXTRA_CHANNEL_NAME) ?: "SoarX"
+        val channelName = intent?.getStringExtra(EXTRA_CHANNEL_NAME) ?: "ComX"
         val isMuted = intent?.getBooleanExtra(EXTRA_IS_MUTED, false) ?: false
         if (serviceType == 0) serviceType = computeServiceType()
         ServiceCompat.startForeground(this, NOTIFICATION_ID, buildNotification(channelName, isMuted), serviceType)
@@ -88,7 +88,7 @@ class AudioForegroundService : Service() {
         )
 
         return NotificationCompat.Builder(this, CHANNEL_ID)
-            .setContentTitle("SoarX Voice - $channelName")
+            .setContentTitle("ComX - $channelName")
             .setContentText(statusText)
             .setSmallIcon(android.R.drawable.ic_btn_speak_now)
             .setOngoing(true)
@@ -102,7 +102,7 @@ class AudioForegroundService : Service() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             val channel = NotificationChannel(
                 CHANNEL_ID,
-                "SoarX Voice",
+                "ComX",
                 NotificationManager.IMPORTANCE_LOW
             ).apply {
                 description = "Active voice communication"

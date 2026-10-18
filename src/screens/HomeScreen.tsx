@@ -114,10 +114,10 @@ export function HomeScreen({onJoined, onSettings}: HomeScreenProps) {
 
       <View style={styles.titleBlock}>
         <Text style={[styles.title, {color: colors.text}]}>
-          SOAR
+          COM
           <Text style={[styles.titleX, {color: colors.primary, textShadowColor: defaultColors.primaryGlow}]}>X</Text>
         </Text>
-        <Text style={[styles.subtitle, {color: colors.primary}]}>VOICE</Text>
+        <Text style={[styles.subtitle, {color: colors.primary}]}>RIDER</Text>
       </View>
 
       {demo && (
