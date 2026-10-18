@@ -88,12 +88,15 @@ const Badge = memo(function Badge({rider, x, y}: BadgeProps) {
   const d = rider.sos ? BADGE + SOS_GROWTH : BADGE;
   const fill = rider.sos ? signal.red : rider.speaking ? signal.yellow : signal.teal;
   const halo = rider.speaking && !rider.sos;
+  // Dimmed per element, not on the box: Android draws a translucent box with a
+  // round child as a square.
+  const dim = rider.stale ? 0.4 : 1;
   return (
-    <View style={[styles.badgeBox, {left: x - d / 2 - HALO, top: y - d / 2 - HALO, opacity: rider.stale ? 0.4 : 1}]}>
+    <View style={[styles.badgeBox, {left: x - d / 2 - HALO, top: y - d / 2 - HALO}]}>
       <View
         style={[
           styles.halo,
-          {width: d + HALO * 2, height: d + HALO * 2, borderRadius: d / 2 + HALO},
+          {width: d + HALO * 2, height: d + HALO * 2, borderRadius: d / 2 + HALO, opacity: dim},
           halo && styles.haloOn,
         ]}>
         <View style={[styles.badge, {width: d, height: d, borderRadius: d / 2, backgroundColor: fill}]}>
@@ -106,7 +109,7 @@ const Badge = memo(function Badge({rider, x, y}: BadgeProps) {
         </View>
       </View>
       {/* Decision 6: distance under the badge, as on the watch. */}
-      <Text style={styles.badgeDistance}>{shortDistance(rider.dist)}</Text>
+      <Text style={[styles.badgeDistance, {opacity: dim}]}>{shortDistance(rider.dist)}</Text>
     </View>
   );
 }, sameBadge);
