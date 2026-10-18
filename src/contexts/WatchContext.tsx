@@ -1,14 +1,11 @@
 // Bridges the channel to the rider's watch (Apple Watch, Wear OS, Garmin).
 // The phone stays in the Agora channel; the watch is its microphone, speaker
-// and screen. See docs/watch-companion.md.
+// and screen. Voice memos (watch or phone, group or private) are handled by
+// MemoContext. See docs/watch-companion.md.
 
 import React, {createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, ReactNode} from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import {
-  AudioFileRecordingType,
-  AudioMixingStateType,
-  AudioRecordingQualityType,
-} from 'react-native-agora';
+import {AudioFileRecordingType, AudioRecordingQualityType} from 'react-native-agora';
 import {useAgoraContext} from './AgoraContext';
 import {useUser} from './UserContext';
 import {useRide} from './RideContext';
@@ -16,14 +13,6 @@ import {WatchBridge, WatchInfo, WatchPlatform, VOICE_PLATFORMS, isActiveWatch} f
 import {PROTOCOL_VERSION, buildWatchState, parseWatchMessage} from '../ride/protocol';
 import {appLog} from '../utils/logger';
 import {micPolicy, WatchModeSetting} from '../ride/micPolicy';
-import {
-  CHUNK_INTERVAL_MS,
-  ClipAssembler,
-  MAX_CLIP_CHARS,
-  parseVoiceChunk,
-  splitClip,
-} from '../ride/voiceClips';
-import {DEMO_RIDERS, demoRider, isDemoUid} from '../ride/demo';
 
 export type {WatchModeSetting};
 const SETTING_KEY = '@soarx_watch_mode';
@@ -39,14 +28,14 @@ const SPEAKING_END_MS = 1500;
 const HELLO_TTL_MS = 5 * 60_000;
 /** "Talk via phone" closes by itself after this long. */
 const PTT_TIMEOUT_MS = 60_000;
-/** Demo mode: a virtual rider answers a voice message after this long. */
-const DEMO_ECHO_DELAY_MS = 2000;
 
 interface WatchContextValue {
   available: boolean;
   watches: WatchInfo[];
   /** True when the phone mic is off and voice goes through the watch. */
   watchMode: boolean;
+  /** An Apple Watch or Wear OS watch with ComX is active: memos go to it. */
+  voiceWatch: boolean;
   setting: WatchModeSetting;
   setSetting: (s: WatchModeSetting) => void;
   /**
@@ -62,24 +51,17 @@ const WatchContext = createContext<WatchContextValue | null>(null);
 
 export function WatchProvider({children}: {children: ReactNode}) {
   const {
-    connectionState, channelName, getEngine, setMicOverride, isHeadphonesConnected,
-    sendStreamJson, subscribeStream, localUid,
+    connectionState, channelName, getEngine, setMicOverride, isHeadphonesConnected, isMemoCapture,
   } = useAgoraContext();
   const {pilotName} = useUser();
-  const {myPosition, riders, sendQuickMessage, setSos, subscribeRideEvents, logMessage, demo} = useRide();
+  const {myPosition, riders, sendQuickMessage, setSos, subscribeRideEvents, demo} = useRide();
   const connected = connectionState === 'connected';
-  const connectedRef = useRef(connected);
-  connectedRef.current = connected;
-  const demoRef = useRef(demo);
-  demoRef.current = demo;
 
   const [watches, setWatches] = useState<WatchInfo[]>([]);
   const [setting, setSettingState] = useState<WatchModeSetting>('auto');
   const [phonePtt, setPhonePtt] = useState(false);
-  const [, setInjecting] = useState(false);
   const [helloAt, setHelloAt] = useState<Partial<Record<WatchPlatform, number>>>({});
   const clipDirRef = useRef<string | null>(null);
-  const voiceWatchActiveRef = useRef(false);
 
   useEffect(() => {
     AsyncStorage.getItem(SETTING_KEY).then(v => {
@@ -113,8 +95,6 @@ export function WatchProvider({children}: {children: ReactNode}) {
     watches.some(w => isActiveWatch(w) && w.platform === 'garmin') ||
     (helloAt.garmin ?? 0) > now - HELLO_TTL_MS;
 
-  voiceWatchActiveRef.current = voiceWatchActive;
-
   const {watchMode, pttMode, override} = micPolicy({
     connected,
     setting,
@@ -135,57 +115,10 @@ export function WatchProvider({children}: {children: ReactNode}) {
   }, [phonePtt]);
 
   // Phone mic: off while it sits in a pouch, open while "talk via phone" is
-  // held on a Garmin, and the stream stays published while a watch clip plays.
+  // held on a Garmin.
   useEffect(() => {
     if (connected) setMicOverride(override);
   }, [connected, override, setMicOverride]);
-
-  // ---- Watch clips → channel ------------------------------------------------
-  const clipQueueRef = useRef<{path: string; durationMs: number}[]>([]);
-  const playingRef = useRef(false);
-  const fallbackTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-
-  const playNextClip = useCallback(() => {
-    const engine = getEngine();
-    const next = clipQueueRef.current.shift();
-    if (!engine || !next) {
-      playingRef.current = false;
-      setInjecting(false);
-      return;
-    }
-    playingRef.current = true;
-    setInjecting(true);
-    // Give the stream a moment to unmute before the clip starts
-    setTimeout(() => {
-      const ret = engine.startAudioMixing(next.path, false, 1);
-      appLog('Watch', `inject clip ${next.path} (${next.durationMs} ms) ret=${ret}`);
-      if (fallbackTimerRef.current) clearTimeout(fallbackTimerRef.current);
-      // Never get stuck if the mixing-finished callback does not come
-      fallbackTimerRef.current = setTimeout(playNextClip, Math.max(next.durationMs, 1000) + 2000);
-    }, 150);
-  }, [getEngine]);
-
-  useEffect(() => {
-    const engine = getEngine();
-    if (!engine || !connected) return;
-    const onMixing = (state: AudioMixingStateType) => {
-      if (state === AudioMixingStateType.AudioMixingStatePlaying) {
-        // Others hear the clip; the phone in the pouch does not need to
-        engine.adjustAudioMixingPlayoutVolume(0);
-        engine.adjustAudioMixingPublishVolume(100);
-      }
-      if (
-        playingRef.current &&
-        (state === AudioMixingStateType.AudioMixingStateStopped ||
-          state === AudioMixingStateType.AudioMixingStateFailed)
-      ) {
-        if (fallbackTimerRef.current) clearTimeout(fallbackTimerRef.current);
-        playNextClip();
-      }
-    };
-    engine.addListener('onAudioMixingStateChanged', onMixing);
-    return () => engine.removeListener('onAudioMixingStateChanged', onMixing);
-  }, [connected, getEngine, playNextClip]);
 
   // ---- Messages from watches ------------------------------------------------
   useEffect(() => {
@@ -208,97 +141,15 @@ export function WatchProvider({children}: {children: ReactNode}) {
           break;
       }
     });
-    const clipSub = WatchBridge.onClip(({platform, path, durationMs, to}) => {
-      appLog('Watch', `clip from ${platform}: ${durationMs} ms${typeof to === 'number' ? ` to ${to}` : ''}`);
+    // The clip itself is MemoContext's; it still proves the watch is there.
+    const clipSub = WatchBridge.onClip(({platform}) => {
       setHelloAt(prev => ({...prev, [platform]: Date.now()}));
-      // Demo: a virtual rider plays the clip back, for a message to it or
-      // to a group that has no real channel
-      const toDemo = typeof to === 'number' && isDemoUid(to);
-      if (demoRef.current && (toDemo || !connectedRef.current)) {
-        echoDemoClipRef.current(path, durationMs, toDemo ? (to as number) : null);
-        return;
-      }
-      if (typeof to === 'number' && to !== 0) {
-        sendPrivateClipRef.current(path, to, durationMs);
-        return;
-      }
-      clipQueueRef.current.push({path, durationMs});
-      if (!playingRef.current) playNextClip();
     });
     return () => {
       msgSub?.remove();
       clipSub?.remove();
     };
-  }, [sendQuickMessage, setSos, playNextClip]);
-
-  // ---- Private voice messages (one rider) ----------------------------------
-  const ridersByUid = useRef(new Map<number, string>());
-  ridersByUid.current = new Map(riders.map(r => [r.uid, r.name]));
-
-  const sendPrivateClip = useCallback(async (path: string, to: number, durationMs: number) => {
-    const name = ridersByUid.current.get(to) ?? 'a rider';
-    const base64 = await WatchBridge.readClipBase64(path);
-    if (!base64 || base64.length > MAX_CLIP_CHARS) {
-      appLog('Watch', `private clip not sent (${base64 ? 'too long' : 'unreadable'})`);
-      logMessage('You', 'voice', `Voice message to ${name} not sent`);
-      return;
-    }
-    const ext = path.split('.').pop()?.toLowerCase() || 'm4a';
-    const chunks = splitClip(base64, `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`, to, durationMs, ext);
-    chunks.forEach((chunk, i) => {
-      setTimeout(() => sendStreamJson(chunk), i * CHUNK_INTERVAL_MS);
-    });
-    logMessage('You', 'voice', `🎤 Voice message to ${name}`);
-  }, [sendStreamJson, logMessage]);
-  const sendPrivateClipRef = useRef(sendPrivateClip);
-  sendPrivateClipRef.current = sendPrivateClip;
-
-  // ---- Demo mode: voice messages come back from a virtual rider -------------
-  const echoDemoClip = (path: string, durationMs: number, to: number | null) => {
-    const rider = (to !== null && demoRider(to)) || DEMO_RIDERS[0];
-    logMessage('You', 'voice', to !== null ? `🎤 Voice message to ${rider.name}` : '🎤 Voice message');
-    const meta = {uid: rider.uid, from: rider.name};
-    setTimeout(() => {
-      if (!demoRef.current) return;
-      WatchBridge.sendEvent({v: PROTOCOL_VERSION, kind: 'event', type: 'speaking', ...meta, active: true});
-      WatchBridge.sendClip(path, {v: PROTOCOL_VERSION, kind: 'clip', ...meta, durationMs, private: to !== null});
-      logMessage(rider.name, 'voice', '🎤 Voice message (demo echo)', rider.uid);
-      setTimeout(() => {
-        WatchBridge.sendEvent({v: PROTOCOL_VERSION, kind: 'event', type: 'speaking', ...meta, active: false});
-      }, Math.max(durationMs, 1000));
-    }, DEMO_ECHO_DELAY_MS);
-  };
-  const echoDemoClipRef = useRef(echoDemoClip);
-  echoDemoClipRef.current = echoDemoClip;
-
-  const assemblerRef = useRef(new ClipAssembler());
-  const localUidRef = useRef<number | null>(null);
-  localUidRef.current = localUid;
-
-  useEffect(() => {
-    return subscribeStream(async (fromUid, raw) => {
-      if (raw.type !== 'vc') return;
-      const chunk = parseVoiceChunk(raw);
-      if (!chunk || chunk.to !== localUidRef.current) return;
-      const clip = assemblerRef.current.add(fromUid, chunk, Date.now());
-      if (!clip) return;
-      const from = ridersByUid.current.get(fromUid) ?? 'A rider';
-      const path = await WatchBridge.writeClip(clip.base64, clip.ext);
-      logMessage(from, 'voice', '🎤 Voice message for you', fromUid);
-      if (!path) {
-        appLog('Watch', 'private clip received but could not be saved');
-        return;
-      }
-      if (voiceWatchActiveRef.current) {
-        WatchBridge.sendClip(path, {
-          v: PROTOCOL_VERSION, kind: 'clip', uid: fromUid, from, durationMs: clip.durationMs, private: true,
-        });
-      } else {
-        // No watch: play it on this phone only (loopback = not sent to the channel)
-        getEngine()?.startAudioMixing(path, true, 1);
-      }
-    });
-  }, [subscribeStream, logMessage, getEngine]);
+  }, [sendQuickMessage, setSos]);
 
   // ---- Channel → watches ----------------------------------------------------
   const stateRef = useRef<object | null>(null);
@@ -343,12 +194,13 @@ export function WatchProvider({children}: {children: ReactNode}) {
   // Speaking events + remote speech recorded into clips for the watch speaker
   const recordingRef = useRef<{path: string; startedAt: number; lastVoiceAt: number; uids: Set<number>} | null>(null);
 
-  const stopRecording = useCallback(() => {
+  /** `engineStopped`: a phone memo already stopped Agora's recorder. */
+  const stopRecording = useCallback((engineStopped = false) => {
     const engine = getEngine();
     const rec = recordingRef.current;
     recordingRef.current = null;
     if (!engine || !rec) return;
-    engine.stopAudioRecording();
+    if (!engineStopped) engine.stopAudioRecording();
     const durationMs = Math.min(Date.now(), rec.lastVoiceAt + 300) - rec.startedAt;
     if (durationMs < CLIP_MIN_MS) return;
     const names = [...rec.uids].map(uid => ridersRef.current.find(r => r.uid === uid)?.name ?? 'A rider');
@@ -390,6 +242,12 @@ export function WatchProvider({children}: {children: ReactNode}) {
       return;
     }
     const timer = setInterval(() => {
+      // A phone memo owns Agora's single file recorder (it stopped ours when it
+      // started): send what we had and wait until it is done.
+      if (isMemoCapture()) {
+        if (recordingRef.current) stopRecording(true);
+        return;
+      }
       const engine = getEngine();
       const t = Date.now();
       const speaking = ridersRef.current.filter(r => r.speaking).map(r => r.uid);
@@ -400,13 +258,13 @@ export function WatchProvider({children}: {children: ReactNode}) {
           rec.lastVoiceAt = t;
           speaking.forEach(uid => rec.uids.add(uid));
         }
-        if (!watchMode || t - rec.lastVoiceAt > CLIP_SILENCE_MS || t - rec.startedAt > CLIP_MAX_MS) {
+        if (t - rec.lastVoiceAt > CLIP_SILENCE_MS || t - rec.startedAt > CLIP_MAX_MS) {
           stopRecording();
         }
         return;
       }
 
-      if (!engine || !watchMode || !clipDirRef.current || speaking.length === 0) return;
+      if (!engine || !clipDirRef.current || speaking.length === 0) return;
       const path = `${clipDirRef.current}/rx-${t}.aac`;
       const ret = engine.startAudioRecording({
         filePath: path,
@@ -423,21 +281,20 @@ export function WatchProvider({children}: {children: ReactNode}) {
       recordingRef.current = {path, startedAt: t, lastVoiceAt: t, uids: new Set(speaking)};
     }, 250);
     return () => clearInterval(timer);
-  }, [watchMode, getEngine, stopRecording]);
+  }, [watchMode, getEngine, stopRecording, isMemoCapture]);
 
   useEffect(() => {
     if (!connected) {
       recordingRef.current = null;
-      clipQueueRef.current = [];
-      playingRef.current = false;
-      setInjecting(false);
       setPhonePtt(false);
     }
   }, [connected]);
 
   const value = useMemo(
-    () => ({available: WatchBridge.available, watches, watchMode, setting, setSetting, pttMode, phonePtt}),
-    [watches, watchMode, setting, setSetting, pttMode, phonePtt],
+    () => ({
+      available: WatchBridge.available, watches, watchMode, voiceWatch: voiceWatchActive, setting, setSetting, pttMode, phonePtt,
+    }),
+    [watches, watchMode, voiceWatchActive, setting, setSetting, pttMode, phonePtt],
   );
 
   return <WatchContext.Provider value={value}>{children}</WatchContext.Provider>;
