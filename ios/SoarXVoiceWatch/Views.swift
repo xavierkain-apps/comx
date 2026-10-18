@@ -223,7 +223,7 @@ private extension View {
 struct OverviewPage: View {
   @EnvironmentObject var model: AppModel
 
-  static let badge: CGFloat = 28
+  static let badge: CGFloat = 34
 
   var body: some View {
     let placed = model.riders.filter { $0.dist != nil && $0.brg != nil }
@@ -247,12 +247,14 @@ struct OverviewPage: View {
                  label: Format.distance(inner), lineWidth: 2)
           }
           Text("N")
-            .font(.system(size: 15, weight: .heavy))
-            .foregroundStyle(.red)
+            .font(.condensed(15))
+            .foregroundStyle(Theme.red)
             .position(point(centre, radius + 10, angle: -model.heading.0, fraction: 1))
           Image(systemName: "location.north.fill")
-            .font(.system(size: 16, weight: .heavy))
-            .foregroundStyle(.white)
+            .resizable()
+            .scaledToFit()
+            .frame(width: 14, height: 16)
+            .foregroundStyle(Theme.text)
             .position(centre)
           ForEach(Array(placed.enumerated()), id: \.element.uid) { i, rider in
             RiderBadge(rider: rider).position(spots[i])
@@ -261,8 +263,8 @@ struct OverviewPage: View {
       }
       if !unplaced.isEmpty {
         Text(unplaced.map { "\(RiderBadge.initials($0)) ?" }.joined(separator: "  "))
-          .font(.system(size: 13, weight: .bold))
-          .foregroundStyle(.secondary)
+          .font(.condensed(13, .bold))
+          .foregroundStyle(Theme.textMuted)
           .lineLimit(1)
           .minimumScaleFactor(0.6)
       }
@@ -272,15 +274,16 @@ struct OverviewPage: View {
   private func ring(_ c: CGPoint, _ r: CGFloat, label: String, lineWidth: CGFloat) -> some View {
     ZStack {
       Circle()
-        .stroke(Color(white: 0.3), lineWidth: lineWidth)
+        .stroke(Theme.ring, lineWidth: lineWidth)
         .frame(width: r * 2, height: r * 2)
         .position(c)
       // Label at the bottom right of the ring, where N rarely is.
       Text(label)
-        .font(.system(size: 11, weight: .bold, design: .rounded))
-        .foregroundStyle(Color(white: 0.6))
+        .font(.condensed(11, .semibold))
+        .textCase(.uppercase)
+        .foregroundStyle(Theme.textDim)
         .padding(.horizontal, 2)
-        .background(Capsule().fill(.black))
+        .background(Capsule().fill(Theme.bg))
         .position(point(c, r, angle: 135, fraction: 1))
     }
   }
@@ -344,32 +347,27 @@ struct RiderBadge: View {
 
   var body: some View {
     let d: CGFloat = rider.isSOS ? OverviewPage.badge + 6 : OverviewPage.badge
-    ZStack {
-      Circle().fill(color)
-      Circle().stroke(.white, lineWidth: rider.isSOS ? 3 : 2)
+    VStack(spacing: 1) {
       Text(RiderBadge.initials(rider))
-        .font(.system(size: rider.isSOS ? 16 : 14, weight: .heavy, design: .rounded))
-        .foregroundStyle(.black)
+        .font(.condensed(rider.isSOS ? 17 : 15))
+        .foregroundStyle(rider.isSOS ? Theme.text : Theme.onAccent)
         .minimumScaleFactor(0.6)
-        .padding(2)
-    }
-    .frame(width: d, height: d)
-    .overlay(alignment: .top) {
-      Text(Format.distance(rider.dist))
-        .font(.system(size: 11, weight: .heavy, design: .rounded))
-        .foregroundStyle(.white)
+        .frame(width: d, height: d)
+        .background(Circle().fill(color))
+      Text(Format.short(rider.dist))
+        .font(.condensed(12, .bold))
+        .foregroundStyle(Theme.text)
         .fixedSize()
-        .padding(.horizontal, 2)
-        .background(Capsule().fill(.black.opacity(0.7)))
-        .alignmentGuide(.top) { _ in -(d - 1) }
     }
+    // Centre the badge, not the badge + label, on the rider's spot.
+    .offset(y: 8)
     .opacity(rider.isStale ? 0.4 : 1)
   }
 
   private var color: Color {
-    if rider.isSOS { return .red }
-    if rider.isSpeaking { return .yellow }
-    return .cyan
+    if rider.isSOS { return Theme.red }
+    if rider.isSpeaking { return Theme.yellow }
+    return Theme.teal
   }
 
   /// "Xavier Kain" gives "XK", "Lea (demo)" gives "L": the first letter of

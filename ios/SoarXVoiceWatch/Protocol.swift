@@ -166,4 +166,12 @@ enum Format {
     if m < 10_000 { return String(format: "%.1f km", m / 1000) }
     return "\(Int((m / 1000).rounded())) km"
   }
+
+  /// Under a radar badge, no unit: "180", "1.4K", "12K", "--".
+  static func short(_ metres: Double?) -> String {
+    guard let m = metres, m.isFinite else { return "--" }
+    if m < 1000 { return "\(Int(m.rounded()))" }
+    if m < 10_000 { return String(format: "%.1fK", m / 1000) }
+    return "\(Int((m / 1000).rounded()))K"
+  }
 }
