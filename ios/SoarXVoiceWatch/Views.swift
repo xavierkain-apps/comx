@@ -813,7 +813,7 @@ struct MessagesView: View {
             .frame(maxWidth: .infinity, minHeight: 64)
             .background(RoundedRectangle(cornerRadius: 22).fill(Theme.surfaceAlt))
           }
-          .buttonStyle(.plain)
+          .buttonStyle(PressFade())
         }
       }
 
@@ -827,7 +827,7 @@ struct MessagesView: View {
             .frame(maxWidth: .infinity, minHeight: 56)
             .background(Capsule().fill(Theme.red))
         }
-        .buttonStyle(.plain)
+        .buttonStyle(PressFade())
         .padding(.top, 6)
       } else {
         // Long press, then confirm: a wet screen must not raise an SOS.
@@ -845,6 +845,7 @@ struct MessagesView: View {
           }
           .accessibilityHint("Hold, then confirm, to send an SOS")
           .accessibilityAddTraits(.isButton)
+          .accessibilityAction { confirmSOS = true }
           .padding(.top, 6)
       }
 
@@ -868,14 +869,14 @@ struct MessagesView: View {
       if model.workoutRunning {
         Button(role: .destructive) { model.endSession() } label: {
           Label("End session", systemImage: "stop.fill")
-          .font(.plain(14))
-          .foregroundStyle(Theme.textMuted)
+            .font(.plain(14))
+            .foregroundStyle(Theme.textMuted)
         }
       } else {
         Button { model.startSession() } label: {
           Label("Start session", systemImage: "play.fill")
-          .font(.plain(14))
-          .foregroundStyle(Theme.textMuted)
+            .font(.plain(14))
+            .foregroundStyle(Theme.textMuted)
         }
       }
     }
@@ -883,6 +884,12 @@ struct MessagesView: View {
       Button("Send SOS", role: .destructive) { model.setSOS(true) }
       Button("Cancel", role: .cancel) {}
     }
+  }
+}
+
+private struct PressFade: ButtonStyle {
+  func makeBody(configuration: Configuration) -> some View {
+    configuration.label.opacity(configuration.isPressed ? 0.55 : 1)
   }
 }
 
