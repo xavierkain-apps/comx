@@ -72,6 +72,12 @@ interface AgoraContextValue {
   setMemoCapture: (on: boolean) => void;
   /** True while a phone memo records (read by the watch's remote-speech recorder). */
   isMemoCapture: () => boolean;
+  /**
+   * Bumped each time a phone memo takes Agora's file recorder, even if its own
+   * recording then fails to start: a remote-speech clip started before a
+   * different value was stopped by it.
+   */
+  memoCaptureEpoch: () => number;
   /** Riders whose ComX is older than ours (no group memos for them), not dismissed yet. */
   olderRiders: {uid: number; name: string}[];
   /** Hide a rider's "older ComX" banner; it does not come back this session. */
@@ -104,6 +110,7 @@ export function AgoraProvider({children}: {children: ReactNode}) {
   const micOverrideRef = useRef<MicOverride>('normal');
   const [micOverride, setMicOverrideState] = useState<MicOverride>('normal');
   const memoCaptureRef = useRef(false);
+  const memoCaptureEpochRef = useRef(0);
   const [olderRiders, setOlderRiders] = useState<{uid: number; name: string}[]>([]);
   // Riders already warned about in this channel session (once per rider)
   const olderWarnedRef = useRef<Set<number>>(new Set());
@@ -649,6 +656,7 @@ export function AgoraProvider({children}: {children: ReactNode}) {
   const setMemoCapture = useCallback((on: boolean) => {
     if (memoCaptureRef.current === on) return;
     memoCaptureRef.current = on;
+    if (on) memoCaptureEpochRef.current += 1;
     const engine = engineRef.current;
     if (!engine) return;
     applyRecordingVolume(engine);
@@ -657,6 +665,7 @@ export function AgoraProvider({children}: {children: ReactNode}) {
   }, [applyLocalStreamMute, applyRecordingVolume]);
 
   const isMemoCapture = useCallback(() => memoCaptureRef.current, []);
+  const memoCaptureEpoch = useCallback(() => memoCaptureEpochRef.current, []);
 
   const dismissOlderRider = useCallback((uid: number) => {
     setOlderRiders(prev => prev.filter(r => r.uid !== uid));
@@ -794,6 +803,7 @@ export function AgoraProvider({children}: {children: ReactNode}) {
         localUid,
         setMemoCapture,
         isMemoCapture,
+        memoCaptureEpoch,
         olderRiders,
         dismissOlderRider,
       }}>

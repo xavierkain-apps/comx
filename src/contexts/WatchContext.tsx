@@ -51,7 +51,7 @@ const WatchContext = createContext<WatchContextValue | null>(null);
 
 export function WatchProvider({children}: {children: ReactNode}) {
   const {
-    connectionState, channelName, getEngine, setMicOverride, isHeadphonesConnected, isMemoCapture,
+    connectionState, channelName, getEngine, setMicOverride, isHeadphonesConnected, isMemoCapture, memoCaptureEpoch,
   } = useAgoraContext();
   const {pilotName} = useUser();
   const {myPosition, riders, sendQuickMessage, setSos, subscribeRideEvents, demo} = useRide();
@@ -192,7 +192,9 @@ export function WatchProvider({children}: {children: ReactNode}) {
   }, [subscribeRideEvents]);
 
   // Speaking events + remote speech recorded into clips for the watch speaker
-  const recordingRef = useRef<{path: string; startedAt: number; lastVoiceAt: number; uids: Set<number>} | null>(null);
+  // `epoch`: memoCaptureEpoch() when it started; a later value means a phone
+  // memo took Agora's recorder (and stopped this clip), even if the memo failed.
+  const recordingRef = useRef<{path: string; startedAt: number; lastVoiceAt: number; uids: Set<number>; epoch: number} | null>(null);
 
   /** `engineStopped`: a phone memo already stopped Agora's recorder. */
   const stopRecording = useCallback((engineStopped = false) => {
@@ -239,7 +241,8 @@ export function WatchProvider({children}: {children: ReactNode}) {
   useEffect(() => {
     if (!watchMode) {
       // Never stop Agora's recorder if a phone memo owns it now
-      if (recordingRef.current) stopRecording(isMemoCapture());
+      const rec = recordingRef.current;
+      if (rec) stopRecording(isMemoCapture() || rec.epoch !== memoCaptureEpoch());
       return;
     }
     const timer = setInterval(() => {
@@ -248,6 +251,10 @@ export function WatchProvider({children}: {children: ReactNode}) {
       if (isMemoCapture()) {
         if (recordingRef.current) stopRecording(true);
         return;
+      }
+      // A memo took the recorder and failed to start: ours is stopped already
+      if (recordingRef.current && recordingRef.current.epoch !== memoCaptureEpoch()) {
+        stopRecording(true);
       }
       const engine = getEngine();
       const t = Date.now();
@@ -279,10 +286,10 @@ export function WatchProvider({children}: {children: ReactNode}) {
         appLog('Watch', `startAudioRecording failed ret=${ret}`);
         return;
       }
-      recordingRef.current = {path, startedAt: t, lastVoiceAt: t, uids: new Set(speaking)};
+      recordingRef.current = {path, startedAt: t, lastVoiceAt: t, uids: new Set(speaking), epoch: memoCaptureEpoch()};
     }, 250);
     return () => clearInterval(timer);
-  }, [watchMode, getEngine, stopRecording, isMemoCapture]);
+  }, [watchMode, getEngine, stopRecording, isMemoCapture, memoCaptureEpoch]);
 
   useEffect(() => {
     if (!connected) {
