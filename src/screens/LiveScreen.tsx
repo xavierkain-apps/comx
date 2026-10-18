@@ -38,11 +38,13 @@ export function LiveScreen({onLeft}: LiveScreenProps) {
   } = useAgoraContext();
   const {isMuted, toggle} = useMute();
   useBluetoothHID(toggle);
-  const {riders, myPosition, mySos, setSos, locationDenied} = useRide();
+  const {riders, myPosition, mySos, setSos, locationDenied, messages} = useRide();
   const watch = useWatch();
   const memo = useMemos();
   const [arrowMode, setArrowMode] = useState<ArrowMode>('north');
   const [msgOpen, setMsgOpen] = useState(false);
+  // When the MSG sheet was last seen; anything newer from someone else is unread
+  const [msgSeenAt, setMsgSeenAt] = useState(() => Date.now());
   const audioPlayedRef = useRef(false);
 
   const heading = arrowHeading(arrowMode, myPosition?.cog);
@@ -89,6 +91,18 @@ export function LiveScreen({onLeft}: LiveScreenProps) {
       ? watch.phonePtt ? 'garminTalking' : 'garmin'
       : memo.recording || isMuted ? 'muted' : 'live';
 
+  // Newest first (addToHistory); uid null is me
+  const newestIncoming = messages.find(m => m.uid !== null)?.t ?? 0;
+  const msgUnread = !msgOpen && newestIncoming > msgSeenAt;
+  const openMsg = () => {
+    setMsgSeenAt(Date.now());
+    setMsgOpen(true);
+  };
+  const closeMsg = () => {
+    setMsgSeenAt(Date.now());
+    setMsgOpen(false);
+  };
+
   // Decision 7: everyone in the channel, me included
   const count = riders.length + 1;
   const status =
@@ -132,7 +146,8 @@ export function LiveScreen({onLeft}: LiveScreenProps) {
             memoSecondsLeft={memo.secondsLeft}
             memoEnabled={memo.canRecord}
             onMemo={memo.recording ? memo.sendMemo : memo.startMemo}
-            onMsg={() => setMsgOpen(true)}
+            onMsg={openMsg}
+            msgUnread={msgUnread}
           />
         }>
         {riders.length === 0 ? (
@@ -172,7 +187,7 @@ export function LiveScreen({onLeft}: LiveScreenProps) {
         ))}
       </View>
 
-      <MsgSheet visible={msgOpen} onClose={() => setMsgOpen(false)} onLeave={leave} />
+      <MsgSheet visible={msgOpen} onClose={closeMsg} onLeave={leave} />
     </View>
   );
 }

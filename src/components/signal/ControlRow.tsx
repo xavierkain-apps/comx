@@ -18,6 +18,8 @@ interface ControlRowProps {
   memoEnabled: boolean;
   onMemo: () => void;
   onMsg: () => void;
+  /** A message from someone else arrived since the MSG sheet was last open. */
+  msgUnread: boolean;
 }
 
 /** SOS · TALK · MEMO · MSG, pinned to the bottom of the sheet. */
@@ -60,8 +62,14 @@ export function ControlRow(p: ControlRowProps) {
         )}
       </TouchableOpacity>
 
-      <TouchableOpacity style={[styles.round, styles.secondary]} onPress={p.onMsg} activeOpacity={0.7} accessibilityRole="button" accessibilityLabel="Messages">
+      <TouchableOpacity
+        style={[styles.round, styles.secondary]}
+        onPress={p.onMsg}
+        activeOpacity={0.7}
+        accessibilityRole="button"
+        accessibilityLabel={p.msgUnread ? 'Messages, new messages' : 'Messages'}>
         <Text style={styles.secondaryText}>MSG</Text>
+        {p.msgUnread && <View style={styles.unread} />}
       </TouchableOpacity>
     </View>
   );
@@ -178,5 +186,16 @@ const styles = StyleSheet.create({
   },
   disabled: {
     opacity: 0.35,
+  },
+  unread: {
+    position: 'absolute',
+    top: 8,
+    right: 8,
+    width: 12,
+    height: 12,
+    borderRadius: 6,
+    backgroundColor: signal.red,
+    borderWidth: 2,
+    borderColor: signal.surface,
   },
 });
