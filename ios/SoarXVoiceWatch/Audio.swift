@@ -6,9 +6,12 @@ import Foundation
 final class ClipRecorder {
   private var recorder: AVAudioRecorder?
   private(set) var url: URL?
+  /// Wall clock, not AVAudioRecorder.currentTime: in the simulator currentTime
+  /// went negative, so the 30 s limit never fired and the clip was dropped.
+  private var startedAt: Date?
 
   var isRecording: Bool { recorder?.isRecording ?? false }
-  var elapsed: TimeInterval { recorder?.currentTime ?? 0 }
+  var elapsed: TimeInterval { startedAt.map { Date().timeIntervalSince($0) } ?? 0 }
 
   static func requestPermission(_ done: @escaping (Bool) -> Void) {
     switch AVAudioApplication.shared.recordPermission {
@@ -44,15 +47,17 @@ final class ClipRecorder {
     }
     recorder = rec
     self.url = url
+    startedAt = Date()
   }
 
   /// Stops and returns the file with its duration, or nil if nothing usable.
   func stop() -> (URL, Int)? {
     guard let rec = recorder, let url = url else { return nil }
-    let seconds = rec.currentTime
+    let seconds = elapsed
     rec.stop()
     recorder = nil
     self.url = nil
+    startedAt = nil
     let ms = Int(seconds * 1000)
     if ms < 300 { // a mis-tap, not a message
       try? FileManager.default.removeItem(at: url)
@@ -66,6 +71,7 @@ final class ClipRecorder {
     recorder?.deleteRecording()
     recorder = nil
     url = nil
+    startedAt = nil
   }
 }
 

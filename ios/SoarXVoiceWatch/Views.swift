@@ -501,7 +501,7 @@ struct TalkButton: View {
         HStack(spacing: 6) {
           Image(systemName: model.isRecording ? "paperplane.fill" : "mic.fill")
             .font(.system(size: big ? 30 : 22, weight: .bold))
-          Text(model.isRecording ? "SEND \(Int(AppModel.maxClipSeconds - model.recordingElapsed))" : "TALK")
+          Text(model.isRecording ? "SEND \(max(0, Int(AppModel.maxClipSeconds - model.recordingElapsed)))" : "TALK")
             .font(.system(size: big ? 30 : 22, weight: .heavy))
         }
         .foregroundStyle(.white)
