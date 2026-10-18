@@ -127,7 +127,8 @@ export function LiveScreen({onLeft}: LiveScreenProps) {
       <TouchableOpacity
         style={[styles.topRight, {top: insets.top + 14}]}
         onPress={() => setArrowMode(m => (m === 'north' ? 'course' : 'north'))}
-        hitSlop={12}
+        hitSlop={16}
+        accessibilityRole="button"
         accessibilityLabel={arrowMode === 'north' ? 'North up, tap for course up' : 'Course up, tap for north up'}>
         <Text style={styles.arrowMode}>{arrowMode === 'north' ? 'N ↑' : 'COG ↑'}</Text>
       </TouchableOpacity>
@@ -218,6 +219,9 @@ const styles = StyleSheet.create({
   topRight: {
     position: 'absolute',
     right: 20,
+    // With hitSlop 16 the 13 pt label gets a 44 pt+ target
+    minWidth: 28,
+    alignItems: 'flex-end',
   },
   arrowMode: {
     color: signal.red,

@@ -31,6 +31,8 @@ const RINGS = [330, 230, 130];
 const HERO_HEIGHT = 400;
 /** Favourite pills on the screen; the rest are in EDIT. */
 const VISIBLE_FAVORITES = 3;
+/** Pills are ~34 pt tall; this brings their touch target past 44 pt. */
+const PILL_SLOP = {top: 6, bottom: 6, left: 5, right: 5};
 
 interface JoinScreenProps {
   onJoined: () => void;
@@ -131,7 +133,7 @@ export function JoinScreen({onJoined, onSettings}: JoinScreenProps) {
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
         <View style={styles.topBar}>
           <Text style={styles.logo}>COMX</Text>
-          <TouchableOpacity onPress={onSettings} hitSlop={12}>
+          <TouchableOpacity onPress={onSettings} hitSlop={12} accessibilityRole="button" accessibilityLabel="Settings">
             <Text style={styles.settings}>Settings</Text>
           </TouchableOpacity>
         </View>
@@ -174,7 +176,10 @@ export function JoinScreen({onJoined, onSettings}: JoinScreenProps) {
                 selectionColor={signal.teal}
               />
             ) : (
-              <TouchableOpacity onPress={() => setEditingChannel(true)} accessibilityLabel={`Channel ${channel}, tap to edit`}>
+              <TouchableOpacity
+                onPress={() => setEditingChannel(true)}
+                accessibilityRole="button"
+                accessibilityLabel={`Channel ${channel}, tap to edit`}>
                 <Text style={styles.channel} numberOfLines={1} adjustsFontSizeToFit>
                   {head || ' '}
                 </Text>
@@ -187,11 +192,23 @@ export function JoinScreen({onJoined, onSettings}: JoinScreenProps) {
 
         <View style={styles.favorites}>
           {favorites.slice(0, VISIBLE_FAVORITES).map(f => (
-            <TouchableOpacity key={f} style={styles.pill} onPress={() => setChannel(f)}>
+            <TouchableOpacity
+              key={f}
+              style={styles.pill}
+              onPress={() => setChannel(f)}
+              hitSlop={PILL_SLOP}
+              accessibilityRole="button"
+              accessibilityLabel={`Favourite channel ${f}`}
+              accessibilityState={{selected: f === channel}}>
               <Text style={[styles.pillText, f === channel && styles.pillActive]}>{f}</Text>
             </TouchableOpacity>
           ))}
-          <TouchableOpacity style={styles.ghostPill} onPress={() => setManaging(true)} accessibilityLabel="Edit favourite channels">
+          <TouchableOpacity
+            style={styles.ghostPill}
+            onPress={() => setManaging(true)}
+            hitSlop={PILL_SLOP}
+            accessibilityRole="button"
+            accessibilityLabel="Edit favourite channels">
             <Text style={styles.ghostText}>EDIT</Text>
           </TouchableOpacity>
         </View>
@@ -213,7 +230,10 @@ export function JoinScreen({onJoined, onSettings}: JoinScreenProps) {
             selectionColor={signal.teal}
           />
         ) : (
-          <TouchableOpacity onPress={() => setEditingName(true)} accessibilityLabel="Your name, tap to edit">
+          <TouchableOpacity
+            onPress={() => setEditingName(true)}
+            accessibilityRole="button"
+            accessibilityLabel={pilotName.trim() ? `Riding as ${pilotName.trim()}, tap to edit` : 'Set your name'}>
             <Text style={styles.ridingAs}>
               Riding as <Text style={styles.name}>{pilotName.trim() || 'tap to set your name'}</Text>
             </Text>
@@ -224,7 +244,10 @@ export function JoinScreen({onJoined, onSettings}: JoinScreenProps) {
           style={[styles.join, {marginBottom: Math.max(36, insets.bottom + 12)}, !canJoin && styles.joinDisabled]}
           onPress={handleJoin}
           disabled={!canJoin || isJoining}
-          activeOpacity={0.8}>
+          activeOpacity={0.8}
+          accessibilityRole="button"
+          accessibilityLabel={isJoining ? 'Connecting' : `Join ${channel}`}
+          accessibilityState={{disabled: !canJoin || isJoining, busy: isJoining}}>
           <Text style={styles.joinText}>{isJoining ? 'CONNECTING…' : 'JOIN'}</Text>
         </TouchableOpacity>
 
