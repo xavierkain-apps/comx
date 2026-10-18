@@ -9,6 +9,7 @@ import {UserProvider} from './src/contexts/UserContext';
 import {AgoraProvider} from './src/contexts/AgoraContext';
 import {RideProvider} from './src/contexts/RideContext';
 import {WatchProvider} from './src/contexts/WatchContext';
+import {MemoProvider} from './src/contexts/MemoContext';
 import {ThemeProvider, useTheme} from './src/contexts/ThemeContext';
 import {HomeScreen} from './src/screens/HomeScreen';
 import {VoiceScreen} from './src/screens/VoiceScreen';
@@ -46,7 +47,9 @@ export default function App() {
         <AgoraProvider>
           <RideProvider>
             <WatchProvider>
-              <AppContent />
+              <MemoProvider>
+                <AppContent />
+              </MemoProvider>
             </WatchProvider>
           </RideProvider>
         </AgoraProvider>

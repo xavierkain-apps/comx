@@ -44,7 +44,7 @@ jest.mock('react-native-agora', () => ({
     AudioSessionOperationRestrictionNone: 0,
     AudioSessionOperationRestrictionAll: 127,
   },
-  AudioFileRecordingType: {AudioFileRecordingPlayback: 2},
+  AudioFileRecordingType: {AudioFileRecordingMic: 1, AudioFileRecordingPlayback: 2},
   AudioRecordingQualityType: {AudioRecordingQualityLow: 0},
   AudioMixingStateType: {
     AudioMixingStatePlaying: 710,
