@@ -72,6 +72,7 @@ final class WatchHub: NSObject, WCSessionDelegate {
   // MARK: - Activation
 
   func activate() {
+    WatchHub.pruneClips()
     GarminLink.shared.startIfConfigured()
     guard let session = session else {
       NSLog("[WatchBridge] WatchConnectivity not supported on this device")
@@ -281,6 +282,19 @@ final class WatchHub: NSObject, WCSessionDelegate {
     }
   }
 
+  /// Removes clips older than `maxAge` from clipDir: phone memo recordings
+  /// (memo-*) and playback copies (vc-*) that JS cannot delete itself, and
+  /// leftovers from a crash or a dropped transfer (like Android's pruneClips).
+  static func pruneClips(maxAge: TimeInterval = 60 * 60) {
+    let fm = FileManager.default
+    let cutoff = Date().addingTimeInterval(-maxAge)
+    guard let files = try? fm.contentsOfDirectory(at: clipDir, includingPropertiesForKeys: [.contentModificationDateKey]) else { return }
+    for url in files {
+      let modified = (try? url.resourceValues(forKeys: [.contentModificationDateKey]).contentModificationDate) ?? .distantPast
+      if modified < cutoff { try? fm.removeItem(at: url) }
+    }
+  }
+
   /// Received clips are only needed until JS has injected them into the
   /// channel; keep the inbox from growing without bound.
   static func pruneInbox(keep: Int = 30) {
@@ -363,6 +377,8 @@ class WatchBridge: RCTEventEmitter {
     let clean = ext.lowercased().filter { $0.isLetter || $0.isNumber }
     let suffix = clean.isEmpty || clean.count > 5 ? "m4a" : clean
     let name = "vc-\(Int(Date().timeIntervalSince1970 * 1000))-\(UUID().uuidString.prefix(8)).\(suffix)"
+    // Long rides: older playback copies go here too, not only at start
+    WatchHub.pruneClips()
     let url = WatchHub.clipDir.appendingPathComponent(name)
     do {
       try data.write(to: url, options: .atomic)
