@@ -96,6 +96,47 @@ class WatchBridgeModule(private val reactContext: ReactApplicationContext) :
         }
     }
 
+    /**
+     * Reads a clip as base64 (no line breaks), to send it over the data stream.
+     *
+     * [path] may lie outside [getClipDir] (Agora's recorder writes its memo files
+     * wherever the JS side asks), so it is not checked against that folder: it is
+     * trusted input from our own JS code, never from a remote rider.
+     */
+    @ReactMethod
+    fun readClipBase64(path: String, promise: Promise) {
+        try {
+            val file = File(path.removePrefix("file://"))
+            promise.resolve(android.util.Base64.encodeToString(file.readBytes(), android.util.Base64.NO_WRAP))
+        } catch (e: Exception) {
+            promise.reject("E_READ_CLIP", "Cannot read $path: ${e.message}", e)
+        }
+    }
+
+    /**
+     * Writes a received clip into [getClipDir] and resolves its absolute path.
+     * Like any file there, it is deleted by [sendClip] once delivered.
+     */
+    @ReactMethod
+    fun writeClip(base64: String, ext: String, promise: Promise) {
+        try {
+            val data = android.util.Base64.decode(base64, android.util.Base64.DEFAULT)
+            if (data.isEmpty()) {
+                promise.reject("E_WRITE_CLIP", "Clip is empty")
+                return
+            }
+            val clean = ext.lowercase().filter { it.isLetterOrDigit() }
+            val suffix = if (clean.isEmpty() || clean.length > 5) "m4a" else clean
+            val name = "vc-${System.currentTimeMillis()}-${java.util.UUID.randomUUID().toString().take(8)}.$suffix"
+            val file = File(WatchHub.clipDir(reactContext), name)
+            file.writeBytes(data)
+            promise.resolve(file.absolutePath)
+        } catch (e: Exception) {
+            // IllegalArgumentException for bad base64, IOException for the disk
+            promise.reject("E_WRITE_CLIP", "Cannot write clip: ${e.message}", e)
+        }
+    }
+
     // Required by NativeEventEmitter on Android.
     @ReactMethod
     fun addListener(eventName: String) = Unit

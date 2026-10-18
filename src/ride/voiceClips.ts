@@ -1,6 +1,7 @@
-// Private voice messages between riders: a clip file is cut into base64 slices
-// small enough for the Agora data stream (1 KB per message) and reassembled on
-// the recipient's phone. See "Targeted voice messages" in docs/watch-companion.md.
+// Voice memos between riders: a clip file is cut into base64 slices small
+// enough for the Agora data stream (1 KB per message) and reassembled on the
+// recipients' phones. `to` is one rider's uid (private memo) or GROUP_UID
+// (every rider). See "Voice memos" in docs/watch-companion.md.
 
 /** base64 characters per data-stream message. */
 export const CHUNK_CHARS = 600;
@@ -10,6 +11,14 @@ export const CHUNK_INTERVAL_MS = 150;
 export const ASSEMBLY_TIMEOUT_MS = 20_000;
 /** Larger clips are refused rather than flooding the data stream (~40 s at 16 kbit/s). */
 export const MAX_CLIP_CHARS = 120_000;
+
+/** `to` of a memo for every rider of the channel: Agora never assigns uid 0. */
+export const GROUP_UID = 0;
+
+/** A memo is for us when it goes to the whole group or to our uid. */
+export function isClipForMe(to: number, localUid: number | null): boolean {
+  return to === GROUP_UID || (localUid !== null && to === localUid);
+}
 
 export interface VoiceChunk {
   type: 'vc';
@@ -65,13 +74,13 @@ interface Pending {
   lastAt: number;
 }
 
-/** Collects slices per (sender, clip id) and returns the clip once complete. */
+/** Collects slices per (sender, recipient, clip id) and returns the clip once complete. */
 export class ClipAssembler {
   private pending = new Map<string, Pending>();
 
   add(fromUid: number, chunk: VoiceChunk, now: number): AssembledClip | null {
     this.expire(now);
-    const key = `${fromUid}:${chunk.id}`;
+    const key = `${fromUid}:${chunk.to}:${chunk.id}`;
     let p = this.pending.get(key);
     if (!p) {
       p = {fromUid, parts: new Array(chunk.n), received: 0, durationMs: 0, ext: 'm4a', lastAt: now};

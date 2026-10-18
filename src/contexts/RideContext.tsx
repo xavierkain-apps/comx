@@ -24,11 +24,18 @@ import {
   demoRider,
 } from '../ride/demo';
 import {LatLon} from '../utils/geo';
+import {addToHistory} from '../ride/history';
 
 const POSITION_BROADCAST_MS = 3000;
-const MAX_MESSAGES = 20;
 const DEMO_KEY = '@comx_demo';
 const DEMO_TICK_MS = 2000;
+
+/** A voice memo's audio, kept in memory so it can be played again. */
+export interface HistoryClip {
+  base64: string;
+  ext: string;
+  durationMs: number;
+}
 
 export interface RideMessage {
   key: string;
@@ -37,6 +44,8 @@ export interface RideMessage {
   id: string;
   text: string;
   t: number;
+  /** Present on voice memos (replayable from the MSG sheet). */
+  clip?: HistoryClip;
 }
 
 export type RideEvent =
@@ -48,14 +57,15 @@ type RideEventListener = (e: RideEvent) => void;
 interface RideContextValue {
   myPosition: Position | null;
   riders: RiderView[];
+  /** History for the MSG sheet, newest first, kept for the app's run. */
   messages: RideMessage[];
   mySos: boolean;
   locationDenied: boolean;
   sendQuickMessage: (id: string, text?: string) => void;
   setSos: (active: boolean) => void;
   subscribeRideEvents: (listener: RideEventListener) => () => void;
-  /** Show a line in the message feed (no network). */
-  logMessage: (from: string, id: string, text: string, uid?: number | null) => void;
+  /** Add a line to the history (no network); `clip` makes it a replayable memo. */
+  logMessage: (from: string, id: string, text: string, uid?: number | null, clip?: HistoryClip) => void;
   /** Demo mode: virtual riders, works without a channel (src/ride/demo.ts). */
   demo: boolean;
   setDemo: (on: boolean) => void;
@@ -104,7 +114,8 @@ export function RideProvider({children}: {children: ReactNode}) {
   }, []);
 
   const pushMessage = useCallback((m: Omit<RideMessage, 'key'>) => {
-    setMessages(prev => [{...m, key: `${m.t}-${m.uid}-${m.id}`}, ...prev].slice(0, MAX_MESSAGES));
+    const key = `${m.t}-${m.uid}-${m.id}-${Math.random().toString(36).slice(2, 6)}`;
+    setMessages(prev => addToHistory(prev, {...m, key}));
   }, []);
 
   const speak = useCallback(async (text: string) => {
@@ -199,14 +210,13 @@ export function RideProvider({children}: {children: ReactNode}) {
     });
   }, [subscribeStream]);
 
-  // Forget riders who left, and everything when we leave
+  // Forget riders who left, and positions and SOS when we leave (the history stays for the app's run)
   useEffect(() => {
     if (!connected) {
       if (demoRef.current) return;
       setPositions({});
       setSosUids({});
       sosStateRef.current = {};
-      setMessages([]);
       setMySos(false);
       mySosRef.current = false;
       return;
@@ -274,7 +284,6 @@ export function RideProvider({children}: {children: ReactNode}) {
     for (const r of DEMO_RIDERS) delete sosStateRef.current[r.uid];
     setSosUids(prev => Object.fromEntries(Object.entries(prev).filter(([k]) => !demoRider(Number(k)))));
     if (!connected) {
-      setMessages([]);
       setMySos(false);
       mySosRef.current = false;
     }
@@ -329,9 +338,12 @@ export function RideProvider({children}: {children: ReactNode}) {
     };
   }, []);
 
-  const logMessage = useCallback((from: string, id: string, text: string, uid: number | null = null) => {
-    pushMessage({uid, from, id, text, t: Date.now()});
-  }, [pushMessage]);
+  const logMessage = useCallback(
+    (from: string, id: string, text: string, uid: number | null = null, clip?: HistoryClip) => {
+      pushMessage({uid, from, id, text, t: Date.now(), clip});
+    },
+    [pushMessage],
+  );
 
   const riders = useMemo(
     () =>

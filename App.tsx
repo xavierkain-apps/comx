@@ -1,5 +1,6 @@
 import React, {useState} from 'react';
 import {StatusBar, View, LogBox} from 'react-native';
+import {SafeAreaProvider} from 'react-native-safe-area-context';
 
 // Keep warnings visible in development; only silence them in release builds.
 if (!__DEV__) {
@@ -9,48 +10,46 @@ import {UserProvider} from './src/contexts/UserContext';
 import {AgoraProvider} from './src/contexts/AgoraContext';
 import {RideProvider} from './src/contexts/RideContext';
 import {WatchProvider} from './src/contexts/WatchContext';
-import {ThemeProvider, useTheme} from './src/contexts/ThemeContext';
-import {HomeScreen} from './src/screens/HomeScreen';
-import {VoiceScreen} from './src/screens/VoiceScreen';
+import {MemoProvider} from './src/contexts/MemoContext';
+import {ThemeProvider} from './src/contexts/ThemeContext';
+import {JoinScreen} from './src/screens/JoinScreen';
+import {LiveScreen} from './src/screens/LiveScreen';
 import {SettingsScreen} from './src/screens/SettingsScreen';
+import {signal} from './src/theme';
 
-type Screen = 'home' | 'voice' | 'settings';
+type Screen = 'join' | 'live' | 'settings';
 
 function AppContent() {
-  const [screen, setScreen] = useState<Screen>('home');
-  const {colors} = useTheme();
+  const [screen, setScreen] = useState<Screen>('join');
 
   return (
-    <View style={{flex: 1, backgroundColor: colors.bg}}>
-      <StatusBar barStyle={colors.statusBar} backgroundColor={colors.bg} />
-      {screen === 'home' && (
-        <HomeScreen
-          onJoined={() => setScreen('voice')}
-          onSettings={() => setScreen('settings')}
-        />
+    <View style={{flex: 1, backgroundColor: signal.bg}}>
+      <StatusBar barStyle="light-content" backgroundColor={signal.bg} />
+      {screen === 'join' && (
+        <JoinScreen onJoined={() => setScreen('live')} onSettings={() => setScreen('settings')} />
       )}
-      {screen === 'voice' && (
-        <VoiceScreen onLeft={() => setScreen('home')} />
-      )}
-      {screen === 'settings' && (
-        <SettingsScreen onDone={() => setScreen('home')} />
-      )}
+      {screen === 'live' && <LiveScreen onLeft={() => setScreen('join')} />}
+      {screen === 'settings' && <SettingsScreen onDone={() => setScreen('join')} />}
     </View>
   );
 }
 
 export default function App() {
   return (
-    <ThemeProvider>
-      <UserProvider>
-        <AgoraProvider>
-          <RideProvider>
-            <WatchProvider>
-              <AppContent />
-            </WatchProvider>
-          </RideProvider>
-        </AgoraProvider>
-      </UserProvider>
-    </ThemeProvider>
+    <SafeAreaProvider>
+      <ThemeProvider>
+        <UserProvider>
+          <AgoraProvider>
+            <RideProvider>
+              <WatchProvider>
+                <MemoProvider>
+                  <AppContent />
+                </MemoProvider>
+              </WatchProvider>
+            </RideProvider>
+          </AgoraProvider>
+        </UserProvider>
+      </ThemeProvider>
+    </SafeAreaProvider>
   );
 }

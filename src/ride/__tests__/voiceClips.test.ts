@@ -1,4 +1,12 @@
-import {splitClip, parseVoiceChunk, ClipAssembler, CHUNK_CHARS, ASSEMBLY_TIMEOUT_MS} from '../voiceClips';
+import {
+  splitClip,
+  parseVoiceChunk,
+  ClipAssembler,
+  CHUNK_CHARS,
+  ASSEMBLY_TIMEOUT_MS,
+  GROUP_UID,
+  isClipForMe,
+} from '../voiceClips';
 
 const clip = 'A'.repeat(CHUNK_CHARS * 2 + 10);
 
@@ -43,5 +51,59 @@ describe('ClipAssembler', () => {
     expect(a.size).toBe(2);
     a.expire(ASSEMBLY_TIMEOUT_MS + 1);
     expect(a.size).toBe(0);
+  });
+});
+
+describe('group clips', () => {
+  it('addresses every rider with to: 0 and reassembles like a private clip', () => {
+    const chunks = splitClip(clip, 'g1', GROUP_UID, 5000, 'aac');
+    expect(chunks).toHaveLength(3);
+    expect(chunks.every(c => c.to === 0)).toBe(true);
+    // What travels is JSON: parse it back as the receiving phone does
+    const parsed = chunks.map(c => parseVoiceChunk(JSON.parse(JSON.stringify(c))));
+    expect(parsed.every(c => c !== null && c.to === 0)).toBe(true);
+    const a = new ClipAssembler();
+    const results = parsed.map((c, i) => a.add(9, c!, i));
+    expect(results[0]).toBeNull();
+    expect(results[2]).toEqual({id: 'g1', fromUid: 9, base64: clip, durationMs: 5000, ext: 'aac'});
+  });
+
+  it('keeps a group clip and a private clip with the same id apart per sender', () => {
+    const a = new ClipAssembler();
+    const [g0] = splitClip(clip, 'x', GROUP_UID, 1000, 'aac');
+    const [p0] = splitClip(clip, 'x', 42, 1000, 'aac');
+    a.add(1, g0, 0);
+    a.add(2, p0, 0);
+    expect(a.size).toBe(2);
+  });
+
+  it('keeps a group clip and a private clip from the same sender with the same id apart', () => {
+    const a = new ClipAssembler();
+    const group = splitClip(clip, 'x', GROUP_UID, 1000, 'aac');
+    const priv = splitClip(clip.replace(/A/g, 'B'), 'x', 42, 2000, 'm4a');
+    a.add(1, group[0], 0);
+    a.add(1, priv[0], 0);
+    expect(a.size).toBe(2);
+    a.add(1, group[1], 1);
+    expect(a.add(1, group[2], 2)).toEqual({id: 'x', fromUid: 1, base64: clip, durationMs: 1000, ext: 'aac'});
+    a.add(1, priv[1], 3);
+    expect(a.add(1, priv[2], 4)).toEqual({
+      id: 'x', fromUid: 1, base64: clip.replace(/A/g, 'B'), durationMs: 2000, ext: 'm4a',
+    });
+    expect(a.size).toBe(0);
+  });
+});
+
+describe('isClipForMe', () => {
+  it('uses 0 for the group, a uid Agora never assigns', () => {
+    expect(GROUP_UID).toBe(0);
+  });
+
+  it('takes group clips and clips addressed to our uid only', () => {
+    expect(isClipForMe(GROUP_UID, 42)).toBe(true);
+    expect(isClipForMe(GROUP_UID, null)).toBe(true);
+    expect(isClipForMe(42, 42)).toBe(true);
+    expect(isClipForMe(42, 7)).toBe(false);
+    expect(isClipForMe(42, null)).toBe(false);
   });
 });

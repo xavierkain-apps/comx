@@ -15,8 +15,6 @@ export interface MicPolicyInput {
   headphones: boolean;
   /** "Talk via phone" held on a Garmin. */
   phonePtt: boolean;
-  /** A watch clip is being played into the channel. */
-  injecting: boolean;
 }
 
 export interface MicPolicy {
@@ -31,6 +29,6 @@ export function micPolicy(i: MicPolicyInput): MicPolicy {
   const pttMode = i.connected && !watchMode && i.setting !== 'off' && i.garminActive && !i.headphones;
   let override: MicOverride = 'normal';
   if (i.phonePtt) override = 'open';
-  else if (watchMode || pttMode || i.injecting) override = 'silenced';
+  else if (watchMode || pttMode) override = 'silenced';
   return {watchMode, pttMode, override};
 }

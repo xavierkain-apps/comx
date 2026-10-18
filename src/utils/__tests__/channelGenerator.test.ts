@@ -1,4 +1,4 @@
-import {generateChannelName, isValidChannelName} from '../channelGenerator';
+import {generateChannelName, isValidChannelName, splitChannelCode} from '../channelGenerator';
 
 describe('generateChannelName', () => {
   it('retourne un code au format XXXX-NN', () => {
@@ -31,5 +31,19 @@ describe('isValidChannelName', () => {
 
   it('refuse les caractères spéciaux', () => {
     expect(isValidChannelName('canal@#!')).toBe(false);
+  });
+});
+
+describe('splitChannelCode', () => {
+  it('splits at the last "-" so the suffix can be drawn in teal', () => {
+    expect(splitChannelCode('TARIFA-01')).toEqual({head: 'TARIFA', tail: '01'});
+    expect(splitChannelCode('LEUCATE-NORD-03')).toEqual({head: 'LEUCATE-NORD', tail: '03'});
+  });
+
+  it('keeps a code without a usable "-" whole', () => {
+    expect(splitChannelCode('ALMANARRE')).toEqual({head: 'ALMANARRE', tail: ''});
+    expect(splitChannelCode('-01')).toEqual({head: '-01', tail: ''});
+    expect(splitChannelCode('TARIFA-')).toEqual({head: 'TARIFA-', tail: ''});
+    expect(splitChannelCode('')).toEqual({head: '', tail: ''});
   });
 });

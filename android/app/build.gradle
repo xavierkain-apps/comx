@@ -163,14 +163,17 @@ android {
                 "**/libagora_video_av1_encoder_extension.so",
                 "**/libagora_video_encoder_extension.so",
                 "**/libagora_video_quality_analyzer_extension.so",
-                "**/libvideo_dec.so",
-                "**/libvideo_enc.so",
+                // Not libvideo_dec.so / libvideo_enc.so: since Agora 4.6
+                // libagora-rtc-sdk.so links libvideo_dec.so directly, and
+                // without it the engine cannot load at all.
             ]
         }
     }
     sourceSets {
         // Wear OS Data Layer protocol, compiled verbatim into :wear as well.
         main.java.srcDirs += rootProject.file("watch-shared/src")
+        // Barlow fonts: React Native loads assets/fonts/<family>.ttf.
+        main.assets.srcDirs += rootProject.file("../assets")
     }
     testOptions {
         unitTests.returnDefaultValues = true

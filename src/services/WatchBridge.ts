@@ -74,7 +74,7 @@ export const WatchBridge = {
     }
   },
 
-  /** Read a clip as base64 to send it to one rider over the data stream. */
+  /** Read a clip as base64 to send it as a memo over the data stream. */
   async readClipBase64(path: string): Promise<string | null> {
     if (!native?.readClipBase64) return null;
     try {

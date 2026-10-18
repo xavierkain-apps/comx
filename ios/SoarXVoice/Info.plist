@@ -98,5 +98,14 @@
 		<string>camera</string>
 		<string>gcm-ciq</string>
 	</array>
+	<key>UIAppFonts</key>
+	<array>
+		<string>Barlow-Bold.ttf</string>
+		<string>Barlow-Medium.ttf</string>
+		<string>Barlow-SemiBold.ttf</string>
+		<string>BarlowCondensed-Bold.ttf</string>
+		<string>BarlowCondensed-ExtraBold.ttf</string>
+		<string>BarlowCondensed-SemiBold.ttf</string>
+	</array>
 </dict>
 </plist>

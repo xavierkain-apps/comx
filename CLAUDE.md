@@ -33,6 +33,7 @@ ComX was built from the SoarX Voice code (React Native + Agora) but is a
 | `docs/watch-ios.md`, `docs/watch-android.md`, `docs/watch-garmin.md` | Per-platform details, input mapping, test steps |
 | `src/contexts/RideContext.tsx` | Positions, quick messages, SOS over the Agora data stream |
 | `src/contexts/WatchContext.tsx` | Relay to watches: voice clips in/out, mic policy, private voice messages |
+| `src/contexts/MemoContext.tsx` | Voice memos (phone MEMO button and watch clips): send, receive, play, forward, history |
 | `src/ride/` | Pure, tested logic (protocol, mic policy, voice clip chunking) |
 | `ios/SoarXVoiceWatch/` | Apple Watch app (SwiftUI, watchOS 10+) |
 | `ios/WatchBridge.swift`, `ios/GarminLink.m` | iOS bridge: WatchConnectivity + Garmin Connect IQ iOS SDK |
@@ -53,8 +54,12 @@ builds locally.** Everything compiles on GitHub Actions:
 | `watch-android-build.yml` | Phone APK (release build, debug-signed, no Agora App ID: demo mode only) + Wear OS APK, artifacts `comx-phone` / `comx-wear` | push / PR on `main` |
 | `comx-testflight.yml` | Signed ComX build to TestFlight | tag `comx-v*` |
 
+Android builds must keep Agora's `libvideo_dec.so` / `libvideo_enc.so` (see
+`android/app/build.gradle`): `libagora-rtc-sdk.so` links them, and without
+them the engine cannot load.
+
 Local checks that are cheap: `npx tsc --noEmit`, `npx eslint src --quiet`,
-`npx jest --maxWorkers=1` (50 tests).
+`npx jest --maxWorkers=1` (102 tests).
 
 ## Status (2026-10-17)
 
