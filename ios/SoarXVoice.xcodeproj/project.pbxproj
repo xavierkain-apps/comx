@@ -29,6 +29,7 @@
 		5A25232184B908FA8E59E696 /* WatchBridge.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5D52D1C7337F28C1523D64E6 /* WatchBridge.swift */; };
 		5F078D4A5DC0E8D84C43733D /* WatchBridge.m in Sources */ = {isa = PBXBuildFile; fileRef = AF9E717AA22B4B02F24149B4 /* WatchBridge.m */; };
 		761780ED2CA45674006654EE /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 761780EC2CA45674006654EE /* AppDelegate.swift */; };
+		8187BE3D11B3ADA0763B117B /* Theme.swift in Sources */ = {isa = PBXBuildFile; fileRef = EDBDE2E1F1859F2F8C7E976E /* Theme.swift */; };
 		81AB9BB82411601600AC10FF /* LaunchScreen.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = 81AB9BB72411601600AC10FF /* LaunchScreen.storyboard */; };
 		87AC5606BF35C49D94992060 /* HapticManager.m in Sources */ = {isa = PBXBuildFile; fileRef = 6B6333A8387ACC28B5B6A9CD /* HapticManager.m */; };
 		8893BBBBDAA170459889A681 /* beep_single.mp3 in Resources */ = {isa = PBXBuildFile; fileRef = FC0E281E0AFBFEC819D6D979 /* beep_single.mp3 */; };
@@ -136,6 +137,7 @@
 		E3B28A541969B6483C137576 /* TalkControl.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = TalkControl.swift; sourceTree = "<group>"; };
 		ED060D1026DF1618E569F407 /* Sensors.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = Sensors.swift; sourceTree = "<group>"; };
 		ED297162215061F000B7C4FE /* JavaScriptCore.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = JavaScriptCore.framework; path = System/Library/Frameworks/JavaScriptCore.framework; sourceTree = SDKROOT; };
+		EDBDE2E1F1859F2F8C7E976E /* Theme.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = Theme.swift; sourceTree = "<group>"; };
 		F6F7EE5FC0A5AB17D84956F3 /* TTSManager.m */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.c.objc; path = TTSManager.m; sourceTree = "<group>"; };
 		F97C8DC1E1359BAC8D6ABEC4 /* GarminLink.m */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.c.objc; path = GarminLink.m; sourceTree = "<group>"; };
 		FC0E281E0AFBFEC819D6D979 /* beep_single.mp3 */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = audio.mp3; path = beep_single.mp3; sourceTree = "<group>"; };
@@ -270,6 +272,7 @@
 				5AA19339BAD4B3B37A120531 /* InputTest.swift */,
 				E3B28A541969B6483C137576 /* TalkControl.swift */,
 				2A42CB0B24BA5481F7C3CADA /* History.swift */,
+				EDBDE2E1F1859F2F8C7E976E /* Theme.swift */,
 			);
 			name = SoarXVoiceWatch;
 			path = SoarXVoiceWatch;
@@ -545,6 +548,7 @@
 				9F7D52E366594E3950FEA6E6 /* InputTest.swift in Sources */,
 				33B39FFCE998AB4314FDD886 /* TalkControl.swift in Sources */,
 				92D01E89E177D9DC550F8A33 /* History.swift in Sources */,
+				8187BE3D11B3ADA0763B117B /* Theme.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

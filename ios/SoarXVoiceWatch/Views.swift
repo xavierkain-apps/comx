@@ -1,8 +1,8 @@
 import SwiftUI
 import WatchKit
 
-// Designed for kitesurf: wet screen, wind, sun. Black background, very large
-// type and targets, high contrast colours, few words.
+// Designed for kitesurf: wet screen, wind, sun. Teal-black "Signal · Radar"
+// palette (Theme.swift), very large type and targets, few words.
 
 struct ContentView: View {
   @EnvironmentObject var model: AppModel
@@ -16,12 +16,16 @@ struct ContentView: View {
         // Horizontal paging: the Digital Crown stays free for the compass.
         TabView(selection: $page) {
           CompassView().tag(0)
+            .containerBackground(Theme.bg, for: .tabView)
           RidersView(onSelect: { uid in
             model.select(uid)
             page = 0
           }).tag(1)
+            .containerBackground(Theme.bg, for: .tabView)
           MessagesView().tag(2)
+            .containerBackground(Theme.bg, for: .tabView)
           HistoryView().tag(3)
+            .containerBackground(Theme.bg, for: .tabView)
         }
         .tabViewStyle(.page)
       }
@@ -32,6 +36,7 @@ struct ContentView: View {
       }
       if let alert = model.sosAlert {
         SOSAlertView(alert: alert)
+          .id(alert.uid)
       }
     }
     .animation(.easeInOut(duration: 0.2), value: model.banner)
@@ -84,15 +89,15 @@ struct CompassView: View {
       if model.isRecording {
         PagedColumn(page: $page) {
           ForEach(model.talkTargets, id: \.self) { uid in
-            CompassPage { TalkTargetPage(uid: uid) }.page(uid ?? CompassView.group)
+            CompassPage(talk: .none) { TalkTargetPage(uid: uid) }.page(uid ?? CompassView.group)
           }
         }
       } else if model.riders.isEmpty {
         CompassPage {
           Spacer(minLength: 0)
           Text(model.linkUp ? "No riders yet" : "Waiting for phone")
-            .font(.title3)
-            .foregroundStyle(.secondary)
+            .font(.condensed(18, .bold))
+            .foregroundStyle(Theme.textMuted)
           Spacer(minLength: 0)
         }
       } else if let alert = model.sosAlert, let rider = model.rider(alert.uid) {
@@ -219,7 +224,7 @@ private extension View {
 struct OverviewPage: View {
   @EnvironmentObject var model: AppModel
 
-  static let badge: CGFloat = 28
+  static let badge: CGFloat = 34
 
   var body: some View {
     let placed = model.riders.filter { $0.dist != nil && $0.brg != nil }
@@ -243,12 +248,14 @@ struct OverviewPage: View {
                  label: Format.distance(inner), lineWidth: 2)
           }
           Text("N")
-            .font(.system(size: 15, weight: .heavy))
-            .foregroundStyle(.red)
+            .font(.condensed(15))
+            .foregroundStyle(Theme.red)
             .position(point(centre, radius + 10, angle: -model.heading.0, fraction: 1))
           Image(systemName: "location.north.fill")
-            .font(.system(size: 16, weight: .heavy))
-            .foregroundStyle(.white)
+            .resizable()
+            .scaledToFit()
+            .frame(width: 14, height: 16)
+            .foregroundStyle(Theme.text)
             .position(centre)
           ForEach(Array(placed.enumerated()), id: \.element.uid) { i, rider in
             RiderBadge(rider: rider).position(spots[i])
@@ -257,8 +264,8 @@ struct OverviewPage: View {
       }
       if !unplaced.isEmpty {
         Text(unplaced.map { "\(RiderBadge.initials($0)) ?" }.joined(separator: "  "))
-          .font(.system(size: 13, weight: .bold))
-          .foregroundStyle(.secondary)
+          .font(.condensed(13, .bold))
+          .foregroundStyle(Theme.textMuted)
           .lineLimit(1)
           .minimumScaleFactor(0.6)
       }
@@ -268,15 +275,16 @@ struct OverviewPage: View {
   private func ring(_ c: CGPoint, _ r: CGFloat, label: String, lineWidth: CGFloat) -> some View {
     ZStack {
       Circle()
-        .stroke(Color(white: 0.3), lineWidth: lineWidth)
+        .stroke(Theme.ring, lineWidth: lineWidth)
         .frame(width: r * 2, height: r * 2)
         .position(c)
       // Label at the bottom right of the ring, where N rarely is.
       Text(label)
-        .font(.system(size: 11, weight: .bold, design: .rounded))
-        .foregroundStyle(Color(white: 0.6))
+        .font(.condensed(11, .semibold))
+        .textCase(.uppercase)
+        .foregroundStyle(Theme.textDim)
         .padding(.horizontal, 2)
-        .background(Capsule().fill(.black))
+        .background(Capsule().fill(Theme.bg))
         .position(point(c, r, angle: 135, fraction: 1))
     }
   }
@@ -340,32 +348,27 @@ struct RiderBadge: View {
 
   var body: some View {
     let d: CGFloat = rider.isSOS ? OverviewPage.badge + 6 : OverviewPage.badge
-    ZStack {
-      Circle().fill(color)
-      Circle().stroke(.white, lineWidth: rider.isSOS ? 3 : 2)
+    VStack(spacing: 1) {
       Text(RiderBadge.initials(rider))
-        .font(.system(size: rider.isSOS ? 16 : 14, weight: .heavy, design: .rounded))
-        .foregroundStyle(.black)
+        .font(.condensed(rider.isSOS ? 17 : 15))
+        .foregroundStyle(rider.isSOS ? Theme.text : Theme.onAccent)
         .minimumScaleFactor(0.6)
-        .padding(2)
-    }
-    .frame(width: d, height: d)
-    .overlay(alignment: .top) {
-      Text(Format.distance(rider.dist))
-        .font(.system(size: 11, weight: .heavy, design: .rounded))
-        .foregroundStyle(.white)
+        .frame(width: d, height: d)
+        .background(Circle().fill(color))
+      Text(Format.short(rider.dist))
+        .font(.condensed(12, .bold))
+        .foregroundStyle(Theme.text)
         .fixedSize()
-        .padding(.horizontal, 2)
-        .background(Capsule().fill(.black.opacity(0.7)))
-        .alignmentGuide(.top) { _ in -(d - 1) }
     }
+    // Centre the badge, not the badge + label, on the rider's spot.
+    .offset(y: 8)
     .opacity(rider.isStale ? 0.4 : 1)
   }
 
   private var color: Color {
-    if rider.isSOS { return .red }
-    if rider.isSpeaking { return .yellow }
-    return .cyan
+    if rider.isSOS { return Theme.red }
+    if rider.isSpeaking { return Theme.yellow }
+    return Theme.teal
   }
 
   /// "Xavier Kain" gives "XK", "Lea (demo)" gives "L": the first letter of
@@ -395,7 +398,16 @@ struct CompassPage<Content: View>: View {
       if !statusOver { StatusLine() }
       if talk == .big {
         // The talk page: one huge button, the easiest target with wet fingers.
-        TalkButton(big: true).frame(maxHeight: .infinity)
+        VStack(spacing: 10) {
+          Text("\(model.state?.channel ?? "ComX") · Group").overline()
+            .lineLimit(1)
+            .minimumScaleFactor(0.6)
+          TalkCircle()
+          if model.micDenied {
+            Text("Microphone off: allow it in Settings").font(.plain(12)).foregroundStyle(Theme.amber)
+          }
+        }
+        .frame(maxHeight: .infinity)
       } else {
         content
           .frame(maxHeight: .infinity)
@@ -403,8 +415,9 @@ struct CompassPage<Content: View>: View {
       }
       if let who = model.speakingLabel, !model.isRecording {
         Text(who)
-          .font(.system(size: 14, weight: .bold))
-          .foregroundStyle(.yellow)
+          .font(.condensed(14, .bold))
+          .textCase(.uppercase)
+          .foregroundStyle(Theme.yellow)
           .lineLimit(1)
       }
       if talk == .normal { TalkButton() }
@@ -422,26 +435,28 @@ struct RiderPage: View {
     VStack(spacing: 1) {
       HStack(spacing: 4) {
         if rider.isSOS {
-          Text("SOS").font(.system(size: 16, weight: .heavy)).foregroundStyle(.red)
+          Text("SOS").font(.condensed(16)).foregroundStyle(Theme.red)
         }
         Text(rider.displayName)
-          .font(.system(size: 20, weight: .heavy))
+          .font(.condensed(26))
+          .textCase(.uppercase)
+          .foregroundStyle(rider.isSpeaking ? Theme.yellow : Theme.text)
           .lineLimit(1)
           .minimumScaleFactor(0.6)
-        if rider.isSpeaking {
-          Image(systemName: "waveform").foregroundStyle(.yellow)
-        }
+          .accessibilityValue(rider.isSOS ? "SOS" : (rider.isSpeaking ? "speaking" : ""))
         if let pos = position, pos.1 > 1 {
-          Text("\(pos.0)/\(pos.1)").font(.system(size: 13, weight: .semibold)).foregroundStyle(.secondary)
+          Text("\(pos.0)/\(pos.1)").font(.condensed(13, .semibold)).foregroundStyle(Theme.textMuted)
         }
       }
       DirectionArrow(angle: model.arrowAngle(bearing: rider.brg),
-                     color: rider.isSOS ? .red : .cyan)
+                     color: rider.isSOS ? Theme.red : Theme.teal)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .padding(2)
         .opacity(rider.isStale ? 0.4 : 1)
       Text(rider.isStale ? "\(Format.distance(rider.dist)) old" : Format.distance(rider.dist))
-        .font(.system(size: 30, weight: .heavy, design: .rounded))
+        .font(.condensed(40))
+        .textCase(.uppercase)
+        .foregroundStyle(Theme.text)
         .lineLimit(1)
         .minimumScaleFactor(0.6)
     }
@@ -454,82 +469,81 @@ struct RiderPage: View {
   }
 }
 
-/// While recording: who the clip goes to (nil = the whole group).
+/// While recording: who the clip goes to (nil = the whole group), over the
+/// red send circle. The crown moves to the next recipient page.
 struct TalkTargetPage: View {
   @EnvironmentObject var model: AppModel
   let uid: Int?
 
   var body: some View {
     let rider = uid.flatMap { model.rider($0) }
-    VStack(spacing: 2) {
-      Text("To").font(.system(size: 14, weight: .semibold)).foregroundStyle(.secondary)
-      Text(uid == nil ? "Group" : rider?.displayName ?? "Rider \(uid!)")
-        .font(.system(size: 26, weight: .heavy))
-        .foregroundStyle(uid == nil ? .white : .yellow)
+    VStack(spacing: 10) {
+      Text("To \(uid == nil ? "Group" : rider?.displayName ?? "Rider \(uid!)")")
+        .overline(uid == nil ? Theme.textMuted : Theme.yellow)
         .lineLimit(1)
         .minimumScaleFactor(0.6)
-      if let rider = rider {
-        Text(Format.distance(rider.dist))
-          .font(.system(size: 18, weight: .bold, design: .rounded))
-          .foregroundStyle(.secondary)
-      }
+      TalkCircle()
     }
     .frame(maxWidth: .infinity, maxHeight: .infinity)
   }
 }
 
-/// Big talk button: group by default; while recording, shows the recipient
-/// (crown, or a tap on the label, changes it).
+/// The big round talk control: teal "TALK" (Action button hint), red
+/// "SEND n" while recording. Double tap and the Action button do the same.
+struct TalkCircle: View {
+  @EnvironmentObject var model: AppModel
+
+  var body: some View {
+    Button(action: { model.toggleTalk() }) {
+      VStack(spacing: 2) {
+        Text(model.isRecording ? "SEND \(secondsLeft)" : "TALK")
+          .font(.condensed(36))
+          .tracking(1)
+          .lineLimit(1)
+          .minimumScaleFactor(0.6)
+        Text(model.isRecording ? "Tap to send" : "Action button")
+          .font(.plain(12))
+      }
+      .foregroundStyle(model.isRecording ? Theme.text : Theme.onAccent)
+      .padding(.horizontal, 12)
+      .frame(maxWidth: 150, maxHeight: 150)
+      .aspectRatio(1, contentMode: .fit)
+      .background(Circle().fill(model.isRecording ? Theme.red : Theme.teal))
+    }
+    .buttonStyle(.plain)
+    .primaryActionShortcut()
+    .accessibilityLabel(model.isRecording ? "Stop and send" : "Talk")
+    .accessibilityValue(model.isRecording ? "\(secondsLeft) seconds left" : "")
+  }
+
+  private var secondsLeft: Int { max(0, Int(AppModel.maxClipSeconds - model.recordingElapsed)) }
+}
+
+/// Idle talk button for pages that show one (no riders yet, waiting for the
+/// phone). While recording the pages use TalkCircle instead.
 struct TalkButton: View {
   @EnvironmentObject var model: AppModel
-  /// Round and as big as the page allows, for the talk page.
-  var big = false
 
   var body: some View {
     VStack(spacing: 2) {
-      if model.isRecording {
-        Button { model.cycleTalkTarget(1) } label: {
-          Text("To: \(model.talkTargetName)")
-            .font(.system(size: 16, weight: .heavy))
-            .foregroundStyle(model.talkTarget == nil ? .white : .yellow)
-            .lineLimit(1)
-            .minimumScaleFactor(0.6)
-            .frame(maxWidth: .infinity)
-        }
-        .buttonStyle(.plain)
-      }
       Button(action: { model.toggleTalk() }) {
         HStack(spacing: 6) {
-          Image(systemName: model.isRecording ? "paperplane.fill" : "mic.fill")
-            .font(.system(size: big ? 30 : 22, weight: .bold))
-          Text(model.isRecording ? "SEND \(max(0, Int(AppModel.maxClipSeconds - model.recordingElapsed)))" : "TALK")
-            .font(.system(size: big ? 30 : 22, weight: .heavy))
+          Image(systemName: "mic.fill")
+            .font(.condensed(22))
+          Text("TALK")
+            .font(.condensed(22))
         }
-        .foregroundStyle(.white)
-        .frame(maxWidth: .infinity, minHeight: 50, maxHeight: big ? .infinity : nil)
-        .background(Capsule().fill(model.isRecording ? Color.red : Color.blue))
-        .modifier(RoundWhenBig(big: big))
+        .foregroundStyle(Theme.onAccent)
+        .frame(maxWidth: .infinity, minHeight: 50)
+        .background(Capsule().fill(Theme.teal))
       }
       .buttonStyle(.plain)
       .primaryActionShortcut()
-      .accessibilityLabel(model.isRecording ? "Stop and send" : "Talk")
+      .accessibilityLabel("Talk")
       if model.micDenied {
         Text("Microphone off: allow it in Settings")
-          .font(.footnote).foregroundStyle(.orange)
+          .font(.plain(12)).foregroundStyle(Theme.amber)
       }
-    }
-  }
-}
-
-/// The talk page button is a circle filling the page.
-private struct RoundWhenBig: ViewModifier {
-  let big: Bool
-
-  func body(content: Content) -> some View {
-    if big {
-      content.aspectRatio(1, contentMode: .fit)
-    } else {
-      content
     }
   }
 }
@@ -555,17 +569,24 @@ struct StatusLine: View {
   var body: some View {
     HStack(spacing: 4) {
       Circle()
-        .fill(model.channelConnected ? Color.green : (model.linkUp ? Color.orange : Color.red))
-        .frame(width: 10, height: 10)
+        .fill(dotColor)
+        .frame(width: 8, height: 8)
       Text(statusText)
-        .font(.system(size: 14, weight: .semibold))
+        .font(.condensed(13, .semibold))
+        .tracking(2)
+        .textCase(.uppercase)
+        .foregroundStyle(dotColor)
         .lineLimit(1)
         .minimumScaleFactor(0.6)
       Spacer(minLength: 0)
       if !model.workoutRunning {
-        Image(systemName: "bolt.slash.fill").foregroundStyle(.orange).font(.system(size: 12))
+        Image(systemName: "bolt.slash.fill").foregroundStyle(Theme.amber).font(.system(size: 12))
       }
     }
+  }
+
+  private var dotColor: Color {
+    model.channelConnected ? Theme.teal : (model.linkUp ? Theme.amber : Theme.red)
   }
 
   private var statusText: String {
@@ -587,14 +608,16 @@ struct RidersView: View {
       HeadingSourceRow()
       if riders.isEmpty {
         Text(model.linkUp ? "No riders yet" : "Waiting for phone")
-          .font(.title3)
-          .foregroundStyle(.secondary)
+          .font(.condensed(18, .bold))
+          .foregroundStyle(Theme.textMuted)
       }
       ForEach(riders) { rider in
         Button { onSelect(rider.uid) } label: {
           RiderRow(rider: rider)
         }
-        .listRowBackground(rider.isSOS ? Color.red.opacity(0.85) : Color.clear)
+        .listRowBackground(
+          RoundedRectangle(cornerRadius: 14)
+            .fill(rider.isSOS ? Theme.red : (rider.isSpeaking ? Theme.yellow : Theme.surfaceAlt)))
       }
     }
     .navigationTitle("Riders")
@@ -612,7 +635,7 @@ struct HeadingSourceRow: View {
       case .north: return "Arrows: north up"
       }
     }()
-    Text(source).font(.footnote).foregroundStyle(.secondary)
+    Text(source).overline().listRowBackground(Color.clear)
   }
 }
 
@@ -621,34 +644,39 @@ struct RiderRow: View {
   let rider: Rider
 
   var body: some View {
+    let ink: Color = rider.isSOS ? Theme.text : (rider.isSpeaking ? Theme.onAccent : Theme.text)
+    let distText = rider.dist == nil ? "No GPS" : Format.distance(rider.dist)
+    let state = rider.isSOS ? ", SOS" : (rider.isSpeaking ? ", speaking" : "")
     HStack(spacing: 8) {
       DirectionArrow(angle: model.arrowAngle(bearing: rider.brg),
-                     color: rider.isSOS ? .white : .cyan)
-        .frame(width: 34, height: 34)
-      VStack(alignment: .leading, spacing: 0) {
-        HStack(spacing: 4) {
-          Text(rider.displayName)
-            .font(.system(size: 18, weight: .bold))
-            .lineLimit(1)
-          if rider.isSpeaking {
-            Image(systemName: "waveform").foregroundStyle(.yellow)
-          }
-          if rider.isSOS {
-            Text("SOS").font(.system(size: 14, weight: .heavy))
-          }
-        }
-        Text(Format.distance(rider.dist))
-          .font(.system(size: 22, weight: .heavy, design: .rounded))
+                     color: rider.isSOS || rider.isSpeaking ? ink : Theme.teal)
+        .frame(width: 22, height: 24)
+      Text(rider.displayName)
+        .font(.condensed(20))
+        .textCase(.uppercase)
+        .lineLimit(1)
+        .minimumScaleFactor(0.6)
+      Spacer(minLength: 0)
+      if rider.isSOS {
+        Text("SOS").font(.condensed(14)).fixedSize()
       }
+      Text(distText)
+        .font(rider.dist == nil ? .plain(13) : .condensed(22))
+        .textCase(rider.dist == nil ? nil : .uppercase)
+        .lineLimit(1)
+        .fixedSize()
     }
-    .opacity(rider.isStale ? 0.4 : 1)
+    .foregroundStyle(ink)
+    .opacity(!rider.isSOS && (rider.isStale || rider.dist == nil) ? 0.45 : 1)
+    .accessibilityElement(children: .combine)
+    .accessibilityLabel("\(rider.displayName)\(state), \(distText)")
   }
 }
 
 /// Arrow pointing at `angle` degrees clockwise from the top of the screen.
 struct DirectionArrow: View {
   let angle: Double?
-  var color: Color = .cyan
+  var color: Color = Theme.teal
 
   var body: some View {
     if let angle = angle {
@@ -662,7 +690,7 @@ struct DirectionArrow: View {
       Image(systemName: "questionmark.circle")
         .resizable()
         .scaledToFit()
-        .foregroundStyle(.gray)
+        .foregroundStyle(color)
     }
   }
 }
@@ -681,52 +709,64 @@ struct HistoryView: View {
   }()
 
   var body: some View {
-    List {
+    // The newest voice message gets a highlighted row (the one to replay).
+    let newest = model.history.first(where: { $0.isVoice })?.id
+    return List {
       Section {
         if model.history.isEmpty {
-          Text("No messages yet").foregroundStyle(.secondary)
+          Text("No messages yet").font(.plain(13)).foregroundStyle(Theme.textMuted)
+            .listRowBackground(Color.clear)
         }
         ForEach(model.history) { item in
-          if item.isVoice {
-            Button { model.replay(item) } label: { row(item) }
-          } else {
-            row(item)
+          Group {
+            if item.isVoice {
+              Button { model.replay(item) } label: { row(item) }
+                .accessibilityHint("Plays the message again")
+            } else {
+              row(item)
+                .accessibilityElement(children: .combine)
+            }
           }
+          .listRowBackground(
+            RoundedRectangle(cornerRadius: 12)
+              .fill(item.id == newest ? Theme.surfaceAlt : Color.clear))
         }
       } header: {
         HStack {
-          Text("History")
+          Text("History").overline()
           Spacer(minLength: 0)
           if let who = model.playingFrom {
             Label(who, systemImage: "speaker.wave.2.fill")
-              .foregroundStyle(.yellow)
+              .font(.condensed(12, .bold))
+              .foregroundStyle(Theme.yellow)
               .lineLimit(1)
           }
         }
-        .font(.system(size: 15, weight: .heavy))
       }
     }
   }
 
   private func row(_ item: HistoryItem) -> some View {
-    HStack(spacing: 6) {
-      Image(systemName: item.isVoice ? "play.circle.fill" : (item.outgoing ? "arrow.up.circle" : "text.bubble"))
-        .font(.system(size: 22, weight: .bold))
-        .foregroundStyle(item.isVoice ? .cyan : .secondary)
-      VStack(alignment: .leading, spacing: 0) {
-        HStack(spacing: 4) {
-          Text(item.outgoing ? "To \(item.who)" : item.who)
-            .font(.system(size: 15, weight: .bold))
-            .foregroundStyle(item.isPrivate ? .yellow : .white)
-            .lineLimit(1)
-          Spacer(minLength: 0)
-          Text(HistoryView.time.string(from: item.at))
-            .font(.system(size: 12, weight: .semibold, design: .rounded))
-            .foregroundStyle(.secondary)
+    HStack(spacing: 8) {
+      // Yellow dot = voice (tap to replay), teal ring = text.
+      Group {
+        if item.isVoice {
+          Circle().fill(Theme.yellow)
+        } else {
+          Circle().strokeBorder(item.summary == "SOS" ? Theme.red : Theme.teal, lineWidth: 2)
         }
+      }
+      .frame(width: 26, height: 26)
+      VStack(alignment: .leading, spacing: 0) {
+        Text("\(item.outgoing ? "To \(item.who)" : item.who) · \(HistoryView.time.string(from: item.at))")
+          .font(.condensed(14, .bold))
+          .textCase(.uppercase)
+          .foregroundStyle(item.isPrivate ? Theme.yellow : Theme.text)
+          .lineLimit(1)
+          .minimumScaleFactor(0.7)
         Text(item.summary)
-          .font(.system(size: 16, weight: .heavy))
-          .foregroundStyle(item.summary == "SOS" ? .red : .primary)
+          .font(.plain(13))
+          .foregroundStyle(item.summary == "SOS" ? Theme.red : (item.isVoice ? Theme.textMuted : Theme.text))
           .lineLimit(2)
           .minimumScaleFactor(0.7)
       }
@@ -762,45 +802,61 @@ struct MessagesView: View {
         ForEach(QuickMessage.allCases) { m in
           Button { model.send(m) } label: {
             VStack(spacing: 2) {
-              Image(systemName: m.symbol).font(.system(size: 20, weight: .bold))
+              Image(systemName: m.symbol).font(.system(size: 18, weight: .bold))
               Text(m.label)
-                .font(.system(size: 13, weight: .semibold))
+                .font(.condensed(15, .bold))
+                .tracking(1)
+                .textCase(.uppercase)
                 .multilineTextAlignment(.center)
                 .lineLimit(2)
                 .minimumScaleFactor(0.7)
             }
+            .foregroundStyle(m == .help ? Theme.amber : Theme.text)
             .frame(maxWidth: .infinity, minHeight: 64)
+            .background(RoundedRectangle(cornerRadius: 22).fill(Theme.surfaceAlt))
           }
-          .tint(m == .help ? .orange : .blue)
+          .buttonStyle(PressFade())
         }
       }
 
       if model.mySOSActive {
-        Button(role: .cancel) { model.setSOS(false) } label: {
-          Text("Cancel my SOS").font(.system(size: 18, weight: .heavy))
+        Button { model.setSOS(false) } label: {
+          Text("Cancel my SOS")
+            .font(.condensed(20))
+            .tracking(1)
+            .textCase(.uppercase)
+            .foregroundStyle(Theme.text)
             .frame(maxWidth: .infinity, minHeight: 56)
+            .background(Capsule().fill(Theme.red))
         }
-        .tint(.green)
+        .buttonStyle(PressFade())
         .padding(.top, 6)
       } else {
         // Long press, then confirm: a wet screen must not raise an SOS.
-        Text("SOS")
-          .font(.system(size: 26, weight: .heavy))
-          .foregroundStyle(.white)
-          .frame(maxWidth: .infinity, minHeight: 60)
-          .background(RoundedRectangle(cornerRadius: 14).fill(Color.red))
+        Text("Hold · SOS")
+          .font(.condensed(22))
+          .tracking(1)
+          .textCase(.uppercase)
+          .foregroundStyle(Theme.red)
+          .frame(maxWidth: .infinity, minHeight: 58)
+          .overlay(Capsule().strokeBorder(Theme.red, lineWidth: 2))
+          .contentShape(Capsule())
           .onLongPressGesture(minimumDuration: 1.2) {
             WKInterfaceDevice.current().play(.click)
             confirmSOS = true
           }
+          .accessibilityHint("Hold, then confirm, to send an SOS")
+          .accessibilityAddTraits(.isButton)
+          .accessibilityAction { confirmSOS = true }
           .padding(.top, 6)
-        Text("Hold to send SOS").font(.footnote).foregroundStyle(.secondary)
       }
 
       Button {
         WKInterfaceDevice.current().enableWaterLock()
       } label: {
         Label("Water lock", systemImage: "drop.fill")
+          .font(.plain(14))
+          .foregroundStyle(Theme.textMuted)
       }
       .padding(.top, 8)
 
@@ -808,15 +864,21 @@ struct MessagesView: View {
         InputTestView()
       } label: {
         Label("Input test", systemImage: "hand.tap")
+          .font(.plain(14))
+          .foregroundStyle(Theme.textMuted)
       }
 
       if model.workoutRunning {
         Button(role: .destructive) { model.endSession() } label: {
           Label("End session", systemImage: "stop.fill")
+            .font(.plain(14))
+            .foregroundStyle(Theme.textMuted)
         }
       } else {
         Button { model.startSession() } label: {
           Label("Start session", systemImage: "play.fill")
+            .font(.plain(14))
+            .foregroundStyle(Theme.textMuted)
         }
       }
     }
@@ -827,17 +889,34 @@ struct MessagesView: View {
   }
 }
 
+private struct PressFade: ButtonStyle {
+  func makeBody(configuration: Configuration) -> some View {
+    configuration.label.opacity(configuration.isPressed ? 0.55 : 1)
+  }
+}
+
 struct BannerView: View {
   let banner: Banner
 
   var body: some View {
     VStack(alignment: .leading, spacing: 0) {
-      Text(banner.title).font(.system(size: 14, weight: .bold)).foregroundStyle(.yellow)
-      Text(banner.body).font(.system(size: 20, weight: .heavy)).lineLimit(2).minimumScaleFactor(0.7)
+      Text(banner.title)
+        .font(.condensed(13, .bold))
+        .tracking(1)
+        .textCase(.uppercase)
+      Text(banner.body)
+        .font(.condensed(20))
+        .textCase(.uppercase)
+        .lineLimit(2)
+        .minimumScaleFactor(0.7)
     }
+    .foregroundStyle(Theme.onAccent)
     .frame(maxWidth: .infinity, alignment: .leading)
     .padding(8)
-    .background(RoundedRectangle(cornerRadius: 12).fill(Color(white: 0.15)))
+    .background(RoundedRectangle(cornerRadius: 14).fill(Theme.yellow))
+    .accessibilityElement(children: .combine)
+    .accessibilityAddTraits(.isButton)
+    .accessibilityHint("Dismisses the message")
   }
 }
 
@@ -846,22 +925,57 @@ struct SOSAlertView: View {
   let alert: SOSAlert
 
   var body: some View {
-    VStack(spacing: 2) {
-      Text("SOS \(alert.from)")
-        .font(.system(size: 20, weight: .heavy))
-        .lineLimit(1)
-        .minimumScaleFactor(0.6)
-      DirectionArrow(angle: model.arrowAngle(bearing: alert.brg), color: .white)
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .padding(4)
-      Text(Format.distance(alert.dist))
-        .font(.system(size: 30, weight: .heavy, design: .rounded))
-      Button("Dismiss") { model.dismissSOSAlert() }
-        .tint(.black)
+    VStack(spacing: 0) {
+      VStack(spacing: 0) {
+        Text("SOS · \(alert.from)")
+          .font(.condensed(22))
+          .textCase(.uppercase)
+          .lineLimit(1)
+          .minimumScaleFactor(0.5)
+        DirectionArrow(angle: model.arrowAngle(bearing: alert.brg), color: Theme.text)
+          .frame(maxWidth: .infinity, minHeight: 72, maxHeight: .infinity)
+          .layoutPriority(1)
+          .padding(2)
+        Text(Format.distance(alert.dist))
+          .font(.condensed(40))
+          .textCase(.uppercase)
+          .lineLimit(1)
+          .minimumScaleFactor(0.5)
+      }
+      .accessibilityElement(children: .ignore)
+      .accessibilityLabel("SOS from \(alert.from), \(Format.distance(alert.dist)), \(directionWord(model.arrowAngle(bearing: alert.brg)))")
+      Button { model.dismissSOSAlert() } label: {
+        Text("Dismiss")
+          .font(.condensed(18))
+          .textCase(.uppercase)
+          .foregroundStyle(Theme.text)
+          .frame(maxWidth: .infinity, minHeight: 38)
+          .background(Capsule().fill(Theme.onAccent.opacity(0.35)))
+      }
+      .buttonStyle(.plain)
     }
-    .foregroundStyle(.white)
-    .padding(6)
+    .foregroundStyle(Theme.text)
+    .padding(.horizontal, 6)
+    .padding(.vertical, 2)
     .frame(maxWidth: .infinity, maxHeight: .infinity)
-    .background(Color.red.ignoresSafeArea())
+    .background(Theme.red.ignoresSafeArea())
+    .accessibilityAddTraits(.isModal)
+    .onAppear { AccessibilityNotification.Announcement("SOS from \(alert.from)").post() }
+  }
+
+  private func directionWord(_ angle: Double?) -> String {
+    guard let angle else { return "direction unknown" }
+    var a = angle.truncatingRemainder(dividingBy: 360)
+    if a < 0 { a += 360 }
+    switch a {
+    case 337.5..<360, 0..<22.5: return "ahead"
+    case ..<67.5: return "ahead right"
+    case ..<112.5: return "right"
+    case ..<157.5: return "behind right"
+    case ..<202.5: return "behind"
+    case ..<247.5: return "behind left"
+    case ..<292.5: return "left"
+    default: return "ahead left"
+    }
   }
 }
