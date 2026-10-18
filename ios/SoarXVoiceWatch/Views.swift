@@ -36,6 +36,7 @@ struct ContentView: View {
       }
       if let alert = model.sosAlert {
         SOSAlertView(alert: alert)
+          .id(alert.uid)
       }
     }
     .animation(.easeInOut(duration: 0.2), value: model.banner)
@@ -95,8 +96,8 @@ struct CompassView: View {
         CompassPage {
           Spacer(minLength: 0)
           Text(model.linkUp ? "No riders yet" : "Waiting for phone")
-            .font(.title3)
-            .foregroundStyle(.secondary)
+            .font(.condensed(18, .bold))
+            .foregroundStyle(Theme.textMuted)
           Spacer(minLength: 0)
         }
       } else if let alert = model.sosAlert, let rider = model.rider(alert.uid) {
@@ -512,6 +513,7 @@ struct TalkCircle: View {
     .buttonStyle(.plain)
     .primaryActionShortcut()
     .accessibilityLabel(model.isRecording ? "Stop and send" : "Talk")
+    .accessibilityValue(model.isRecording ? "\(secondsLeft) seconds left" : "")
   }
 
   private var secondsLeft: Int { max(0, Int(AppModel.maxClipSeconds - model.recordingElapsed)) }
@@ -674,7 +676,7 @@ struct RiderRow: View {
 /// Arrow pointing at `angle` degrees clockwise from the top of the screen.
 struct DirectionArrow: View {
   let angle: Double?
-  var color: Color = .cyan
+  var color: Color = Theme.teal
 
   var body: some View {
     if let angle = angle {
