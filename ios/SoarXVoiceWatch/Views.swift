@@ -706,53 +706,64 @@ struct HistoryView: View {
     return f
   }()
 
+  /// The newest voice message gets a highlighted row (the one to replay).
+  private var newestVoiceId: UUID? { model.history.first(where: { $0.isVoice })?.id }
+
   var body: some View {
     List {
       Section {
         if model.history.isEmpty {
-          Text("No messages yet").foregroundStyle(.secondary)
+          Text("No messages yet").font(.plain(13)).foregroundStyle(Theme.textMuted)
+            .listRowBackground(Color.clear)
         }
         ForEach(model.history) { item in
-          if item.isVoice {
-            Button { model.replay(item) } label: { row(item) }
-          } else {
-            row(item)
+          Group {
+            if item.isVoice {
+              Button { model.replay(item) } label: { row(item) }
+            } else {
+              row(item)
+            }
           }
+          .listRowBackground(
+            RoundedRectangle(cornerRadius: 12)
+              .fill(item.id == newestVoiceId ? Theme.surfaceAlt : Color.clear))
         }
       } header: {
         HStack {
-          Text("History")
+          Text("History").overline()
           Spacer(minLength: 0)
           if let who = model.playingFrom {
             Label(who, systemImage: "speaker.wave.2.fill")
-              .foregroundStyle(.yellow)
+              .font(.condensed(12, .bold))
+              .foregroundStyle(Theme.yellow)
               .lineLimit(1)
           }
         }
-        .font(.system(size: 15, weight: .heavy))
       }
     }
   }
 
   private func row(_ item: HistoryItem) -> some View {
-    HStack(spacing: 6) {
-      Image(systemName: item.isVoice ? "play.circle.fill" : (item.outgoing ? "arrow.up.circle" : "text.bubble"))
-        .font(.system(size: 22, weight: .bold))
-        .foregroundStyle(item.isVoice ? .cyan : .secondary)
-      VStack(alignment: .leading, spacing: 0) {
-        HStack(spacing: 4) {
-          Text(item.outgoing ? "To \(item.who)" : item.who)
-            .font(.system(size: 15, weight: .bold))
-            .foregroundStyle(item.isPrivate ? .yellow : .white)
-            .lineLimit(1)
-          Spacer(minLength: 0)
-          Text(HistoryView.time.string(from: item.at))
-            .font(.system(size: 12, weight: .semibold, design: .rounded))
-            .foregroundStyle(.secondary)
+    HStack(spacing: 8) {
+      // Yellow dot = voice (tap to replay), teal ring = text.
+      Group {
+        if item.isVoice {
+          Circle().fill(Theme.yellow)
+        } else {
+          Circle().strokeBorder(item.summary == "SOS" ? Theme.red : Theme.teal, lineWidth: 2)
         }
+      }
+      .frame(width: 26, height: 26)
+      VStack(alignment: .leading, spacing: 0) {
+        Text("\(item.outgoing ? "To \(item.who)" : item.who) · \(HistoryView.time.string(from: item.at))")
+          .font(.condensed(14, .bold))
+          .textCase(.uppercase)
+          .foregroundStyle(item.isPrivate ? Theme.yellow : Theme.text)
+          .lineLimit(1)
+          .minimumScaleFactor(0.7)
         Text(item.summary)
-          .font(.system(size: 16, weight: .heavy))
-          .foregroundStyle(item.summary == "SOS" ? .red : .primary)
+          .font(.plain(13))
+          .foregroundStyle(item.summary == "SOS" ? Theme.red : (item.isVoice ? Theme.textMuted : Theme.text))
           .lineLimit(2)
           .minimumScaleFactor(0.7)
       }
