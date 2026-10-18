@@ -8,6 +8,7 @@ import {
   memoSummary,
   memoTargetLabel,
   newClipId,
+  replayLabel,
   resolveMemoTarget,
   toggleMemoTarget,
 } from '../memo';
@@ -78,6 +79,12 @@ describe('labels', () => {
   it('titles a history row "NAME · HH:MM"', () => {
     expect(historyTitle('Léa', new Date(2026, 9, 19, 9, 5).getTime())).toBe('LÉA · 09:05');
     expect(historyTitle('To group', new Date(2026, 9, 19, 14, 30).getTime())).toBe('TO GROUP · 14:30');
+  });
+
+  it('labels the replay of received and own memos', () => {
+    expect(replayLabel('Léa', false)).toBe('Play the voice memo from Léa again');
+    expect(replayLabel('To group', true)).toBe('Play your voice memo to group again');
+    expect(replayLabel('To Léa', true)).toBe('Play your voice memo to Léa again');
   });
 
   it('makes short clip ids', () => {

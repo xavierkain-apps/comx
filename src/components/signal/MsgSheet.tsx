@@ -5,7 +5,7 @@ import {useAgoraContext} from '../../contexts/AgoraContext';
 import {RideMessage, useRide} from '../../contexts/RideContext';
 import {useMemos} from '../../contexts/MemoContext';
 import {QUICK_MESSAGES} from '../../ride/protocol';
-import {historyTitle} from '../../memo/memo';
+import {historyTitle, replayLabel} from '../../memo/memo';
 import {condensed, plain, signal} from '../../theme';
 
 interface MsgSheetProps {
@@ -50,6 +50,7 @@ export function MsgSheet({visible, onClose, onLeave}: MsgSheetProps) {
                 key={q.id}
                 style={styles.quickPill}
                 activeOpacity={0.7}
+                accessibilityRole="button"
                 onPress={() => {
                   Vibration.vibrate(30);
                   sendQuickMessage(q.id);
@@ -84,16 +85,23 @@ export function MsgSheet({visible, onClose, onLeave}: MsgSheetProps) {
                 <Text style={[styles.actionText, styles.actionTeal]}>EARPHONE</Text>
               </View>
             ) : (
-              <TouchableOpacity style={[styles.action, isSpeakerOn && styles.actionOn]} onPress={toggleSpeaker}>
+              <TouchableOpacity
+                style={[styles.action, isSpeakerOn && styles.actionOn]}
+                onPress={toggleSpeaker}
+                accessibilityRole="switch"
+                accessibilityState={{checked: isSpeakerOn}}>
                 <Text style={[styles.actionText, isSpeakerOn && styles.actionTextOn]}>{isSpeakerOn ? 'SPEAKER ON' : 'SPEAKER OFF'}</Text>
               </TouchableOpacity>
             )}
-            <TouchableOpacity style={styles.action} onPress={isPausedForVideo ? resumeFromVideo : pauseForVideo}>
+            <TouchableOpacity
+              style={styles.action}
+              onPress={isPausedForVideo ? resumeFromVideo : pauseForVideo}
+              accessibilityRole="button">
               <Text style={styles.actionText}>{isPausedForVideo ? 'RESUME AUDIO' : 'PAUSE FOR VIDEO'}</Text>
             </TouchableOpacity>
           </View>
 
-          <TouchableOpacity style={styles.leave} onPress={confirmLeave}>
+          <TouchableOpacity style={styles.leave} onPress={confirmLeave} accessibilityRole="button">
             <Text style={styles.leaveText}>Leave group</Text>
           </TouchableOpacity>
         </View>
@@ -124,7 +132,8 @@ function HistoryRow({message, highlighted, onReplay}: {message: RideMessage; hig
     <TouchableOpacity
       style={[styles.row, highlighted && styles.rowHighlight]}
       onPress={onReplay}
-      accessibilityLabel={`Play the voice memo from ${message.from} again`}>
+      accessibilityRole="button"
+      accessibilityLabel={replayLabel(message.from, message.uid === null)}>
       {body}
     </TouchableOpacity>
   );

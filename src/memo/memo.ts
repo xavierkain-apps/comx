@@ -49,6 +49,18 @@ export function newClipId(now: number, random: () => number = Math.random): stri
   return `${now.toString(36)}${random().toString(36).slice(2, 6)}`;
 }
 
+/**
+ * Accessibility label of a history memo row. Our own memos are logged from
+ * "To group" / "To Léa" (no uid): "Play your voice memo to Léa again".
+ */
+export function replayLabel(from: string, mine: boolean): string {
+  if (mine) {
+    const to = from.replace(/^to\s+/i, '');
+    return `Play your voice memo to ${to} again`;
+  }
+  return `Play the voice memo from ${from} again`;
+}
+
 /** History row title: "LÉA · 09:41". */
 export function historyTitle(from: string, t: number): string {
   const d = new Date(t);
