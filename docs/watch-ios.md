@@ -101,11 +101,17 @@ always has a focused rider, so it would make nearly every message private.
 
 The compass opens on the **overview**: a radar with me in the centre, the top
 of the screen being the heading the arrows use (compass, else course, else
-north, with an N mark), each rider a dot with a short name, the farthest on
-the ring (its distance in the corner). Distance from the centre is the square
-root of the real distance so that near riders stay readable. SOS riders are
-red and bigger, speaking riders yellow, stale ones dimmed; riders without a
-position are listed under the radar ("Max ?"). The crown then goes through
+north, with an N mark). Each rider is a round badge with initials ("Xavier
+Kain" gives XK, "Lea (demo)" gives L) and the distance under it; the
+farthest rider sits on the outer ring, and a second ring marks a round
+distance (1, 2 or 5 × 10ⁿ, at most half the farthest), both labelled.
+Distance from the centre is the square root of the real distance so that
+near riders stay readable, and badges that would overlap are pushed apart.
+SOS riders are red and bigger, speaking riders yellow, stale ones dimmed;
+riders without a position are listed under the radar ("M ?"). The overview
+has a smaller talk button and the status line drawn over the radar, so the
+radar gets the page. There are no profile pictures: the phone does not send
+any (a picture does not fit the 1 KB data stream messages). The crown then goes through
 the riders, one page each. A rider whose SOS started after your last crown
 pick takes over the compass. Pages swipe **horizontally** so the crown never
 scrolls pages; it belongs to the compass.

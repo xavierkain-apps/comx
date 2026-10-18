@@ -94,7 +94,7 @@ struct CompassView: View {
         CompassPage { RiderPage(rider: rider) }
       } else {
         TabView(selection: $page) {
-          CompassPage { OverviewPage() }.tag(Optional(CompassView.overview))
+          CompassPage(compact: true) { OverviewPage() }.tag(Optional(CompassView.overview))
           ForEach(model.riders) { rider in
             CompassPage { RiderPage(rider: rider) }.tag(Optional(rider.uid))
           }
@@ -126,11 +126,15 @@ struct CompassView: View {
 }
 
 /// Every rider on one radar: me in the centre, the top of the screen is the
-/// heading the arrows use, the farthest rider on the ring. Distance from the
+/// heading the arrows use, the farthest rider at the edge. Each rider is a
+/// round badge with initials and the distance under it. Distance from the
 /// centre is the square root of the distance, so near riders do not sit on
-/// me. Thick strokes and few words, for the sun.
+/// me; badges that would overlap are pushed apart. Thick strokes and few
+/// words, for the sun.
 struct OverviewPage: View {
   @EnvironmentObject var model: AppModel
+
+  static let badge: CGFloat = 28
 
   var body: some View {
     let placed = model.riders.filter { $0.dist != nil && $0.brg != nil }
@@ -139,41 +143,56 @@ struct OverviewPage: View {
     VStack(spacing: 0) {
       GeometryReader { geo in
         let size = min(geo.size.width, geo.size.height)
-        let radius = size / 2 - 2
+        // The farthest badge sits on the edge ring, inside the screen.
+        let radius = size / 2 - OverviewPage.badge / 2 - 2
         let centre = CGPoint(x: geo.size.width / 2, y: geo.size.height / 2)
+        let inner = OverviewPage.niceDistance(farthest / 2)
+        let spots = OverviewPage.spread(placed.map { rider in
+          point(centre, radius, angle: model.arrowAngle(bearing: rider.brg) ?? 0,
+                fraction: ((rider.dist ?? 0) / farthest).squareRoot())
+        })
         ZStack {
-          Circle()
-            .stroke(Color(white: 0.35), lineWidth: 3)
-            .frame(width: radius * 1.8, height: radius * 1.8)
-            .position(centre)
-          // Ring radius, in the corner so it never covers a rider.
-          Text(Format.distance(farthest))
-            .font(.system(size: 13, weight: .bold, design: .rounded))
-            .foregroundStyle(Color(white: 0.6))
-            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomTrailing)
+          ring(centre, radius, label: Format.distance(farthest), lineWidth: 3)
+          if inner < farthest {
+            ring(centre, radius * CGFloat((inner / farthest).squareRoot()),
+                 label: Format.distance(inner), lineWidth: 2)
+          }
           Text("N")
-            .font(.system(size: 14, weight: .heavy))
+            .font(.system(size: 15, weight: .heavy))
             .foregroundStyle(.red)
-            .position(point(centre, radius, angle: -model.heading.0, fraction: 1))
+            .position(point(centre, radius + 10, angle: -model.heading.0, fraction: 1))
           Image(systemName: "location.north.fill")
-            .font(.system(size: 14, weight: .heavy))
+            .font(.system(size: 16, weight: .heavy))
             .foregroundStyle(.white)
             .position(centre)
-          ForEach(placed) { rider in
-            let at = point(centre, radius,
-                           angle: model.arrowAngle(bearing: rider.brg) ?? 0,
-                           fraction: 0.9 * ((rider.dist ?? 0) / farthest).squareRoot())
-            RadarDot(rider: rider).position(at)
+          ForEach(Array(placed.enumerated()), id: \.element.uid) { i, rider in
+            RiderBadge(rider: rider).position(spots[i])
           }
         }
       }
       if !unplaced.isEmpty {
-        Text(unplaced.map { "\(RadarDot.shortName($0)) ?" }.joined(separator: "  "))
+        Text(unplaced.map { "\(RiderBadge.initials($0)) ?" }.joined(separator: "  "))
           .font(.system(size: 13, weight: .bold))
           .foregroundStyle(.secondary)
           .lineLimit(1)
           .minimumScaleFactor(0.6)
       }
+    }
+  }
+
+  private func ring(_ c: CGPoint, _ r: CGFloat, label: String, lineWidth: CGFloat) -> some View {
+    ZStack {
+      Circle()
+        .stroke(Color(white: 0.3), lineWidth: lineWidth)
+        .frame(width: r * 2, height: r * 2)
+        .position(c)
+      // Label at the bottom right of the ring, where N rarely is.
+      Text(label)
+        .font(.system(size: 11, weight: .bold, design: .rounded))
+        .foregroundStyle(Color(white: 0.6))
+        .padding(.horizontal, 2)
+        .background(Capsule().fill(.black))
+        .position(point(c, r, angle: 135, fraction: 1))
     }
   }
 
@@ -183,23 +202,68 @@ struct OverviewPage: View {
     let r = radius * CGFloat(fraction)
     return CGPoint(x: c.x + r * CGFloat(sin(a)), y: c.y - r * CGFloat(cos(a)))
   }
+
+  /// Pushes apart badges closer than a badge width, a few relaxation passes;
+  /// riders keep roughly their direction and distance.
+  static func spread(_ points: [CGPoint]) -> [CGPoint] {
+    var p = points
+    // Room for the badge and the distance under it.
+    let minGap = badge + 10
+    for _ in 0..<12 {
+      var moved = false
+      for i in p.indices {
+        for j in p.indices where j > i {
+          let dx = p[j].x - p[i].x, dy = p[j].y - p[i].y
+          let d = max((dx * dx + dy * dy).squareRoot(), 0.01)
+          guard d < minGap else { continue }
+          let push = (minGap - d) / 2
+          let ux = d > 0.01 ? dx / d : 1, uy = d > 0.01 ? dy / d : 0
+          p[i].x -= ux * push; p[i].y -= uy * push
+          p[j].x += ux * push; p[j].y += uy * push
+          moved = true
+        }
+      }
+      if !moved { break }
+    }
+    return p
+  }
+
+  /// A round ring distance: 1, 2 or 5 times a power of ten, not above `d`.
+  static func niceDistance(_ d: Double) -> Double {
+    guard d > 0 else { return 0 }
+    let base = pow(10, floor(log10(d)))
+    for m in [5.0, 2.0, 1.0] where m * base <= d { return m * base }
+    return base
+  }
 }
 
-struct RadarDot: View {
+/// A rider on the radar: a round badge with the initials, the distance under
+/// it. Red and bigger in SOS, yellow while speaking, dimmed when stale.
+struct RiderBadge: View {
   let rider: Rider
 
   var body: some View {
-    let d: CGFloat = rider.isSOS ? 20 : 14
-    // The name sits right of the dot, off the vertical axis where N often is.
-    Circle().fill(color).frame(width: d, height: d)
-      .overlay(alignment: .leading) {
-        Text(RadarDot.shortName(rider))
-          .font(.system(size: rider.isSOS ? 15 : 13, weight: .heavy))
-          .foregroundStyle(color)
-          .fixedSize()
-          .alignmentGuide(.leading) { _ in -(d + 2) }
-      }
-      .opacity(rider.isStale ? 0.4 : 1)
+    let d: CGFloat = rider.isSOS ? OverviewPage.badge + 6 : OverviewPage.badge
+    ZStack {
+      Circle().fill(color)
+      Circle().stroke(.white, lineWidth: rider.isSOS ? 3 : 2)
+      Text(RiderBadge.initials(rider))
+        .font(.system(size: rider.isSOS ? 16 : 14, weight: .heavy, design: .rounded))
+        .foregroundStyle(.black)
+        .minimumScaleFactor(0.6)
+        .padding(2)
+    }
+    .frame(width: d, height: d)
+    .overlay(alignment: .top) {
+      Text(Format.distance(rider.dist))
+        .font(.system(size: 11, weight: .heavy, design: .rounded))
+        .foregroundStyle(.white)
+        .fixedSize()
+        .padding(.horizontal, 2)
+        .background(Capsule().fill(.black.opacity(0.7)))
+        .alignmentGuide(.top) { _ in -(d - 1) }
+    }
+    .opacity(rider.isStale ? 0.4 : 1)
   }
 
   private var color: Color {
@@ -208,9 +272,13 @@ struct RadarDot: View {
     return .cyan
   }
 
-  /// First word of the name, at most 4 letters: "Lea (demo)" gives "Lea".
-  static func shortName(_ rider: Rider) -> String {
-    String((rider.displayName.split(separator: " ").first.map(String.init) ?? rider.displayName).prefix(4))
+  /// "Xavier Kain" gives "XK", "Lea (demo)" gives "L": the first letter of
+  /// the first two words, ignoring anything in parentheses.
+  static func initials(_ rider: Rider) -> String {
+    let name = rider.displayName.replacingOccurrences(of: "\\(.*?\\)", with: "", options: .regularExpression)
+    let words = name.split(whereSeparator: { $0 == " " || $0 == "-" || $0 == "_" })
+    let letters = words.prefix(2).compactMap { $0.first }.map { String($0).uppercased() }
+    return letters.isEmpty ? "?" : letters.joined()
   }
 }
 
@@ -218,19 +286,23 @@ struct RadarDot: View {
 /// the status line and the talk button are part of each page.
 struct CompassPage<Content: View>: View {
   @EnvironmentObject var model: AppModel
+  /// Smaller talk button and the status line over the content, so the
+  /// overview radar gets the whole page.
+  var compact = false
   @ViewBuilder var content: Content
 
   var body: some View {
     VStack(spacing: 1) {
-      StatusLine()
+      if !compact { StatusLine() }
       content
+        .overlay(alignment: .top) { if compact { StatusLine() } }
       if let who = model.speakingLabel, !model.isRecording {
         Text(who)
           .font(.system(size: 14, weight: .bold))
           .foregroundStyle(.yellow)
           .lineLimit(1)
       }
-      TalkButton()
+      TalkButton(compact: compact)
     }
     .padding(.horizontal, 2)
   }
@@ -305,6 +377,7 @@ struct TalkTargetPage: View {
 /// (crown, or a tap on the label, changes it).
 struct TalkButton: View {
   @EnvironmentObject var model: AppModel
+  var compact = false
 
   var body: some View {
     VStack(spacing: 2) {
@@ -322,12 +395,12 @@ struct TalkButton: View {
       Button(action: { model.toggleTalk() }) {
         HStack(spacing: 6) {
           Image(systemName: model.isRecording ? "paperplane.fill" : "mic.fill")
-            .font(.system(size: 22, weight: .bold))
+            .font(.system(size: compact ? 18 : 22, weight: .bold))
           Text(model.isRecording ? "SEND \(Int(AppModel.maxClipSeconds - model.recordingElapsed))" : "TALK")
-            .font(.system(size: 22, weight: .heavy))
+            .font(.system(size: compact ? 18 : 22, weight: .heavy))
         }
         .foregroundStyle(.white)
-        .frame(maxWidth: .infinity, minHeight: 50)
+        .frame(maxWidth: .infinity, minHeight: compact ? 36 : 50)
         .background(Capsule().fill(model.isRecording ? Color.red : Color.blue))
       }
       .buttonStyle(.plain)
