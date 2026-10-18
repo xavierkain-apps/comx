@@ -16,12 +16,16 @@ struct ContentView: View {
         // Horizontal paging: the Digital Crown stays free for the compass.
         TabView(selection: $page) {
           CompassView().tag(0)
+            .containerBackground(Theme.bg, for: .tabView)
           RidersView(onSelect: { uid in
             model.select(uid)
             page = 0
           }).tag(1)
+            .containerBackground(Theme.bg, for: .tabView)
           MessagesView().tag(2)
+            .containerBackground(Theme.bg, for: .tabView)
           HistoryView().tag(3)
+            .containerBackground(Theme.bg, for: .tabView)
         }
         .tabViewStyle(.page)
       }
@@ -555,17 +559,24 @@ struct StatusLine: View {
   var body: some View {
     HStack(spacing: 4) {
       Circle()
-        .fill(model.channelConnected ? Color.green : (model.linkUp ? Color.orange : Color.red))
-        .frame(width: 10, height: 10)
+        .fill(dotColor)
+        .frame(width: 8, height: 8)
       Text(statusText)
-        .font(.system(size: 14, weight: .semibold))
+        .font(.condensed(13, .semibold))
+        .tracking(2)
+        .textCase(.uppercase)
+        .foregroundStyle(dotColor)
         .lineLimit(1)
         .minimumScaleFactor(0.6)
       Spacer(minLength: 0)
       if !model.workoutRunning {
-        Image(systemName: "bolt.slash.fill").foregroundStyle(.orange).font(.system(size: 12))
+        Image(systemName: "bolt.slash.fill").foregroundStyle(Theme.amber).font(.system(size: 12))
       }
     }
+  }
+
+  private var dotColor: Color {
+    model.channelConnected ? Theme.teal : (model.linkUp ? Theme.amber : Theme.red)
   }
 
   private var statusText: String {
