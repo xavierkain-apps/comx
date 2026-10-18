@@ -3,7 +3,20 @@
 
 import {distanceMeters, bearingDegrees} from '../utils/geo';
 
-export const PROTOCOL_VERSION = 1;
+/**
+ * 2 (ComX step 3): memos to the group travel as data-stream clips (`vc` with
+ * `to: 0`) instead of being mixed into the live audio. Watches ignore `v`;
+ * a phone on version 1 ignores group memos (see docs/watch-companion.md).
+ */
+export const PROTOCOL_VERSION = 2;
+
+/**
+ * A rider whose `name` message carries no protocol version, or an older one.
+ * They do not get group memos; the live screen says so once per rider.
+ */
+export function isOlderRider(nameMessage: Record<string, unknown>): boolean {
+  return !(typeof nameMessage.v === 'number' && nameMessage.v >= PROTOCOL_VERSION);
+}
 
 /** A position older than this is shown greyed out. */
 export const STALE_AFTER_MS = 30_000;

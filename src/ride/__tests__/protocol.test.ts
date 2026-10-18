@@ -4,6 +4,7 @@ import {
   buildRiderViews,
   buildWatchState,
   quickMessageText,
+  isOlderRider,
   Position,
 } from '../protocol';
 
@@ -89,7 +90,7 @@ describe('buildWatchState', () => {
       connected: true, channel: 'TARIFA-01', watchMode: true, myName: 'Xav', me: null, riders: [], now: 42,
     });
     expect(s).toEqual({
-      v: 1, kind: 'state', connected: true, channel: 'TARIFA-01', watchMode: true,
+      v: 2, kind: 'state', connected: true, channel: 'TARIFA-01', watchMode: true,
       me: {name: 'Xav', lat: null, lon: null, cog: null, sog: null, t: null},
       riders: [], ts: 42,
     });
@@ -100,4 +101,14 @@ it('quickMessageText falls back', () => {
   expect(quickMessageText('help')).toBe('I need help');
   expect(quickMessageText('zzz', 'custom words')).toBe('custom words');
   expect(quickMessageText('zzz')).toBe('zzz');
+});
+
+describe('isOlderRider', () => {
+  it('flags a name message without a protocol version or with an older one', () => {
+    expect(isOlderRider({type: 'name', name: 'Ana'})).toBe(true);
+    expect(isOlderRider({type: 'name', name: 'Ana', v: 1})).toBe(true);
+    expect(isOlderRider({type: 'name', name: 'Ana', v: '2'})).toBe(true);
+    expect(isOlderRider({type: 'name', name: 'Ana', v: 2})).toBe(false);
+    expect(isOlderRider({type: 'name', name: 'Ana', v: 3})).toBe(false);
+  });
 });
