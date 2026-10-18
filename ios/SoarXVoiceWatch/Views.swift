@@ -1,8 +1,8 @@
 import SwiftUI
 import WatchKit
 
-// Designed for kitesurf: wet screen, wind, sun. Black background, very large
-// type and targets, high contrast colours, few words.
+// Designed for kitesurf: wet screen, wind, sun. Teal-black "Signal · Radar"
+// palette (Theme.swift), very large type and targets, few words.
 
 struct ContentView: View {
   @EnvironmentObject var model: AppModel

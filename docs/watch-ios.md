@@ -142,6 +142,11 @@ about 20 KB for 10 s. Not yet checked on a watch that the encoder accepts it
 
 ## Watch app
 
+The look follows the "Signal · Radar" design (`design_handoff_comx_signal_radar/`):
+teal-black background, teal for riders and Talk, yellow when someone speaks,
+red for SOS, the system font's condensed width in uppercase for names,
+distances and labels. Palette and type helpers: `Theme.swift`.
+
 - **Compass** (first page): the focused rider big (name, arrow, distance,
   position `2/5`), who is speaking, and a wide TALK button. Tap to start, tap
   again to stop and send; auto-stops at 30 s. AAC `.m4a`, mono, 16 kHz,
