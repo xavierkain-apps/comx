@@ -15,8 +15,10 @@ ComX is built from the SoarX Voice code (React Native + Agora) but is a
   checkout; remote name `org`). Never push to `master`, never run the
   `iOS — TestFlight` or `Android — Release` workflows from here.
 - Separate identifiers: iOS `com.xavier.comx`, watch
-  `com.xavier.comx.watchkitapp` (both App IDs exist, HealthKit enabled on the
-  watch one). Android: `com.xavier.comx` (phone and Wear OS; Kotlin
+  `com.xavier.comx.watchkitapp` (HealthKit enabled), and the Talk control
+  extension `com.xavier.comx.watchkitapp.controls` (target
+  `SoarXVoiceWatchControls`, watchOS 26, added by
+  `scripts/add-watch-controls-target.rb`). All three are signed by match. Android: `com.xavier.comx` (phone and Wear OS; Kotlin
   namespaces stay `com.soarxvoice`). No Play Console listing yet. Garmin app id `8ac2d628-66c4-40a4-96b0-10061a6d6519`.
 - It stays in the SoarX repo because GitHub secrets (App Store Connect key,
   match passphrase) cannot be copied: a separate repo means re-supplying them
@@ -56,7 +58,9 @@ Local checks that are cheap: `npx tsc --noEmit`, `npx eslint src --quiet`,
 
 ## Status (2026-10-17)
 
-- All CI builds green. Latest TestFlight: **0.1 (4)**, tag `comx-v0.1.3`.
+- All CI builds green. Latest TestFlight: **0.1 (7)**, tag `comx-v0.1.6`.
+  The Action button only works through the Talk *control* (watchOS 26):
+  the App Shortcut route opened the app without running the intent.
   Apple Watch tested by the owner (Ultra 2, watchOS 26.6): demo mode works;
   the crown never reached `.focusable` + `.digitalCrownRotation` views on the
   device (the system went back to the watch face), so the compass now pages
