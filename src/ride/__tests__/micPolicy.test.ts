@@ -7,7 +7,6 @@ const base: MicPolicyInput = {
   garminActive: false,
   headphones: false,
   phonePtt: false,
-  injecting: false,
 };
 
 describe('micPolicy', () => {
@@ -33,10 +32,6 @@ describe('micPolicy', () => {
   it('keeps the phone silent with a Garmin until talk via phone is held', () => {
     expect(micPolicy({...base, garminActive: true})).toEqual({watchMode: false, pttMode: true, override: 'silenced'});
     expect(micPolicy({...base, garminActive: true, phonePtt: true}).override).toBe('open');
-  });
-
-  it('keeps the stream published while a clip is injected', () => {
-    expect(micPolicy({...base, injecting: true}).override).toBe('silenced');
   });
 
   it('does nothing when not connected', () => {

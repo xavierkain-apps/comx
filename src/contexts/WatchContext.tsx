@@ -76,7 +76,7 @@ export function WatchProvider({children}: {children: ReactNode}) {
   const [watches, setWatches] = useState<WatchInfo[]>([]);
   const [setting, setSettingState] = useState<WatchModeSetting>('auto');
   const [phonePtt, setPhonePtt] = useState(false);
-  const [injecting, setInjecting] = useState(false);
+  const [, setInjecting] = useState(false);
   const [helloAt, setHelloAt] = useState<Partial<Record<WatchPlatform, number>>>({});
   const clipDirRef = useRef<string | null>(null);
   const voiceWatchActiveRef = useRef(false);
@@ -122,7 +122,6 @@ export function WatchProvider({children}: {children: ReactNode}) {
     garminActive,
     headphones: isHeadphonesConnected,
     phonePtt,
-    injecting,
   });
 
   // If the Garmin drops while "talk via phone" is on, never leave the mic open
