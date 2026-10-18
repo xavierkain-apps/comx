@@ -238,7 +238,8 @@ export function WatchProvider({children}: {children: ReactNode}) {
   // only re-renders when a volume bucket changes, not while someone keeps talking.
   useEffect(() => {
     if (!watchMode) {
-      if (recordingRef.current) stopRecording();
+      // Never stop Agora's recorder if a phone memo owns it now
+      if (recordingRef.current) stopRecording(isMemoCapture());
       return;
     }
     const timer = setInterval(() => {
