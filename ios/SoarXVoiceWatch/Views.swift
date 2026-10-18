@@ -515,41 +515,30 @@ struct TalkCircle: View {
   private var secondsLeft: Int { max(0, Int(AppModel.maxClipSeconds - model.recordingElapsed)) }
 }
 
-/// Big talk button: group by default; while recording, shows the recipient
-/// (crown, or a tap on the label, changes it).
+/// Idle talk button for pages that show one (no riders yet, waiting for the
+/// phone). While recording the pages use TalkCircle instead.
 struct TalkButton: View {
   @EnvironmentObject var model: AppModel
 
   var body: some View {
     VStack(spacing: 2) {
-      if model.isRecording {
-        Button { model.cycleTalkTarget(1) } label: {
-          Text("To: \(model.talkTargetName)")
-            .font(.system(size: 16, weight: .heavy))
-            .foregroundStyle(model.talkTarget == nil ? Theme.text : Theme.yellow)
-            .lineLimit(1)
-            .minimumScaleFactor(0.6)
-            .frame(maxWidth: .infinity)
-        }
-        .buttonStyle(.plain)
-      }
       Button(action: { model.toggleTalk() }) {
         HStack(spacing: 6) {
-          Image(systemName: model.isRecording ? "paperplane.fill" : "mic.fill")
+          Image(systemName: "mic.fill")
             .font(.condensed(22))
-          Text(model.isRecording ? "SEND \(max(0, Int(AppModel.maxClipSeconds - model.recordingElapsed)))" : "TALK")
+          Text("TALK")
             .font(.condensed(22))
         }
-        .foregroundStyle(model.isRecording ? Theme.text : Theme.onAccent)
+        .foregroundStyle(Theme.onAccent)
         .frame(maxWidth: .infinity, minHeight: 50)
-        .background(Capsule().fill(model.isRecording ? Theme.red : Theme.teal))
+        .background(Capsule().fill(Theme.teal))
       }
       .buttonStyle(.plain)
       .primaryActionShortcut()
-      .accessibilityLabel(model.isRecording ? "Stop and send" : "Talk")
+      .accessibilityLabel("Talk")
       if model.micDenied {
         Text("Microphone off: allow it in Settings")
-          .font(.footnote).foregroundStyle(.orange)
+          .font(.plain(12)).foregroundStyle(Theme.amber)
       }
     }
   }
