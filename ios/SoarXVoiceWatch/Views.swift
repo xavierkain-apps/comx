@@ -912,6 +912,9 @@ struct BannerView: View {
     .frame(maxWidth: .infinity, alignment: .leading)
     .padding(8)
     .background(RoundedRectangle(cornerRadius: 14).fill(Theme.yellow))
+    .accessibilityElement(children: .combine)
+    .accessibilityAddTraits(.isButton)
+    .accessibilityHint("Dismiss")
   }
 }
 
@@ -920,31 +923,40 @@ struct SOSAlertView: View {
   let alert: SOSAlert
 
   var body: some View {
-    VStack(spacing: 2) {
-      Text("SOS · \(alert.from)")
-        .font(.condensed(22))
-        .textCase(.uppercase)
-        .lineLimit(1)
-        .minimumScaleFactor(0.6)
-      DirectionArrow(angle: model.arrowAngle(bearing: alert.brg), color: Theme.text)
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .padding(4)
-      Text(Format.distance(alert.dist))
-        .font(.condensed(40))
-        .textCase(.uppercase)
+    VStack(spacing: 0) {
+      VStack(spacing: 0) {
+        Text("SOS · \(alert.from)")
+          .font(.condensed(22))
+          .textCase(.uppercase)
+          .lineLimit(1)
+          .minimumScaleFactor(0.5)
+        DirectionArrow(angle: model.arrowAngle(bearing: alert.brg), color: Theme.text)
+          .frame(maxWidth: .infinity, minHeight: 72, maxHeight: .infinity)
+          .layoutPriority(1)
+          .padding(2)
+        Text(Format.distance(alert.dist))
+          .font(.condensed(40))
+          .textCase(.uppercase)
+          .lineLimit(1)
+          .minimumScaleFactor(0.5)
+      }
+      .accessibilityElement(children: .ignore)
+      .accessibilityLabel("SOS from \(alert.from), \(Format.distance(alert.dist))")
       Button { model.dismissSOSAlert() } label: {
         Text("Dismiss")
           .font(.condensed(18))
           .textCase(.uppercase)
           .foregroundStyle(Theme.text)
-          .frame(maxWidth: .infinity, minHeight: 44)
+          .frame(maxWidth: .infinity, minHeight: 38)
           .background(Capsule().fill(Theme.onAccent.opacity(0.35)))
       }
       .buttonStyle(.plain)
     }
     .foregroundStyle(Theme.text)
-    .padding(6)
+    .padding(.horizontal, 6)
+    .padding(.vertical, 2)
     .frame(maxWidth: .infinity, maxHeight: .infinity)
     .background(Theme.red.ignoresSafeArea())
+    .accessibilityAddTraits(.isModal)
   }
 }
