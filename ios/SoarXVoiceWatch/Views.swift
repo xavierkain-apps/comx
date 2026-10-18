@@ -442,6 +442,7 @@ struct RiderPage: View {
           .foregroundStyle(rider.isSpeaking ? Theme.yellow : Theme.text)
           .lineLimit(1)
           .minimumScaleFactor(0.6)
+          .accessibilityValue(rider.isSOS ? "SOS" : (rider.isSpeaking ? "speaking" : ""))
         if let pos = position, pos.1 > 1 {
           Text("\(pos.0)/\(pos.1)").font(.condensed(13, .semibold)).foregroundStyle(Theme.textMuted)
         }
@@ -642,7 +643,9 @@ struct RiderRow: View {
 
   var body: some View {
     let ink: Color = rider.isSOS ? Theme.text : (rider.isSpeaking ? Theme.onAccent : Theme.text)
-    HStack(spacing: 10) {
+    let distText = rider.dist == nil ? "No GPS" : Format.distance(rider.dist)
+    let state = rider.isSOS ? ", SOS" : (rider.isSpeaking ? ", speaking" : "")
+    HStack(spacing: 8) {
       DirectionArrow(angle: model.arrowAngle(bearing: rider.brg),
                      color: rider.isSOS || rider.isSpeaking ? ink : Theme.teal)
         .frame(width: 22, height: 24)
@@ -651,13 +654,21 @@ struct RiderRow: View {
         .textCase(.uppercase)
         .lineLimit(1)
         .minimumScaleFactor(0.7)
+        .layoutPriority(1)
       Spacer(minLength: 0)
-      Text(rider.dist == nil ? "No GPS" : Format.distance(rider.dist))
+      if rider.isSOS {
+        Text("SOS").font(.condensed(14))
+      }
+      Text(distText)
         .font(rider.dist == nil ? .plain(13) : .condensed(22))
         .textCase(rider.dist == nil ? nil : .uppercase)
+        .lineLimit(1)
+        .minimumScaleFactor(0.7)
     }
     .foregroundStyle(ink)
-    .opacity(rider.isStale || rider.dist == nil ? 0.45 : 1)
+    .opacity(!rider.isSOS && (rider.isStale || rider.dist == nil) ? 0.45 : 1)
+    .accessibilityElement(children: .combine)
+    .accessibilityLabel("\(rider.displayName)\(state), \(distText)")
   }
 }
 
@@ -678,7 +689,7 @@ struct DirectionArrow: View {
       Image(systemName: "questionmark.circle")
         .resizable()
         .scaledToFit()
-        .foregroundStyle(.gray)
+        .foregroundStyle(color)
     }
   }
 }
