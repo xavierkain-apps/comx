@@ -653,8 +653,7 @@ struct RiderRow: View {
         .font(.condensed(20))
         .textCase(.uppercase)
         .lineLimit(1)
-        .minimumScaleFactor(0.7)
-        .layoutPriority(1)
+        .minimumScaleFactor(0.6)
       Spacer(minLength: 0)
       if rider.isSOS {
         Text("SOS").font(.condensed(14))
@@ -663,7 +662,7 @@ struct RiderRow: View {
         .font(rider.dist == nil ? .plain(13) : .condensed(22))
         .textCase(rider.dist == nil ? nil : .uppercase)
         .lineLimit(1)
-        .minimumScaleFactor(0.7)
+        .fixedSize()
     }
     .foregroundStyle(ink)
     .opacity(!rider.isSOS && (rider.isStale || rider.dist == nil) ? 0.45 : 1)
