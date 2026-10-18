@@ -57,42 +57,173 @@ private extension ScenePhase {
 
 // MARK: - Compass (main page)
 
-/// One rider big, chosen without touching (AppModel.focusedRider).
-/// Crown: next / previous rider, one vertical page per rider; while talking,
-/// the recipient, one page per talk target. A vertical page TabView takes the
+/// Overview of every rider first, then one rider big (AppModel.compassRider).
+/// Crown: overview, then next / previous rider, one vertical page each; while
+/// talking, the recipient, one page per talk target. A vertical page TabView takes the
 /// crown natively, like the List on the riders page: a .focusable view with
 /// .digitalCrownRotation never got it on a real watch (the system took the
 /// rotation and went back to the watch face).
 /// Double tap (watchOS 11+) or the Action button: talk.
 struct CompassView: View {
   @EnvironmentObject var model: AppModel
-  /// Page on screen: a rider uid, or while recording a talk target (nil = group).
+  /// Page on screen: a rider uid or `overview`; while recording a talk target
+  /// (nil = group). The overview page does not exist while recording.
   @State private var page: Int?
+  /// Tag of the overview page, never a rider uid.
+  static let overview = Int.min
 
   var body: some View {
-    VStack(spacing: 1) {
-      StatusLine()
+    Group {
       if model.isRecording {
         TabView(selection: $page) {
           ForEach(model.talkTargets, id: \.self) { uid in
-            TalkTargetPage(uid: uid).tag(uid)
+            CompassPage { TalkTargetPage(uid: uid) }.tag(uid)
           }
         }
         .tabViewStyle(.verticalPage)
       } else if model.riders.isEmpty {
-        Spacer(minLength: 0)
-        Text(model.linkUp ? "No riders yet" : "Waiting for phone")
-          .font(.title3)
-          .foregroundStyle(.secondary)
-        Spacer(minLength: 0)
+        CompassPage {
+          Spacer(minLength: 0)
+          Text(model.linkUp ? "No riders yet" : "Waiting for phone")
+            .font(.title3)
+            .foregroundStyle(.secondary)
+          Spacer(minLength: 0)
+        }
+      } else if let alert = model.sosAlert, let rider = model.rider(alert.uid) {
+        // No pages under the SOS alert: their indicator draws over it.
+        CompassPage { RiderPage(rider: rider) }
       } else {
         TabView(selection: $page) {
+          CompassPage { OverviewPage() }.tag(Optional(CompassView.overview))
           ForEach(model.riders) { rider in
-            RiderPage(rider: rider).tag(Optional(rider.uid))
+            CompassPage { RiderPage(rider: rider) }.tag(Optional(rider.uid))
           }
         }
         .tabViewStyle(.verticalPage)
       }
+    }
+    // The model decides who is on screen (an SOS wins); the crown, through
+    // the pages, tells the model what the user picked.
+    .onAppear { page = shownByModel }
+    .onChange(of: model.compassRider?.uid) { _, _ in if !model.isRecording { page = shownByModel } }
+    .onChange(of: model.talkTarget) { _, _ in if model.isRecording { page = shownByModel } }
+    .onChange(of: model.isRecording) { _, _ in page = shownByModel }
+    .onChange(of: page) { _, picked in
+      guard picked != shownByModel else { return }
+      if model.isRecording {
+        model.setTalkTarget(picked)
+      } else if picked == CompassView.overview {
+        model.showOverview()
+      } else if let uid = picked {
+        model.select(uid)
+      }
+    }
+  }
+
+  private var shownByModel: Int? {
+    model.isRecording ? model.talkTarget : model.compassRider?.uid ?? CompassView.overview
+  }
+}
+
+/// Every rider on one radar: me in the centre, the top of the screen is the
+/// heading the arrows use, the farthest rider on the ring. Distance from the
+/// centre is the square root of the distance, so near riders do not sit on
+/// me. Thick strokes and few words, for the sun.
+struct OverviewPage: View {
+  @EnvironmentObject var model: AppModel
+
+  var body: some View {
+    let placed = model.riders.filter { $0.dist != nil && $0.brg != nil }
+    let unplaced = model.riders.filter { $0.dist == nil || $0.brg == nil }
+    let farthest = max(placed.compactMap { $0.dist }.max() ?? 0, 50)
+    VStack(spacing: 0) {
+      GeometryReader { geo in
+        let size = min(geo.size.width, geo.size.height)
+        let radius = size / 2 - 2
+        let centre = CGPoint(x: geo.size.width / 2, y: geo.size.height / 2)
+        ZStack {
+          Circle()
+            .stroke(Color(white: 0.35), lineWidth: 3)
+            .frame(width: radius * 1.8, height: radius * 1.8)
+            .position(centre)
+          // Ring radius, in the corner so it never covers a rider.
+          Text(Format.distance(farthest))
+            .font(.system(size: 13, weight: .bold, design: .rounded))
+            .foregroundStyle(Color(white: 0.6))
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomTrailing)
+          Text("N")
+            .font(.system(size: 14, weight: .heavy))
+            .foregroundStyle(.red)
+            .position(point(centre, radius, angle: -model.heading.0, fraction: 1))
+          Image(systemName: "location.north.fill")
+            .font(.system(size: 14, weight: .heavy))
+            .foregroundStyle(.white)
+            .position(centre)
+          ForEach(placed) { rider in
+            let at = point(centre, radius,
+                           angle: model.arrowAngle(bearing: rider.brg) ?? 0,
+                           fraction: 0.9 * ((rider.dist ?? 0) / farthest).squareRoot())
+            RadarDot(rider: rider).position(at)
+          }
+        }
+      }
+      if !unplaced.isEmpty {
+        Text(unplaced.map { "\(RadarDot.shortName($0)) ?" }.joined(separator: "  "))
+          .font(.system(size: 13, weight: .bold))
+          .foregroundStyle(.secondary)
+          .lineLimit(1)
+          .minimumScaleFactor(0.6)
+      }
+    }
+  }
+
+  /// `angle` in degrees clockwise from the top of the screen.
+  private func point(_ c: CGPoint, _ radius: CGFloat, angle: Double, fraction: Double) -> CGPoint {
+    let a = angle * .pi / 180
+    let r = radius * CGFloat(fraction)
+    return CGPoint(x: c.x + r * CGFloat(sin(a)), y: c.y - r * CGFloat(cos(a)))
+  }
+}
+
+struct RadarDot: View {
+  let rider: Rider
+
+  var body: some View {
+    let d: CGFloat = rider.isSOS ? 20 : 14
+    // The name sits right of the dot, off the vertical axis where N often is.
+    Circle().fill(color).frame(width: d, height: d)
+      .overlay(alignment: .leading) {
+        Text(RadarDot.shortName(rider))
+          .font(.system(size: rider.isSOS ? 15 : 13, weight: .heavy))
+          .foregroundStyle(color)
+          .fixedSize()
+          .alignmentGuide(.leading) { _ in -(d + 2) }
+      }
+      .opacity(rider.isStale ? 0.4 : 1)
+  }
+
+  private var color: Color {
+    if rider.isSOS { return .red }
+    if rider.isSpeaking { return .yellow }
+    return .cyan
+  }
+
+  /// First word of the name, at most 4 letters: "Lea (demo)" gives "Lea".
+  static func shortName(_ rider: Rider) -> String {
+    String((rider.displayName.split(separator: " ").first.map(String.init) ?? rider.displayName).prefix(4))
+  }
+}
+
+/// A full-screen compass page: vertical pages are as tall as the screen, so
+/// the status line and the talk button are part of each page.
+struct CompassPage<Content: View>: View {
+  @EnvironmentObject var model: AppModel
+  @ViewBuilder var content: Content
+
+  var body: some View {
+    VStack(spacing: 1) {
+      StatusLine()
+      content
       if let who = model.speakingLabel, !model.isRecording {
         Text(who)
           .font(.system(size: 14, weight: .bold))
@@ -102,24 +233,6 @@ struct CompassView: View {
       TalkButton()
     }
     .padding(.horizontal, 2)
-    // The model decides who is on screen (an SOS wins); the crown, through
-    // the pages, tells the model what the user picked.
-    .onAppear { page = shownByModel }
-    .onChange(of: model.focusedRider?.uid) { _, _ in if !model.isRecording { page = shownByModel } }
-    .onChange(of: model.talkTarget) { _, _ in if model.isRecording { page = shownByModel } }
-    .onChange(of: model.isRecording) { _, _ in page = shownByModel }
-    .onChange(of: page) { _, picked in
-      guard picked != shownByModel else { return }
-      if model.isRecording {
-        model.setTalkTarget(picked)
-      } else if let uid = picked {
-        model.select(uid)
-      }
-    }
-  }
-
-  private var shownByModel: Int? {
-    model.isRecording ? model.talkTarget : model.focusedRider?.uid
   }
 }
 
@@ -475,7 +588,6 @@ struct SOSAlertView: View {
     .foregroundStyle(.white)
     .padding(6)
     .frame(maxWidth: .infinity, maxHeight: .infinity)
-    .background(Color.red)
-    .ignoresSafeArea()
+    .background(Color.red.ignoresSafeArea())
   }
 }

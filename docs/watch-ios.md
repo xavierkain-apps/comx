@@ -85,7 +85,7 @@ Payload notes for the JS side:
 
 | Input | Not recording | Recording |
 | --- | --- | --- |
-| Digital Crown | Next / previous rider on the compass, one vertical page per rider; stops at the first and last rider | Choose the recipient, one page per recipient: Group → the rider on the compass → the other riders (`directionUp` haptic for a rider, `directionDown` for Group) |
+| Digital Crown | Compass pages: overview radar first, then one page per rider (nearest first, SOS first); stops at the first and last page | Choose the recipient, one page per recipient: Group → the rider on the compass → the other riders (`directionUp` haptic for a rider, `directionDown` for Group) |
 | Double tap (watchOS 11+, Series 9 / Ultra 2 and later) | Start talking **to the group** | Stop and send to the chosen recipient |
 | Action button (Ultra), assigned to the *Talk* shortcut | Same as double tap | Same as double tap |
 | Action button, assigned to *Workout > ComX* | Starts the session | — |
@@ -99,13 +99,21 @@ is: crown to Carlos, double tap, one crown step, speak, double tap. A
 "double tap while focused > 2 s = private" rule was rejected: the compass
 always has a focused rider, so it would make nearly every message private.
 
-The compass shows one rider: a rider whose SOS started after your last crown
-pick, else the rider you picked, else the nearest. Pages swipe
-**horizontally** so the crown never scrolls pages; it belongs to the compass.
+The compass opens on the **overview**: a radar with me in the centre, the top
+of the screen being the heading the arrows use (compass, else course, else
+north, with an N mark), each rider a dot with a short name, the farthest on
+the ring (its distance in the corner). Distance from the centre is the square
+root of the real distance so that near riders stay readable. SOS riders are
+red and bigger, speaking riders yellow, stale ones dimmed; riders without a
+position are listed under the radar ("Max ?"). The crown then goes through
+the riders, one page each. A rider whose SOS started after your last crown
+pick takes over the compass. Pages swipe **horizontally** so the crown never
+scrolls pages; it belongs to the compass.
 
 How the compass gets the crown: a `TabView` with `.tabViewStyle(.verticalPage)`,
-one page per rider (per recipient while recording), nested in the horizontal
-page `TabView`. The vertical pages take the crown natively, like the `List` on
+the overview and one page per rider (one per recipient while recording, no
+overview then), nested in the horizontal page `TabView`. Vertical pages are
+full screen, so each one carries the status line and the talk button. The vertical pages take the crown natively, like the `List` on
 the Riders page. The first version used a `.focusable()` view with
 `.digitalCrownRotation`: it worked in the simulator, but on a real watch
 (Watch7,5, watchOS 26.6, workout session running) the rotation never reached

@@ -50,7 +50,7 @@ final class AppModel: ObservableObject {
   @Published private(set) var workoutRunning = false
 
   // Compass focus (see "Compass focus" in docs/watch-companion.md)
-  /// Rider the user last picked with the crown or the list.
+  /// Rider the user last picked with the crown or the list (nil = overview).
   @Published private(set) var selectedUid: Int?
   private var selectedAt: Date = .distantPast
   /// When each rider currently in SOS was first seen in SOS.
@@ -146,18 +146,26 @@ final class AppModel: ObservableObject {
 
   func rider(_ uid: Int) -> Rider? { state?.riders?.first { $0.uid == uid } }
 
-  /// The one rider shown big: a rider whose SOS started after the user's
-  /// last pick, else the rider the user picked, else the nearest (SOS riders
-  /// sort first, so an older SOS still wins over distance).
-  var focusedRider: Rider? {
+  /// The rider page the compass shows, nil for the overview: a rider whose
+  /// SOS started after the user's last pick, else the rider the user picked.
+  var compassRider: Rider? {
     let list = riders
-    guard !list.isEmpty else { return nil }
     let newestSOS = list.filter { $0.isSOS }.max {
       (sosSeenAt[$0.uid] ?? .distantPast) < (sosSeenAt[$1.uid] ?? .distantPast)
     }
     if let s = newestSOS, (sosSeenAt[s.uid] ?? .distantPast) > selectedAt { return s }
-    if let sel = selectedUid, let r = list.first(where: { $0.uid == sel }) { return r }
-    return list.first
+    if let sel = selectedUid { return list.first { $0.uid == sel } }
+    return nil
+  }
+
+  /// The rider talk targets start from: the one on the compass, else the
+  /// nearest (SOS riders sort first).
+  var focusedRider: Rider? { compassRider ?? riders.first }
+
+  /// Back to the overview page of the compass.
+  func showOverview() {
+    selectedUid = nil
+    selectedAt = Date()
   }
 
   func select(_ uid: Int) {
