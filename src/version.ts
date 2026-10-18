@@ -1,3 +1,3 @@
 // Single source of truth for the app version.
-// scripts/release.sh rewrites APP_VERSION here; HomeScreen and SettingsScreen read it.
+// HomeScreen and SettingsScreen read it. Keep it in step with MARKETING_VERSION.
 export const APP_VERSION = '0.1';

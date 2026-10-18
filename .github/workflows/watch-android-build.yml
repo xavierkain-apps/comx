@@ -12,7 +12,9 @@ name: Watch — Android build
 on:
   workflow_dispatch:
   push:
-    branches: [comx, feature/watch-android, feature/watch-companion]
+    branches: [main]
+    paths-ignore: ['garmin/**', 'docs/**', '**.md']
+  pull_request:
     paths-ignore: ['garmin/**', 'docs/**', '**.md']
 
 concurrency:

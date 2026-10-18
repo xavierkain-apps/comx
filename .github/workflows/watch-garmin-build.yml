@@ -14,7 +14,11 @@ name: Garmin watch build
 
 on:
   push:
-    branches: [feature/watch-garmin, feature/watch-companion, comx, comx-garmin]
+    branches: [main]
+    paths:
+      - "garmin/**"
+      - ".github/workflows/watch-garmin-build.yml"
+  pull_request:
     paths:
       - "garmin/**"
       - ".github/workflows/watch-garmin-build.yml"

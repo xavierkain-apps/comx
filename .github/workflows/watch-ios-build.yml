@@ -6,11 +6,8 @@ name: iOS — watch build check
 on:
   workflow_dispatch:
   push:
-    branches:
-      - feature/watch-ios
-      - feature/watch-companion
-      - comx
-      - comx-ios
+    branches: [main]
+  pull_request:
 
 permissions:
   contents: read
