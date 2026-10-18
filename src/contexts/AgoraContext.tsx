@@ -257,6 +257,8 @@ export function AgoraProvider({children}: {children: ReactNode}) {
       speak(`${departed} left`);
       appLog('TTS', `${departed} left (uid=${remoteUid})`);
       announcedUidsRef.current.delete(remoteUid);
+      // No "older ComX" banner for a rider who is gone (still warned once per session)
+      setOlderRiders(prev => prev.filter(r => r.uid !== remoteUid));
       setRemotePilots(prev => {
         const updated = prev.filter(p => p.uid !== remoteUid);
         remotePilotsRef.current = updated;
