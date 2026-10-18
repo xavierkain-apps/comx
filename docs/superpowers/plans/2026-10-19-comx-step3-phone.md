@@ -10,24 +10,24 @@
 
 **Spec:** `docs/superpowers/specs/2026-10-18-comx-standalone-signal-radar-design.md` ("Visual system", "Step 3: phone"), `design_handoff_comx_signal_radar/README.md` ("Phone 1: Join", "Phone 2: Live channel") and `design_handoff_comx_signal_radar/comx-2b-signal-radar.html` (open it in a browser; the phone mockups are 375 × 812 pt). Protocol: `docs/watch-companion.md`.
 
-**Repository rules:** work on branch `phone-signal-radar` from `main` of `xavierkain-apps/comx`; open a pull request to `main`, never push to `main` (the ComX server session reviews and merges); commit messages and the PR description carry no AI attribution of any kind. This plan runs on the owner's Mac: Gradle and Xcode builds are allowed here (never on the Linux server).
+**Repository rules:** work on branch `phone-signal-radar` from `main` of `xavierkain-apps/comx`; open a pull request to `main`, never push to `main` (the ComX server session reviews and merges); commit messages and the PR description carry no AI attribution of any kind. **Never commit `.env`**: the real `AGORA_APP_ID` lives only on the Mac (`.env` is in `.gitignore`; every commit step runs `git status --short` before committing to check nothing unexpected is staged). This plan runs on the owner's Mac: Gradle and Xcode builds are allowed here (never on the Linux server).
 
 **Kept unchanged (do not touch their behaviour):** BLE button and HID (`useBluetoothHID`), mute feedback sounds and haptics (`useMute`, `HapticManager`), inactivity auto-disconnect and its sound, join/leave voice announcements (TTS), the watch bridge contract except the two Android methods added in Task 11, Garmin "talk via phone", Settings screen content, quick messages and SOS protocol, demo mode.
 
 ---
 
-## Decisions for the owner
+## Decisions (owner, 2026-10-19)
 
-Each has a recommendation that this plan implements. Change the plan before execution if you decide otherwise.
+Decisions 1–7, 9 and 10 were approved as recommended. Decision 8 was changed by the owner (below). Decision 5 now includes the older-rider banner suggested by the ComX server session.
 
 1. **No new dependency (no `react-native-svg`).** The arrow (`polygon(50% 0, 100% 100%, 50% 75%, 0 100%)`) is drawn with two border triangles: a full triangle in the arrow colour, and a flat triangle in the colour behind it cut out of the base (the 75 % notch). Sharp at any size, any colour, no image assets, rotates with `Animated` on the native driver. Its only constraint is that it needs the background colour (passed as `backColor`), which is always known (radar `bg`, sheet `surface`, yellow or red row). Alternative: a tinted PNG (needs @2x/@3x artwork) or `react-native-svg` (native dependency, pod install, new CI surface). **Recommendation: border triangles.**
 2. **Phone memo recording = Agora's own file recorder** (`startAudioRecording` with `AudioFileRecordingType.AudioFileRecordingMic`) while the live stream is muted (`muteLocalAudioStream(true)`; Agora documents that this "does not disable the audio capturing device"). Agora keeps the microphone, so no second recorder fights it for the audio session. Fallback B if a device records silence while muted: stop publishing the mic track instead (`updateChannelMediaOptions({publishMicrophoneTrack: false})`, code in Task 19 step 6). Fallback C (not planned, needs your go-ahead): a native recorder in `WatchBridge` (AVAudioRecorder / MediaRecorder) after `enableLocalAudio(false)`. **Recommendation: Agora recorder, verify on a real iPhone before merging.**
 3. **Received memos in watch mode play on the watch only**, not on the phone sitting in the pouch (outside watch mode they play on the phone, and are forwarded to any active Apple Watch / Wear OS watch). **Recommendation: as written.**
 4. **History lives for the app's run** (spec: "kept for the app's run like on the watch"): it is no longer cleared when you leave a channel. Memo audio is kept in memory as base64 (at most 10 clips, about 60 KB each), so no file has to survive the bridge, which deletes forwarded files. **Recommendation: as written.**
-5. **Older riders are not detected.** A rider on an older ComX ignores group memos (`to: 0` is not their uid) and still sends their watch group clips into the live audio, which new phones hear live. Detecting them would need a version field in the `name` message. **Recommendation: no detection; everyone installs the new build (TestFlight / APK).**
+5. **Older riders.** A rider on an older ComX ignores group memos (`to: 0` is not their uid) and still sends their watch group clips into the live audio, which new phones hear live. The phone's `name` data-stream message now carries `v: 2`; when a rider announces no `v` or `v < 2`, the live screen shows an amber banner "<name> uses an older ComX" once per rider per session (Tasks 5, 12, 17). Everyone should still install the new build (TestFlight / APK).
 6. **Small distance labels under the phone radar badges** ("180", "1.4K", the watch's `Format.short`), which the handoff mockup does not show on the phone. They make the radar readable without opening the sheet. **Recommendation: show them** (delete one `<Text>` in `RadarView` to remove).
 7. **"● N RIDERS" counts everyone in the channel including you** (like the old `PilotList` badge), so it never reads "0 RIDERS". **Recommendation: as written.**
-8. **Tapping a rider row while recording sends the memo to that rider at once** (spec: "tapping a rider row while recording sends to that rider only"); MEMO again sends to the group; at 30 s the memo goes to the group by itself. **Recommendation: as written.**
+8. **Owner's choice: tapping a rider row while recording selects the recipient.** The row is highlighted (teal) and the red banner reads "TO <NAME>" (default "TO GROUP"). Tapping another row moves the selection; tapping the selected row again goes back to the group. The memo is sent by the second tap on MEMO, or at 30 s, to the selected recipient. If the selected rider has left the channel by then, the memo is not sent and the history says so (it is never redirected to the group).
 9. **Arrow mode (top right):** the phone compass is never used (pouch), so the toggle is "N ↑" (north up, default) and "COG ↑" (your course up, from GPS). **Recommendation: as written.**
 10. **Control row has four buttons** (SOS · TALK · MEMO · MSG, the spec) while the handoff mockup has three, so TALK is narrower: its label is two lines ("TALK" / "TAP TO TALK", "LIVE" / "TAP TO MUTE"). **Recommendation: as written.**
 
@@ -86,6 +86,7 @@ cd /Users/xavier/VSCode3/ComX
 git fetch origin && git switch main && git pull --ff-only
 git switch -c phone-signal-radar
 git add docs/superpowers/plans/2026-10-19-comx-step3-phone.md
+git status --short   # nothing unexpected staged; never .env (the real AGORA_APP_ID lives only on the Mac)
 git commit -m "docs: step 3 phone implementation plan"
 ```
 
@@ -227,6 +228,7 @@ Expected: no tsc output; `Tests: 54 passed, 54 total`.
 
 ```bash
 git add src/theme.ts
+git status --short   # nothing unexpected staged; never .env (the real AGORA_APP_ID lives only on the Mac)
 git commit -m "feat(phone): Signal palette and Barlow type helpers"
 ```
 
@@ -609,6 +611,7 @@ Expected: PASS, `Tests: 17 passed, 17 total`.
 
 ```bash
 git add src/radar/radar.ts src/radar/__tests__/radar.test.ts
+git status --short   # nothing unexpected staged; never .env (the real AGORA_APP_ID lives only on the Mac)
 git commit -m "feat(phone): radar maths ported from the watch OverviewPage"
 ```
 
@@ -739,6 +742,7 @@ Expected: PASS, both radar suites green.
 
 ```bash
 git add src/radar/sheet.ts src/radar/__tests__/sheet.test.ts
+git status --short   # nothing unexpected staged; never .env (the real AGORA_APP_ID lives only on the Mac)
 git commit -m "feat(phone): bottom sheet detents"
 ```
 
@@ -807,6 +811,7 @@ Expected: PASS.
 
 ```bash
 git add src/utils/channelGenerator.ts src/utils/__tests__/channelGenerator.test.ts
+git status --short   # nothing unexpected staged; never .env (the real AGORA_APP_ID lives only on the Mac)
 git commit -m "feat(phone): split the channel code for the join hero"
 ```
 
@@ -876,12 +881,24 @@ describe('isClipForMe', () => {
 });
 ```
 
-In `src/ride/__tests__/protocol.test.ts`, line 92, change `v: 1, kind: 'state',` to `v: 2, kind: 'state',`.
+In `src/ride/__tests__/protocol.test.ts`, line 92, change `v: 1, kind: 'state',` to `v: 2, kind: 'state',`; add `isOlderRider,` to its import list (after `quickMessageText,`), and append:
+
+```ts
+describe('isOlderRider', () => {
+  it('flags a name message without a protocol version or with an older one', () => {
+    expect(isOlderRider({type: 'name', name: 'Ana'})).toBe(true);
+    expect(isOlderRider({type: 'name', name: 'Ana', v: 1})).toBe(true);
+    expect(isOlderRider({type: 'name', name: 'Ana', v: '2'})).toBe(true);
+    expect(isOlderRider({type: 'name', name: 'Ana', v: 2})).toBe(false);
+    expect(isOlderRider({type: 'name', name: 'Ana', v: 3})).toBe(false);
+  });
+});
+```
 
 - [ ] **Step 2: Run them to verify they fail**
 
 Run: `npx jest src/ride --maxWorkers=1`
-Expected: FAIL: `isClipForMe is not a function` in voiceClips.test.ts and `Expected: 2 / Received: 1` (`v`) in protocol.test.ts.
+Expected: FAIL: `isClipForMe is not a function` in voiceClips.test.ts, `Expected: 2 / Received: 1` (`v`) and `isOlderRider is not a function` in protocol.test.ts.
 
 - [ ] **Step 3: Implement**
 
@@ -916,6 +933,14 @@ In `src/ride/protocol.ts`, replace `export const PROTOCOL_VERSION = 1;` with:
  * a phone on version 1 ignores group memos (see docs/watch-companion.md).
  */
 export const PROTOCOL_VERSION = 2;
+
+/**
+ * A rider whose `name` message carries no protocol version, or an older one.
+ * They do not get group memos; the live screen says so once per rider.
+ */
+export function isOlderRider(nameMessage: Record<string, unknown>): boolean {
+  return !(typeof nameMessage.v === 'number' && nameMessage.v >= PROTOCOL_VERSION);
+}
 ```
 
 - [ ] **Step 4: Run the tests to verify they pass**
@@ -927,7 +952,8 @@ Expected: PASS, all `src/ride` suites.
 
 ```bash
 git add src/ride/voiceClips.ts src/ride/protocol.ts src/ride/__tests__/voiceClips.test.ts src/ride/__tests__/protocol.test.ts
-git commit -m "feat(ride): group voice memos (to: 0) and protocol version 2"
+git status --short   # nothing unexpected staged; never .env (the real AGORA_APP_ID lives only on the Mac)
+git commit -m "feat(ride): group voice memos (to: 0), protocol version 2, older-rider check"
 ```
 
 ---
@@ -1123,6 +1149,7 @@ Expected: no tsc output; all suites pass.
 
 ```bash
 git add src/ride/history.ts src/ride/__tests__/history.test.ts src/contexts/RideContext.tsx
+git status --short   # nothing unexpected staged; never .env (the real AGORA_APP_ID lives only on the Mac)
 git commit -m "feat(ride): history of 30 items / 10 memos, kept for the app run"
 ```
 
@@ -1145,7 +1172,10 @@ import {
   memoRecipient,
   memoSecondsLeft,
   memoSummary,
+  memoTargetLabel,
   newClipId,
+  resolveMemoTarget,
+  toggleMemoTarget,
 } from '../memo';
 
 describe('memo limits', () => {
@@ -1178,6 +1208,30 @@ describe('memoRecipient', () => {
     expect(memoRecipient('42')).toBe(0);
     expect(memoRecipient(42)).toBe(42);
     expect(memoRecipient(3_000_000_000)).toBe(3_000_000_000);
+  });
+});
+
+describe('recipient while recording', () => {
+  it('picks a rider, moves to another, and goes back to the group on a second tap', () => {
+    expect(toggleMemoTarget(0, 42)).toBe(42);
+    expect(toggleMemoTarget(42, 7)).toBe(7);
+    expect(toggleMemoTarget(7, 7)).toBe(0);
+    expect(toggleMemoTarget(0, 0)).toBe(0);
+  });
+
+  it('never sends to a rider who left, nor redirects to the group', () => {
+    const present = new Set([42]);
+    expect(resolveMemoTarget(0, present)).toBe(0);
+    expect(resolveMemoTarget(0, new Set())).toBe(0);
+    expect(resolveMemoTarget(42, present)).toBe(42);
+    expect(resolveMemoTarget(7, present)).toBeNull();
+  });
+
+  it('labels the recipient', () => {
+    expect(memoTargetLabel(0)).toBe('TO GROUP');
+    expect(memoTargetLabel(0, 'Léa')).toBe('TO GROUP');
+    expect(memoTargetLabel(42, 'Léa')).toBe('TO LÉA');
+    expect(memoTargetLabel(42)).toBe('TO A RIDER');
   });
 });
 
@@ -1230,6 +1284,24 @@ export function memoRecipient(to: unknown): number {
   return typeof to === 'number' && Number.isFinite(to) && to !== GROUP_UID ? to : GROUP_UID;
 }
 
+/**
+ * A tap on a rider row while recording: picks that rider, or goes back to the
+ * group when they were already picked (owner decision 8).
+ */
+export function toggleMemoTarget(current: number, tapped: number): number {
+  return tapped === current ? GROUP_UID : memoRecipient(tapped);
+}
+
+/** The recipient at send time; null when the picked rider has left. */
+export function resolveMemoTarget(target: number, present: ReadonlySet<number>): number | null {
+  return target === GROUP_UID || present.has(target) ? target : null;
+}
+
+/** Recipient label while recording: "TO GROUP", "TO LÉA". */
+export function memoTargetLabel(target: number, name?: string): string {
+  return (target === GROUP_UID ? 'To group' : `To ${name ?? 'a rider'}`).toUpperCase();
+}
+
 /** "Voice, 6 s", as on the watch history. */
 export function memoSummary(durationMs: number): string {
   return `Voice, ${Math.max(1, Math.round(durationMs / 1000))} s`;
@@ -1257,7 +1329,8 @@ Expected: PASS.
 
 ```bash
 git add src/memo/memo.ts src/memo/__tests__/memo.test.ts
-git commit -m "feat(memo): memo limits, recipient and history labels"
+git status --short   # nothing unexpected staged; never .env (the real AGORA_APP_ID lives only on the Mac)
+git commit -m "feat(memo): memo limits, recipient selection and history labels"
 ```
 
 ---
@@ -1300,6 +1373,7 @@ Expected: no tsc output; `src/ride` suites pass.
 
 ```bash
 git add src/ride/micPolicy.ts src/ride/__tests__/micPolicy.test.ts src/contexts/WatchContext.tsx
+git status --short   # nothing unexpected staged; never .env (the real AGORA_APP_ID lives only on the Mac)
 git commit -m "refactor(ride): mic policy no longer injects watch clips"
 ```
 
@@ -1443,6 +1517,7 @@ with
 
 ```bash
 git add assets/fonts scripts/add-phone-fonts.rb android/app/build.gradle ios/SoarXVoice/Info.plist ios/SoarXVoice.xcodeproj/project.pbxproj
+git status --short   # nothing unexpected staged; never .env (the real AGORA_APP_ID lives only on the Mac)
 git commit -m "feat(phone): bundle Barlow and Barlow Condensed (OFL)"
 ```
 
@@ -1689,33 +1764,39 @@ interface RiderRowProps {
   rider: RiderView;
   /** True bearing at the top of the screen. */
   heading: number;
-  /** While a memo records, a tap sends it to this rider only. */
+  /** While a memo records, a tap picks this rider as its recipient. */
   onPress?: () => void;
+  /** This rider is the recipient of the memo being recorded. */
+  selected?: boolean;
 }
 
-/** A sheet row: arrow, name, distance. Yellow while speaking, red in SOS. */
-export function RiderRow({rider, heading, onPress}: RiderRowProps) {
+/**
+ * A sheet row: arrow, name, distance. Red in SOS, teal when picked as the
+ * memo recipient, yellow while speaking.
+ */
+export function RiderRow({rider, heading, onPress, selected = false}: RiderRowProps) {
   const located = rider.dist !== null && rider.brg !== null;
-  const fill = rider.sos ? signal.red : rider.speaking ? signal.yellow : null;
-  const ink = rider.speaking && !rider.sos ? signal.onAccent : signal.text;
-  const arrowColor = rider.sos ? signal.text : rider.speaking ? signal.onAccent : signal.teal;
+  const fill = rider.sos ? signal.red : selected ? signal.teal : rider.speaking ? signal.yellow : null;
+  const ink = fill === null || rider.sos ? signal.text : signal.onAccent;
+  const arrowColor = rider.sos ? signal.text : fill !== null ? signal.onAccent : signal.teal;
   return (
     <TouchableOpacity
       disabled={!onPress}
       onPress={onPress}
       activeOpacity={0.6}
-      accessibilityLabel={`${rider.name}, ${located ? formatDistance(rider.dist) : 'no GPS'}${rider.sos ? ', SOS' : ''}${onPress ? ', tap to send the memo to this rider' : ''}`}
+      accessibilityState={{selected}}
+      accessibilityLabel={`${rider.name}, ${located ? formatDistance(rider.dist) : 'no GPS'}${rider.sos ? ', SOS' : ''}${onPress ? (selected ? ', memo recipient, tap again for the group' : ', tap to send the memo to this rider') : ''}`}
       style={[
         styles.row,
         fill !== null && {backgroundColor: fill},
         onPress !== undefined && styles.target,
-        !located && styles.noGps,
-        located && rider.stale && styles.stale,
+        !located && !selected && styles.noGps,
+        located && rider.stale && !selected && styles.stale,
       ]}>
       {located ? (
         <Arrow angle={(rider.brg as number) - heading} color={arrowColor} backColor={fill ?? signal.surface} />
       ) : (
-        <View style={styles.hollow} />
+        <View style={[styles.hollow, {borderColor: fill === null ? signal.textMuted : ink}]} />
       )}
       <Text style={[styles.name, {color: ink}]} numberOfLines={1}>
         {rider.name}
@@ -1759,7 +1840,6 @@ const styles = StyleSheet.create({
     height: 20,
     borderRadius: 10,
     borderWidth: 2,
-    borderColor: signal.textMuted,
   },
   name: {
     flex: 1,
@@ -1888,7 +1968,7 @@ export function ControlRow(p: ControlRowProps) {
         disabled={memoDisabled}
         onPress={p.onMemo}
         activeOpacity={0.7}
-        accessibilityLabel={p.memoRecording ? `Send the memo to the group, ${p.memoSecondsLeft} seconds left` : 'Record a voice memo'}>
+        accessibilityLabel={p.memoRecording ? `Send the memo, ${p.memoSecondsLeft} seconds left` : 'Record a voice memo'}>
         {p.memoRecording ? (
           <>
             <Text style={styles.memoSend}>SEND</Text>
@@ -2137,6 +2217,7 @@ Expected: no output.
 
 ```bash
 git add src/components/signal
+git status --short   # nothing unexpected staged; never .env (the real AGORA_APP_ID lives only on the Mac)
 git commit -m "feat(phone): Signal radar, rider row, banner, control row and sheet"
 ```
 
@@ -2203,12 +2284,13 @@ Expected: no `e:` error lines (warnings are fine).
 
 ```bash
 git add android/app/src/main/java/com/soarxvoice/watch/WatchBridgeModule.kt src/services/WatchBridge.ts
+git status --short   # nothing unexpected staged; never .env (the real AGORA_APP_ID lives only on the Mac)
 git commit -m "feat(android): readClipBase64 and writeClip in the watch bridge"
 ```
 
 ---
 
-### Task 12: Memo capture in AgoraContext
+### Task 12: Memo capture and older riders in AgoraContext
 
 While a phone memo records, the live stream is muted (others hear nothing live) and the mic is captured at full volume (watch mode captures it at 0) so Agora's file recorder gets the voice.
 
@@ -2308,16 +2390,124 @@ In the provider `value`, after `localUid,`, add:
         isMemoCapture,
 ```
 
-- [ ] **Step 7: Check**
+- [ ] **Step 7: Announce our protocol version, spot older riders**
+
+The `name` message is handled inside `AgoraContext` (it never reaches `subscribeStream` listeners), so the check lives here.
+
+1. After `import {utf8Encode, utf8Decode} from '../utils/encoding';`, add:
+
+```ts
+import {PROTOCOL_VERSION, isOlderRider} from '../ride/protocol';
+```
+
+2. In `interface AgoraContextValue`, after the `isMemoCapture` member, add:
+
+```ts
+  /** Riders whose ComX is older than ours (no group memos for them), not dismissed yet. */
+  olderRiders: {uid: number; name: string}[];
+  /** Hide a rider's "older ComX" banner; it does not come back this session. */
+  dismissOlderRider: (uid: number) => void;
+```
+
+3. After `const memoCaptureRef = useRef(false);`, add:
+
+```ts
+  const [olderRiders, setOlderRiders] = useState<{uid: number; name: string}[]>([]);
+  // Riders already warned about in this channel session (once per rider)
+  const olderWarnedRef = useRef<Set<number>>(new Set());
+```
+
+4. In `broadcastName`, replace `if (sendJson(engine, {type: 'name', name: pilotNameRef.current})) {` with:
+
+```ts
+    if (sendJson(engine, {type: 'name', name: pilotNameRef.current, v: PROTOCOL_VERSION})) {
+```
+
+5. In the `onStreamMessage` listener, replace
+
+```ts
+          if (!announcedUidsRef.current.has(remoteUid)) {
+            announcedUidsRef.current.add(remoteUid);
+            speak(`${msg.name} joined`);
+          }
+```
+
+with
+
+```ts
+          if (!announcedUidsRef.current.has(remoteUid)) {
+            announcedUidsRef.current.add(remoteUid);
+            speak(`${msg.name} joined`);
+          }
+          if (isOlderRider(msg) && !olderWarnedRef.current.has(remoteUid)) {
+            olderWarnedRef.current.add(remoteUid);
+            appLog('Agora', `${msg.name} uses protocol ${typeof msg.v === 'number' ? msg.v : 1}`);
+            setOlderRiders(prev => [...prev, {uid: remoteUid, name: String(msg.name)}]);
+          }
+```
+
+6. A new session starts clean. In `joinChannel`, replace
+
+```ts
+    announcedUidsRef.current.clear();
+
+    const engine = await initEngine();
+```
+
+with
+
+```ts
+    announcedUidsRef.current.clear();
+    olderWarnedRef.current.clear();
+    setOlderRiders([]);
+
+    const engine = await initEngine();
+```
+
+and in `leaveChannel`, replace
+
+```ts
+    announcedUidsRef.current.clear();
+    audioInterruptedRef.current = false;
+```
+
+with
+
+```ts
+    announcedUidsRef.current.clear();
+    olderWarnedRef.current.clear();
+    setOlderRiders([]);
+    audioInterruptedRef.current = false;
+```
+
+7. After `const isMemoCapture = useCallback(() => memoCaptureRef.current, []);`, add:
+
+```ts
+  const dismissOlderRider = useCallback((uid: number) => {
+    setOlderRiders(prev => prev.filter(r => r.uid !== uid));
+  }, []);
+```
+
+8. In the provider `value`, after `isMemoCapture,`, add:
+
+```ts
+        olderRiders,
+        dismissOlderRider,
+```
+
+An older phone ignores the extra `v` field (`AgoraContext` there reads only `msg.name`).
+
+- [ ] **Step 8: Check**
 
 Run: `npx tsc --noEmit && npx eslint src --quiet && npx jest --maxWorkers=1 2>&1 | tail -4`
 Expected: no tsc / eslint output; all suites pass.
 
-- [ ] **Step 8: Commit**
+- [ ] **Step 9: Commit**
 
 ```bash
 git add src/contexts/AgoraContext.tsx
-git commit -m "feat(agora): memo capture mutes the live stream and restores the mic level"
+git status --short   # nothing unexpected staged; never .env (the real AGORA_APP_ID lives only on the Mac)
+git commit -m "feat(agora): memo capture, protocol version in name messages, older-rider list"
 ```
 
 ---
@@ -2650,6 +2840,7 @@ Expected: no output from tsc / eslint; all suites pass. (Until Task 14, watch cl
 
 ```bash
 git add src/contexts/WatchContext.tsx
+git status --short   # nothing unexpected staged; never .env (the real AGORA_APP_ID lives only on the Mac)
 git commit -m "refactor(watch): voice clips leave WatchContext; recorder yields to phone memos"
 ```
 
@@ -2696,7 +2887,10 @@ import {
   memoRecipient,
   memoSecondsLeft,
   memoSummary,
+  memoTargetLabel,
   newClipId,
+  resolveMemoTarget,
+  toggleMemoTarget,
 } from '../memo/memo';
 import {appLog} from '../utils/logger';
 
@@ -2713,8 +2907,14 @@ interface MemoContextValue {
   /** A memo can be recorded (in a channel). */
   canRecord: boolean;
   startMemo: () => void;
-  /** Stop and send: to the group without an argument, else to that rider. */
-  sendMemo: (toUid?: number) => void;
+  /** Stop and send to the selected recipient (the group by default). */
+  sendMemo: () => void;
+  /** Recipient while recording: GROUP_UID or a rider uid. */
+  target: number;
+  /** "TO GROUP" or "TO LÉA". */
+  targetLabel: string;
+  /** While recording: tap a rider to pick them, tap them again for the group. */
+  selectTarget: (uid: number) => void;
   /** Play a memo of the history again. */
   replay: (clip: HistoryClip) => void;
 }
@@ -2907,6 +3107,19 @@ export function MemoProvider({children}: {children: ReactNode}) {
   const [secondsLeft, setSecondsLeft] = useState(MEMO_MAX_MS / 1000);
   const recRef = useRef<{path: string; startedAt: number} | null>(null);
   const clipDirRef = useRef<string | null>(null);
+  // Recipient of the memo being recorded (owner decision 8)
+  const [target, setTarget] = useState<number>(GROUP_UID);
+  const targetRef = useRef<number>(GROUP_UID);
+  const targetNameRef = useRef('the group');
+
+  const selectTarget = useCallback((uid: number) => {
+    if (!recRef.current) return;
+    const next = toggleMemoTarget(targetRef.current, uid);
+    targetRef.current = next;
+    targetNameRef.current = next === GROUP_UID ? 'the group' : nameOf(next);
+    setTarget(next);
+    Vibration.vibrate(20);
+  }, [nameOf]);
 
   useEffect(() => {
     WatchBridge.getClipDir().then(dir => {
@@ -2924,10 +3137,15 @@ export function MemoProvider({children}: {children: ReactNode}) {
     return {path: rec.path, durationMs: memoDurationMs(rec.startedAt, Date.now())};
   }, [getEngine, setMemoCapture]);
 
-  const sendMemo = useCallback((toUid?: number) => {
+  const sendMemo = useCallback(() => {
     const done = stopRecorder();
     if (!done) return;
-    const to = memoRecipient(toUid);
+    // Never redirected: a memo for a rider who left is not sent at all
+    const to = resolveMemoTarget(targetRef.current, new Set(live.current.names.keys()));
+    if (to === null) {
+      logMessage('You', 'voice', `Voice memo not sent: ${targetNameRef.current} left the channel`);
+      return;
+    }
     if (done.durationMs < MEMO_MIN_MS) {
       logMessage('You', 'voice', 'Voice memo too short, not sent');
       return;
@@ -2972,12 +3190,15 @@ export function MemoProvider({children}: {children: ReactNode}) {
       return;
     }
     recRef.current = {path, startedAt: Date.now()};
+    targetRef.current = GROUP_UID;
+    targetNameRef.current = 'the group';
+    setTarget(GROUP_UID);
     setSecondsLeft(MEMO_MAX_MS / 1000);
     setRecording(true);
     Vibration.vibrate(50);
   }, [getEngine, logMessage, setMemoCapture]);
 
-  // Countdown; at 30 s the memo goes to the group by itself
+  // Countdown; at 30 s the memo goes to the selected recipient by itself
   useEffect(() => {
     if (!recording) return;
     const timer = setInterval(() => {
@@ -2996,9 +3217,10 @@ export function MemoProvider({children}: {children: ReactNode}) {
     if (recRef.current) stopRecorder();
   }, [connected, stopRecorder]);
 
+  const targetLabel = memoTargetLabel(target, target === GROUP_UID ? undefined : nameOf(target));
   const value = useMemo(
-    () => ({recording, secondsLeft, canRecord: connected, startMemo, sendMemo, replay: play}),
-    [recording, secondsLeft, connected, startMemo, sendMemo, play],
+    () => ({recording, secondsLeft, canRecord: connected, startMemo, sendMemo, target, targetLabel, selectTarget, replay: play}),
+    [recording, secondsLeft, connected, startMemo, sendMemo, target, targetLabel, selectTarget, play],
   );
 
   return <MemoContext.Provider value={value}>{children}</MemoContext.Provider>;
@@ -3040,6 +3262,7 @@ Expected: no output from tsc / eslint; all suites pass (including `__tests__/App
 
 ```bash
 git add src/contexts/MemoContext.tsx App.tsx jest.setup.js
+git status --short   # nothing unexpected staged; never .env (the real AGORA_APP_ID lives only on the Mac)
 git commit -m "feat(memo): phone and watch memos to the group or one rider, playback and forwarding"
 ```
 
@@ -3336,6 +3559,7 @@ Expected: no output.
 
 ```bash
 git add src/components/signal/MsgSheet.tsx
+git status --short   # nothing unexpected staged; never .env (the real AGORA_APP_ID lives only on the Mac)
 git commit -m "feat(phone): MSG sheet with quick messages, history replay and leave"
 ```
 
@@ -3824,6 +4048,7 @@ Expected: no output.
 
 ```bash
 git add src/screens/JoinScreen.tsx
+git status --short   # nothing unexpected staged; never .env (the real AGORA_APP_ID lives only on the Mac)
 git commit -m "feat(phone): Signal join screen"
 ```
 
@@ -3834,7 +4059,7 @@ git commit -m "feat(phone): Signal join screen"
 **Files:**
 - Create: `src/screens/LiveScreen.tsx`
 
-Keeps from `VoiceScreen.tsx`: the inactivity sound / vibration effect, auto-navigation home on `autoDisconnected`, `useMute` + `useBluetoothHID(toggle)`, the banner texts, the watch-mode / Garmin states.
+Adds the "<name> uses an older ComX" banners (Task 12, dismissed with OK, once per rider per session) and the memo recipient selection (decision 8). Keeps from `VoiceScreen.tsx`: the inactivity sound / vibration effect, auto-navigation home on `autoDisconnected`, `useMute` + `useBluetoothHID(toggle)`, the banner texts, the watch-mode / Garmin states.
 
 - [ ] **Step 1: Write `src/screens/LiveScreen.tsx`**
 
@@ -3875,7 +4100,7 @@ export function LiveScreen({onLeft}: LiveScreenProps) {
   const insets = useSafeAreaInsets();
   const {
     channelName, leaveChannel, connectionState, inactivityWarning, warningSecondsLeft, dismissWarning,
-    autoDisconnected, isInterrupted,
+    autoDisconnected, isInterrupted, olderRiders, dismissOlderRider,
   } = useAgoraContext();
   const {isMuted, toggle} = useMute();
   useBluetoothHID(toggle);
@@ -3959,7 +4184,7 @@ export function LiveScreen({onLeft}: LiveScreenProps) {
 
       <View style={[styles.banners, {top: insets.top + 64}]} pointerEvents="box-none">
         {memo.recording && (
-          <Banner tone="red" text={`Memo to the group · ${memo.secondsLeft} s. Tap a rider to send it to them only.`} />
+          <Banner tone="red" text={`${memo.targetLabel} · ${memo.secondsLeft} s. Tap a rider to pick them, MEMO sends.`} />
         )}
         {inactivityWarning && (
           <Banner
@@ -3973,6 +4198,9 @@ export function LiveScreen({onLeft}: LiveScreenProps) {
         )}
         {isInterrupted && <Banner text="Call in progress: your mic is paused, you're still in the channel" />}
         {locationDenied && <Banner text="Location is off: others can't see where you are." />}
+        {olderRiders.map(r => (
+          <Banner key={r.uid} text={`${r.name} uses an older ComX`} action={{label: 'OK', onPress: () => dismissOlderRider(r.uid)}} />
+        ))}
       </View>
 
       <BottomSheet
@@ -3987,7 +4215,7 @@ export function LiveScreen({onLeft}: LiveScreenProps) {
             memoRecording={memo.recording}
             memoSecondsLeft={memo.secondsLeft}
             memoEnabled={memo.canRecord}
-            onMemo={memo.recording ? () => memo.sendMemo() : memo.startMemo}
+            onMemo={memo.recording ? memo.sendMemo : memo.startMemo}
             onMsg={() => setMsgOpen(true)}
           />
         }>
@@ -3999,7 +4227,8 @@ export function LiveScreen({onLeft}: LiveScreenProps) {
               key={r.uid}
               rider={r}
               heading={heading}
-              onPress={memo.recording ? () => memo.sendMemo(r.uid) : undefined}
+              selected={memo.recording && memo.target === r.uid}
+              onPress={memo.recording ? () => memo.selectTarget(r.uid) : undefined}
             />
           ))
         )}
@@ -4065,6 +4294,7 @@ Expected: no output.
 
 ```bash
 git add src/screens/LiveScreen.tsx
+git status --short   # nothing unexpected staged; never .env (the real AGORA_APP_ID lives only on the Mac)
 git commit -m "feat(phone): Signal live screen with radar, sheet and memos"
 ```
 
@@ -4192,12 +4422,13 @@ jest.mock('react-native-safe-area-context', () => {
 - [ ] **Step 5: Full checks**
 
 Run: `npx tsc --noEmit && npx eslint src --quiet && npx jest --maxWorkers=1 2>&1 | tail -4`
-Expected: no tsc / eslint output; `Test Suites: 13 passed, 13 total`, `Tests: 95 passed, 95 total` (54 before this plan plus the new radar, sheet, channel, group clip, history and memo tests; the micPolicy injection test is gone).
+Expected: no tsc / eslint output; `Test Suites: 13 passed, 13 total`, `Tests: 99 passed, 99 total` (54 before this plan plus the new radar, sheet, channel, group clip, history and memo tests; the micPolicy injection test is gone).
 
 - [ ] **Step 6: Commit**
 
 ```bash
 git add -A App.tsx src jest.setup.js
+git status --short   # nothing unexpected staged; never .env (the real AGORA_APP_ID lives only on the Mac)
 git commit -m "feat(phone): Join and Live screens replace Home and Voice; single Signal palette"
 ```
 
@@ -4284,11 +4515,13 @@ Then:
 - [ ] **Step 5: Memos in demo mode**
 
 Expected:
-- tap MEMO: it turns red "SEND 30" and counts down; a red banner "Memo to the group · 29 s. Tap a rider …" appears under the title; rider rows get a teal outline;
-- speak into the Mac microphone 3 s, tap "TOM (DEMO)": the memo stops, the banner goes; 2 s later the memo comes back from Tom and plays on the phone (you hear your own voice), MSG → HISTORY shows "TOM (DEMO) · HH:MM — Voice, 3 s · for you" on top (yellow dot, surfaceAlt highlight) and "TO TOM (DEMO) · HH:MM — Voice, 3 s" under it;
+- tap MEMO: it turns red "SEND 30" and counts down; a red banner "TO GROUP · 29 s. Tap a rider to pick them, MEMO sends." appears under the title; rider rows get a teal outline;
+- tap "TOM (DEMO)": his row fills teal (dark text and arrow), the banner reads "TO TOM (DEMO) · …", recording goes on; tap "LEA (DEMO)": Lea's row is teal, Tom's is back to normal, "TO LEA (DEMO)"; tap Lea again: no row selected, "TO GROUP"; tap Tom again;
+- speak into the Mac microphone 3 s, tap MEMO: the memo stops, the banner and the teal outlines go; 2 s later the memo comes back from Tom and plays on the phone (you hear your own voice), MSG → HISTORY shows "TOM (DEMO) · HH:MM — Voice, 3 s · for you" on top (yellow dot, surfaceAlt highlight) and "TO TOM (DEMO) · HH:MM — Voice, 3 s" under it;
+- tap MEMO, pick Max, wait 30 s without tapping MEMO: the memo goes to Max by itself and Max's echo comes back;
 - tap that history row: it plays again; tap the older one: it plays too;
 - tap MEMO and tap it again after 0.3 s: "Voice memo too short, not sent" in the history;
-- tap MEMO and wait 30 s: it sends by itself to the group (no echo for a group memo in a real channel: correct, only memos to a virtual rider are echoed); the history shows "TO GROUP · HH:MM — Voice, 30 s";
+- tap MEMO and wait 30 s without picking anyone: it sends by itself to the group (no echo for a group memo in a real channel: correct, only memos to a virtual rider are echoed); the history shows "TO GROUP · HH:MM — Voice, 30 s" (or "Voice memo too long, not sent" if the recorded file is over 120 000 base64 characters: then note the file size from the Metro log and report it, the AAC bitrate is too high);
 - MSG: six quick-message pills (two columns, "I NEED HELP" amber); tapping one closes the sheet and Lea answers 3 s later (history row with a teal ring marker); "SPEAKER OFF" toggles to a teal "SPEAKER ON"; "PAUSE FOR VIDEO" toggles to "RESUME AUDIO"; "Leave group" asks "Are you sure…"; Cancel stays, Leave goes back to Join; MSG history is still there after re-joining (kept for the app's run).
 
 - [ ] **Step 6: Decide the mic-recording approach (Decision 2)**
@@ -4311,6 +4544,7 @@ Build and install the watch app on `W` as in `docs/superpowers/plans/2026-10-18-
 - the watch shows the three riders; Settings on the phone shows the Apple Watch active, so the TALK slot reads "WATCH MODE / TALK ON YOUR WATCH" in a `#12282C` pill (Settings → Watch mode "On" if auto does not trigger in the simulator);
 - record a group memo on the watch (Talk page, tap, speak, tap): the phone history shows "TO GROUP · HH:MM — Voice, N s" and the memo is sent over the data stream (Metro / `appLog` line `sending N slices to the group`), not mixed into the live audio;
 - record a memo to Tom on the watch: 2 s later the watch plays Tom's echo and its History shows it; the phone does not play it (watch mode, Decision 3) but lists it in its history.
+- **phone memo in watch mode is not silent** (the gain goes back to 100 during memo capture, Task 12): with the TALK slot showing "WATCH MODE", tap MEMO on the phone, speak 3 s into the Mac microphone, pick "TOM (DEMO)", tap MEMO. Expected: the Metro log shows `memo capture on` then `memo capture off`; the echo is not played on the phone (watch mode) but on the watch, with your voice audible; on the phone, MSG → HISTORY → tap "TO TOM (DEMO)": your voice plays (replay ignores watch mode). If the watch echo and the replay are silent while the same test outside watch mode (Settings → Watch mode "Off") has sound, `applyRecordingVolume` did not run: check that `setMemoCapture(true)` is called before `startAudioRecording` in `startMemo`. Repeat Task 20 step 3's live check afterwards: once the memo is sent, the phone mic is back at volume 0 (the other rider hears nothing live from the pouch phone).
 
 ---
 
@@ -4344,14 +4578,16 @@ Expected:
 - each phone shows the other as a badge and a row with a distance of about 160 m and an arrow; "● 2 RIDERS";
 - speak on one side with TALK live: the other side's row turns yellow and its badge yellow with a halo while the voice is heard; both turn back to teal after;
 - group memo from the emulator (MEMO, speak, MEMO): after about 0.7 s of transfer per second of voice, the iPhone plays it and lists "DROID EMU · HH:MM — Voice, N s"; the emulator lists "TO GROUP …"; while the emulator recorded, the iPhone heard nothing live from it (live stream muted during the memo) and the emulator's TALK state after sending is what it was before;
-- private memo from the iPhone (MEMO, speak, tap the "DROID EMU" row): the emulator plays it, history "IOS SIM · HH:MM — Voice, N s · for you";
+- private memo from the iPhone (MEMO, tap the "DROID EMU" row: it turns teal and the banner reads "TO DROID EMU", speak, MEMO): the emulator plays it, history "IOS SIM · HH:MM — Voice, N s · for you";
+- the selected rider leaves: start a memo on the iPhone, pick "DROID EMU", leave the channel on the emulator, tap MEMO on the iPhone: nothing is sent and the history reads "Voice memo not sent: Droid Emu left the channel";
+- no "uses an older ComX" banner appears on either phone (both send `v: 2`);
 - SOS from one side: the other side's row turns red with "SOS" first in the list, badge red; voice announcement and vibration as before; cancel clears it;
 - a quick message from MSG appears in the other phone's history with the teal ring marker and is announced as before;
 - Leave on one side: the other side announces "<name> left" and the rider disappears.
 
 - [ ] **Step 4: Older rider (optional, if a 0.1 (7) build is at hand)**
 
-With an older ComX on one side: group memos from the new side are not received (expected, Decision 5); the older side's watch group clips are heard live on the new side.
+With an older ComX on one side: the new side shows an amber banner "<name> uses an older ComX" with OK, once (it does not come back when the older phone re-sends its name 1, 3 and 6 s after joining, nor after OK); leaving and re-joining shows it again (new session). Group memos from the new side are not received there (expected, Decision 5); the older side's watch group clips are heard live on the new side.
 
 ---
 
@@ -4415,7 +4651,23 @@ Slices go out every 150 ms: about 7 s for 10 s of voice at 16 kbit/s.
 
 **Older riders** (protocol version 1) ignore `to: 0` slices, so they do not
 get group memos; their own watch group clips are still mixed into the live
-audio, which new phones hear. Every rider should run the same ComX.
+audio, which new phones hear. The `name` message now carries `v`; a rider
+whose `name` has no `v` or `v < 2` gets an amber "<name> uses an older ComX"
+banner on the live screen, once per rider per session. Every rider should run
+the same ComX.
+
+**Follow-up (transfer time).** A 30 s memo takes about 20 s to send: 600
+base64 characters every 150 ms is 4 KB/s. Agora's data stream allows about
+30 packets/s and 6 KB/s, so there is about 40 % headroom (for example 800
+characters per slice, as long as each JSON message stays under 1 KB). The real
+lever is the AAC bitrate of the clips (watch and phone recorders): halving it
+halves the transfer time.
+```
+
+In the "Phone ↔ phone (Agora data stream)" table, replace the `name` row with:
+
+```markdown
+| `name` | `name`, `v` (protocol version, 2) | On join and when someone joins. No `v` or `v < 2`: the rider runs an older ComX (banner) |
 ```
 
 In the "New bridge methods" table below it, change the `readClipBase64` purpose to "Read a clip file as base64 (to send it as a memo)" and add a line under the table: `Both exist on iOS and Android.`
@@ -4424,7 +4676,7 @@ Change `Version field \`v: 1\`.` near "## Phone ↔ watch" to `Version field \`v
 
 - [ ] **Step 3: `CLAUDE.md`**
 
-Replace `` `npx jest --maxWorkers=1` (50 tests). `` with the count printed by `npx jest --maxWorkers=1 2>&1 | grep Tests:` (95 tests when this plan was checked: `` `npx jest --maxWorkers=1` (95 tests). ``). In the "Where things are" table add the row:
+Replace `` `npx jest --maxWorkers=1` (50 tests). `` with the count printed by `npx jest --maxWorkers=1 2>&1 | grep Tests:` (99 tests when this plan was checked: `` `npx jest --maxWorkers=1` (99 tests). ``). In the "Where things are" table add the row:
 
 ```markdown
 | `src/contexts/MemoContext.tsx` | Voice memos (phone MEMO button and watch clips): send, receive, play, forward, history |
@@ -4434,6 +4686,7 @@ Replace `` `npx jest --maxWorkers=1` (50 tests). `` with the count printed by `n
 
 ```bash
 git add docs/watch-companion.md CLAUDE.md
+git status --short   # nothing unexpected staged; never .env (the real AGORA_APP_ID lives only on the Mac)
 git commit -m "docs: group voice memos, phone memos, protocol version 2"
 ```
 
@@ -4466,7 +4719,7 @@ gh pr create -R xavierkain-apps/comx --base main --head phone-signal-radar \
 
 - Signal palette and Barlow / Barlow Condensed (OFL) on iOS and Android.
 - Join screen (radar hero, favourites, inline name) and Live screen (full-screen radar ported from the watch OverviewPage, three-detent sheet, SOS / TALK / MEMO / MSG, amber banners), MSG sheet (quick messages, history with replay, speaker, video pause, leave).
-- Voice memos on the phone (group or one rider, 30 s), group memos as data-stream clips with to: 0; a watch group memo is now a real memo instead of being mixed into the live audio. Protocol version 2: riders on an older ComX do not get group memos.
+- Voice memos on the phone (group or one rider, 30 s), group memos as data-stream clips with to: 0; a watch group memo is now a real memo instead of being mixed into the live audio. Protocol version 2 (also in the name message): riders on an older ComX do not get group memos and are shown with an \"uses an older ComX\" banner. While recording, tapping a rider row picks the recipient (TO <NAME>), MEMO sends.
 - Android bridge gains readClipBase64 / writeClip.
 - Unit tests: radar maths (shared cases for the Wear OS port), sheet detents, channel split, group clips, history trimming, memo helpers.
 - Checked: iPhone + Apple Watch simulators in demo mode, Android emulator, and iOS simulator + Android emulator in one real channel (memos both ways, speaking, SOS).
@@ -4508,7 +4761,11 @@ Give the PR URL to the ComX server session; it reviews, merges, tags a TestFligh
 | Rider rows: arrow, name, distance; yellow speaking, red SOS with "SOS", No GPS dimmed; `buildRiderViews` order | 10 (`RiderRow`), 17 (rows in `riders` order) |
 | Control row: SOS 1 s long press / CANCEL, TALK = existing mute, WATCH MODE pill, MEMO, MSG | 10 (`ControlRow`), 17 |
 | Banners: amber pill with STAY (inactivity, interruption, location) | 10 (`Banner`), 17 |
-| MEMO: tap records (red, 30 s countdown, live mic muted), tap sends to group, rider row = that rider only | 7, 12, 14, 17 |
+| MEMO: tap records (red, 30 s countdown, live mic muted); rider row selects the recipient ("TO <NAME>", default "TO GROUP", tap again for the group); second MEMO tap or 30 s sends to it (owner decision 8) | 7, 10 (`RiderRow` `selected`), 12, 14, 17, 19 step 5 |
+| Older-rider banner: `v: 2` in `name`, "<name> uses an older ComX" once per rider per session | 5 (`isOlderRider`), 12, 17, 20 step 4, 21 |
+| Phone memo in watch mode is not silent (gain back to 100) | 12, 19 step 7 |
+| Follow-up note on transfer time and AAC bitrate | 21 |
+| `.env` never committed; `git status --short` before each commit | header, every commit step |
 | Received memos play, forwarded to the watch, into history | 14 |
 | Transport `to: 0` = group with tests; private unchanged | 5 |
 | Watch group memo becomes a real memo (WatchContext `startAudioMixing` path removed) | 8, 13, 14 |
@@ -4525,4 +4782,4 @@ Not covered, on purpose: the 150 ms cross-fade of the yellow highlight (the row 
 
 **Placeholder scan:** no "TBD"/"TODO"/"similar to"; the only fill-ins are the simulator UDIDs (`P`, `W`) and the channel digits, which depend on the machine, and the PR line naming the recording approach chosen in Task 19 step 6.
 
-**Identifier consistency:** `signal`, `condensed`, `plain`, `colors` (theme); `point`, `spread`, `niceDistance`, `shortDistance`, `ringDistance`, `initials`, `layoutRadar`, `MIN_FARTHEST_M`, `ArrowMode`, `arrowHeading`, `nextRotation` (radar); `Detents`, `HANDLE_HEIGHT`, `CONTROL_HEIGHT`, `SHEET_MEDIUM`, `sheetDetents`, `clampSheet`, `settleDetent`, `nextDetent` (sheet); `splitChannelCode`; `GROUP_UID`, `isClipForMe`, `PROTOCOL_VERSION = 2`; `addToHistory`, `HISTORY_MAX_ITEMS`, `HISTORY_MAX_CLIPS`; `MEMO_MAX_MS`, `MEMO_MIN_MS`, `memoSecondsLeft`, `memoDurationMs`, `memoRecipient`, `memoSummary`, `newClipId`, `historyTitle`; `HistoryClip`, `RideMessage.clip`, `logMessage(from, id, text, uid?, clip?)`; `setMemoCapture`, `isMemoCapture`; `voiceWatch`; `MemoProvider`, `useMemos` → `recording`, `secondsLeft`, `canRecord`, `startMemo`, `sendMemo`, `replay`; components `Arrow`, `RadarView`, `BADGE`, `RiderRow`, `Banner`, `ControlRow`, `TalkState`, `BottomSheet`, `MsgSheet`; screens `JoinScreen`, `LiveScreen`. Existing identifiers used as found in the code: `buildRiderViews`, `RiderView`, `QUICK_MESSAGES`, `formatDistance`, `isValidChannelName`, `generateChannelName`, `splitClip`, `parseVoiceChunk`, `ClipAssembler`, `CHUNK_INTERVAL_MS`, `MAX_CLIP_CHARS`, `DEMO_RIDERS`, `demoRider`, `isDemoUid`, `WatchBridge.readClipBase64/writeClip/sendClip/sendEvent/onClip/getClipDir`, `useMute`, `useBluetoothHID`, `soundFile`, `micPolicy`, `AudioFileRecordingType.AudioFileRecordingMic`, `AudioMixingStateType.AudioMixingStateStopped/Failed`.
+**Identifier consistency:** `signal`, `condensed`, `plain`, `colors` (theme); `point`, `spread`, `niceDistance`, `shortDistance`, `ringDistance`, `initials`, `layoutRadar`, `MIN_FARTHEST_M`, `ArrowMode`, `arrowHeading`, `nextRotation` (radar); `Detents`, `HANDLE_HEIGHT`, `CONTROL_HEIGHT`, `SHEET_MEDIUM`, `sheetDetents`, `clampSheet`, `settleDetent`, `nextDetent` (sheet); `splitChannelCode`; `GROUP_UID`, `isClipForMe`, `PROTOCOL_VERSION = 2`; `addToHistory`, `HISTORY_MAX_ITEMS`, `HISTORY_MAX_CLIPS`; `MEMO_MAX_MS`, `MEMO_MIN_MS`, `memoSecondsLeft`, `memoDurationMs`, `memoRecipient`, `toggleMemoTarget`, `resolveMemoTarget`, `memoTargetLabel`, `memoSummary`, `newClipId`, `historyTitle`; `isOlderRider`; `olderRiders`, `dismissOlderRider`; `HistoryClip`, `RideMessage.clip`, `logMessage(from, id, text, uid?, clip?)`; `setMemoCapture`, `isMemoCapture`; `voiceWatch`; `MemoProvider`, `useMemos` → `recording`, `secondsLeft`, `canRecord`, `startMemo`, `sendMemo()`, `target`, `targetLabel`, `selectTarget`, `replay`; `RiderRow` `selected`; components `Arrow`, `RadarView`, `BADGE`, `RiderRow`, `Banner`, `ControlRow`, `TalkState`, `BottomSheet`, `MsgSheet`; screens `JoinScreen`, `LiveScreen`. Existing identifiers used as found in the code: `buildRiderViews`, `RiderView`, `QUICK_MESSAGES`, `formatDistance`, `isValidChannelName`, `generateChannelName`, `splitClip`, `parseVoiceChunk`, `ClipAssembler`, `CHUNK_INTERVAL_MS`, `MAX_CLIP_CHARS`, `DEMO_RIDERS`, `demoRider`, `isDemoUid`, `WatchBridge.readClipBase64/writeClip/sendClip/sendEvent/onClip/getClipDir`, `useMute`, `useBluetoothHID`, `soundFile`, `micPolicy`, `AudioFileRecordingType.AudioFileRecordingMic`, `AudioMixingStateType.AudioMixingStateStopped/Failed`.
