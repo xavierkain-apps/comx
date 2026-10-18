@@ -88,7 +88,7 @@ struct CompassView: View {
       if model.isRecording {
         PagedColumn(page: $page) {
           ForEach(model.talkTargets, id: \.self) { uid in
-            CompassPage { TalkTargetPage(uid: uid) }.page(uid ?? CompassView.group)
+            CompassPage(talk: .none) { TalkTargetPage(uid: uid) }.page(uid ?? CompassView.group)
           }
         }
       } else if model.riders.isEmpty {
@@ -397,7 +397,16 @@ struct CompassPage<Content: View>: View {
       if !statusOver { StatusLine() }
       if talk == .big {
         // The talk page: one huge button, the easiest target with wet fingers.
-        TalkButton(big: true).frame(maxHeight: .infinity)
+        VStack(spacing: 10) {
+          Text("\(model.state?.channel ?? "ComX") · Group").overline()
+            .lineLimit(1)
+            .minimumScaleFactor(0.6)
+          TalkCircle()
+          if model.micDenied {
+            Text("Microphone off: allow it in Settings").font(.plain(12)).foregroundStyle(Theme.amber)
+          }
+        }
+        .frame(maxHeight: .infinity)
       } else {
         content
           .frame(maxHeight: .infinity)
@@ -405,8 +414,9 @@ struct CompassPage<Content: View>: View {
       }
       if let who = model.speakingLabel, !model.isRecording {
         Text(who)
-          .font(.system(size: 14, weight: .bold))
-          .foregroundStyle(.yellow)
+          .font(.condensed(14, .bold))
+          .textCase(.uppercase)
+          .foregroundStyle(Theme.yellow)
           .lineLimit(1)
       }
       if talk == .normal { TalkButton() }
@@ -456,36 +466,59 @@ struct RiderPage: View {
   }
 }
 
-/// While recording: who the clip goes to (nil = the whole group).
+/// While recording: who the clip goes to (nil = the whole group), over the
+/// red send circle. The crown moves to the next recipient page.
 struct TalkTargetPage: View {
   @EnvironmentObject var model: AppModel
   let uid: Int?
 
   var body: some View {
     let rider = uid.flatMap { model.rider($0) }
-    VStack(spacing: 2) {
-      Text("To").font(.system(size: 14, weight: .semibold)).foregroundStyle(.secondary)
-      Text(uid == nil ? "Group" : rider?.displayName ?? "Rider \(uid!)")
-        .font(.system(size: 26, weight: .heavy))
-        .foregroundStyle(uid == nil ? .white : .yellow)
+    VStack(spacing: 10) {
+      Text("To \(uid == nil ? "Group" : rider?.displayName ?? "Rider \(uid!)")")
+        .overline(uid == nil ? Theme.textMuted : Theme.yellow)
         .lineLimit(1)
         .minimumScaleFactor(0.6)
-      if let rider = rider {
-        Text(Format.distance(rider.dist))
-          .font(.system(size: 18, weight: .bold, design: .rounded))
-          .foregroundStyle(.secondary)
-      }
+      TalkCircle()
     }
     .frame(maxWidth: .infinity, maxHeight: .infinity)
   }
+}
+
+/// The big round talk control: teal "TALK" (Action button hint), red
+/// "SEND n" while recording. Double tap and the Action button do the same.
+struct TalkCircle: View {
+  @EnvironmentObject var model: AppModel
+
+  var body: some View {
+    Button(action: { model.toggleTalk() }) {
+      VStack(spacing: 2) {
+        Text(model.isRecording ? "SEND \(secondsLeft)" : "TALK")
+          .font(.condensed(36))
+          .tracking(1)
+          .lineLimit(1)
+          .minimumScaleFactor(0.6)
+        Text(model.isRecording ? "Tap to send" : "Action button")
+          .font(.plain(12))
+      }
+      .foregroundStyle(model.isRecording ? Theme.text : Theme.onAccent)
+      .padding(.horizontal, 12)
+      .frame(maxWidth: 150, maxHeight: 150)
+      .aspectRatio(1, contentMode: .fit)
+      .background(Circle().fill(model.isRecording ? Theme.red : Theme.teal))
+    }
+    .buttonStyle(.plain)
+    .primaryActionShortcut()
+    .accessibilityLabel(model.isRecording ? "Stop and send" : "Talk")
+  }
+
+  private var secondsLeft: Int { max(0, Int(AppModel.maxClipSeconds - model.recordingElapsed)) }
 }
 
 /// Big talk button: group by default; while recording, shows the recipient
 /// (crown, or a tap on the label, changes it).
 struct TalkButton: View {
   @EnvironmentObject var model: AppModel
-  /// Round and as big as the page allows, for the talk page.
-  var big = false
 
   var body: some View {
     VStack(spacing: 2) {
@@ -493,7 +526,7 @@ struct TalkButton: View {
         Button { model.cycleTalkTarget(1) } label: {
           Text("To: \(model.talkTargetName)")
             .font(.system(size: 16, weight: .heavy))
-            .foregroundStyle(model.talkTarget == nil ? .white : .yellow)
+            .foregroundStyle(model.talkTarget == nil ? Theme.text : Theme.yellow)
             .lineLimit(1)
             .minimumScaleFactor(0.6)
             .frame(maxWidth: .infinity)
@@ -503,14 +536,13 @@ struct TalkButton: View {
       Button(action: { model.toggleTalk() }) {
         HStack(spacing: 6) {
           Image(systemName: model.isRecording ? "paperplane.fill" : "mic.fill")
-            .font(.system(size: big ? 30 : 22, weight: .bold))
+            .font(.condensed(22))
           Text(model.isRecording ? "SEND \(max(0, Int(AppModel.maxClipSeconds - model.recordingElapsed)))" : "TALK")
-            .font(.system(size: big ? 30 : 22, weight: .heavy))
+            .font(.condensed(22))
         }
-        .foregroundStyle(.white)
-        .frame(maxWidth: .infinity, minHeight: 50, maxHeight: big ? .infinity : nil)
-        .background(Capsule().fill(model.isRecording ? Color.red : Color.blue))
-        .modifier(RoundWhenBig(big: big))
+        .foregroundStyle(model.isRecording ? Theme.text : Theme.onAccent)
+        .frame(maxWidth: .infinity, minHeight: 50)
+        .background(Capsule().fill(model.isRecording ? Theme.red : Theme.teal))
       }
       .buttonStyle(.plain)
       .primaryActionShortcut()
@@ -519,19 +551,6 @@ struct TalkButton: View {
         Text("Microphone off: allow it in Settings")
           .font(.footnote).foregroundStyle(.orange)
       }
-    }
-  }
-}
-
-/// The talk page button is a circle filling the page.
-private struct RoundWhenBig: ViewModifier {
-  let big: Bool
-
-  func body(content: Content) -> some View {
-    if big {
-      content.aspectRatio(1, contentMode: .fit)
-    } else {
-      content
     }
   }
 }
