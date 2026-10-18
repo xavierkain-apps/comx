@@ -24,3 +24,13 @@ export function isValidChannelName(name: string): boolean {
   }
   return /^[a-zA-Z0-9-]+$/.test(name);
 }
+
+/**
+ * The Join hero shows "TARIFA" over "01": the code split at its last "-".
+ * A code without a "-" between two parts stays whole.
+ */
+export function splitChannelCode(code: string): {head: string; tail: string} {
+  const i = code.lastIndexOf('-');
+  if (i <= 0 || i === code.length - 1) return {head: code, tail: ''};
+  return {head: code.slice(0, i), tail: code.slice(i + 1)};
+}
