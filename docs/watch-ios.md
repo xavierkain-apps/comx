@@ -89,7 +89,7 @@ Payload notes for the JS side:
 | Double tap (watchOS 11+, Series 9 / Ultra 2 and later) | Start talking **to the group** | Stop and send to the chosen recipient |
 | Action button (Ultra), assigned to the *Talk* shortcut | Same as double tap | Same as double tap |
 | Action button, assigned to *Workout > ComX* | Starts the session | — |
-| Touch (fallback) | Big TALK button; swipe left/right for Riders and Messages; tap a rider in the list to put it on the compass | Tap SEND; tap the "To:" label to cycle recipients |
+| Touch (fallback) | Talk page: swipe down from the overview radar, one big round TALK button; swipe left/right for Riders and Messages; tap a rider in the list to put it on the compass | Tap SEND; tap the "To:" label to cycle recipients |
 
 Why this mapping: talk must default to the group with nothing to choose, so a
 private message needs a deliberate extra step. Turning the crown *while
@@ -109,8 +109,11 @@ Distance from the centre is the square root of the real distance so that
 near riders stay readable, and badges that would overlap are pushed apart.
 SOS riders are red and bigger, speaking riders yellow, stale ones dimmed;
 riders without a position are listed under the radar ("M ?"). The overview
-has a smaller talk button and the status line drawn over the radar, so the
-radar gets the page. There are no profile pictures: the phone does not send
+and the rider pages are full screen, without a talk button (the status line
+is drawn over the radar). Talking by touch is on its own page, above the
+overview: swipe down from the radar. While recording, the recipient pages
+keep a SEND button. The double tap shortcut is attached to the visible talk
+button, so it only works on the talk page and while recording. There are no profile pictures: the phone does not send
 any (a picture does not fit the 1 KB data stream messages). The crown then goes through
 the riders, one page each. A rider whose SOS started after your last crown
 pick takes over the compass. Pages swipe **horizontally** so the crown never

@@ -57,9 +57,10 @@ private extension ScenePhase {
 
 // MARK: - Compass (main page)
 
-/// Overview of every rider first, then one rider big (AppModel.compassRider).
-/// Crown: overview, then next / previous rider, one vertical page each; while
-/// talking, the recipient, one page per talk target. A vertical page TabView takes the
+/// Overview of every rider first, then one rider big (AppModel.compassRider),
+/// both full screen; the talk page is above the overview (swipe down or crown
+/// up from it). Crown: overview, then next / previous rider, one vertical page
+/// each; while talking, the recipient, one page per talk target. A vertical page TabView takes the
 /// crown natively, like the List on the riders page: a .focusable view with
 /// .digitalCrownRotation never got it on a real watch (the system took the
 /// rotation and went back to the watch face).
@@ -69,8 +70,9 @@ struct CompassView: View {
   /// Page on screen: a rider uid or `overview`; while recording a talk target
   /// (nil = group). The overview page does not exist while recording.
   @State private var page: Int?
-  /// Tag of the overview page, never a rider uid.
+  /// Tags of the overview and talk pages, never a rider uid.
   static let overview = Int.min
+  static let talk = Int.min + 1
 
   var body: some View {
     Group {
@@ -91,12 +93,13 @@ struct CompassView: View {
         }
       } else if let alert = model.sosAlert, let rider = model.rider(alert.uid) {
         // No pages under the SOS alert: their indicator draws over it.
-        CompassPage { RiderPage(rider: rider) }
+        CompassPage(talk: .none) { RiderPage(rider: rider) }
       } else {
         TabView(selection: $page) {
-          CompassPage(compact: true) { OverviewPage() }.tag(Optional(CompassView.overview))
+          CompassPage(talk: .big) { EmptyView() }.tag(Optional(CompassView.talk))
+          CompassPage(talk: .none, statusOver: true) { OverviewPage() }.tag(Optional(CompassView.overview))
           ForEach(model.riders) { rider in
-            CompassPage { RiderPage(rider: rider) }.tag(Optional(rider.uid))
+            CompassPage(talk: .none) { RiderPage(rider: rider) }.tag(Optional(rider.uid))
           }
         }
         .tabViewStyle(.verticalPage)
@@ -109,7 +112,8 @@ struct CompassView: View {
     .onChange(of: model.talkTarget) { _, _ in if model.isRecording { page = shownByModel } }
     .onChange(of: model.isRecording) { _, _ in page = shownByModel }
     .onChange(of: page) { _, picked in
-      guard picked != shownByModel else { return }
+      // The talk page is a place to go, not a pick: the model keeps its rider.
+      guard picked != shownByModel, picked != CompassView.talk || model.isRecording else { return }
       if model.isRecording {
         model.setTalkTarget(picked)
       } else if picked == CompassView.overview {
@@ -150,7 +154,7 @@ struct OverviewPage: View {
         let spots = OverviewPage.spread(placed.map { rider in
           point(centre, radius, angle: model.arrowAngle(bearing: rider.brg) ?? 0,
                 fraction: ((rider.dist ?? 0) / farthest).squareRoot())
-        })
+        }, centre: centre, radius: radius)
         ZStack {
           ring(centre, radius, label: Format.distance(farthest), lineWidth: 3)
           if inner < farthest {
@@ -203,25 +207,36 @@ struct OverviewPage: View {
     return CGPoint(x: c.x + r * CGFloat(sin(a)), y: c.y - r * CGFloat(cos(a)))
   }
 
-  /// Pushes apart badges closer than a badge width, a few relaxation passes;
-  /// riders keep roughly their direction and distance.
-  static func spread(_ points: [CGPoint]) -> [CGPoint] {
+  /// Pushes apart badges closer than a badge (and its distance label), a
+  /// few relaxation passes, keeping them inside the outer ring. Riders on the
+  /// same bearing are also pushed sideways, or they would only slide along
+  /// the ray and out of the ring.
+  static func spread(_ points: [CGPoint], centre c: CGPoint, radius: CGFloat) -> [CGPoint] {
     var p = points
-    // Room for the badge and the distance under it.
     let minGap = badge + 10
-    for _ in 0..<12 {
+    for _ in 0..<20 {
       var moved = false
       for i in p.indices {
         for j in p.indices where j > i {
           let dx = p[j].x - p[i].x, dy = p[j].y - p[i].y
-          let d = max((dx * dx + dy * dy).squareRoot(), 0.01)
+          let d = (dx * dx + dy * dy).squareRoot()
           guard d < minGap else { continue }
+          // Away from each other, plus sideways (perpendicular to the ray).
+          let mx = (p[i].x + p[j].x) / 2 - c.x, my = (p[i].y + p[j].y) / 2 - c.y
+          let m = max((mx * mx + my * my).squareRoot(), 0.01)
+          var ux = d > 0.01 ? dx / d : 0, uy = d > 0.01 ? dy / d : 1
+          ux += -my / m * 0.7; uy += mx / m * 0.7
+          let u = max((ux * ux + uy * uy).squareRoot(), 0.01)
           let push = (minGap - d) / 2
-          let ux = d > 0.01 ? dx / d : 1, uy = d > 0.01 ? dy / d : 0
-          p[i].x -= ux * push; p[i].y -= uy * push
-          p[j].x += ux * push; p[j].y += uy * push
+          p[i].x -= ux / u * push; p[i].y -= uy / u * push
+          p[j].x += ux / u * push; p[j].y += uy / u * push
           moved = true
         }
+      }
+      for i in p.indices {
+        let dx = p[i].x - c.x, dy = p[i].y - c.y
+        let d = (dx * dx + dy * dy).squareRoot()
+        if d > radius { p[i] = CGPoint(x: c.x + dx / d * radius, y: c.y + dy / d * radius) }
       }
       if !moved { break }
     }
@@ -283,26 +298,35 @@ struct RiderBadge: View {
 }
 
 /// A full-screen compass page: vertical pages are as tall as the screen, so
-/// the status line and the talk button are part of each page.
+/// the status line and the talk button, when there is one, are part of each
+/// page.
 struct CompassPage<Content: View>: View {
+  enum Talk { case none, normal, big }
+
   @EnvironmentObject var model: AppModel
-  /// Smaller talk button and the status line over the content, so the
-  /// overview radar gets the whole page.
-  var compact = false
+  var talk: Talk = .normal
+  /// Status line drawn over the content (the overview radar), not above it.
+  var statusOver = false
   @ViewBuilder var content: Content
 
   var body: some View {
     VStack(spacing: 1) {
-      if !compact { StatusLine() }
-      content
-        .overlay(alignment: .top) { if compact { StatusLine() } }
+      if !statusOver { StatusLine() }
+      if talk == .big {
+        // The talk page: one huge button, the easiest target with wet fingers.
+        TalkButton(big: true).frame(maxHeight: .infinity)
+      } else {
+        content
+          .frame(maxHeight: .infinity)
+          .overlay(alignment: .top) { if statusOver { StatusLine() } }
+      }
       if let who = model.speakingLabel, !model.isRecording {
         Text(who)
           .font(.system(size: 14, weight: .bold))
           .foregroundStyle(.yellow)
           .lineLimit(1)
       }
-      TalkButton(compact: compact)
+      if talk == .normal { TalkButton() }
     }
     .padding(.horizontal, 2)
   }
@@ -377,7 +401,8 @@ struct TalkTargetPage: View {
 /// (crown, or a tap on the label, changes it).
 struct TalkButton: View {
   @EnvironmentObject var model: AppModel
-  var compact = false
+  /// Round and as big as the page allows, for the talk page.
+  var big = false
 
   var body: some View {
     VStack(spacing: 2) {
@@ -395,13 +420,14 @@ struct TalkButton: View {
       Button(action: { model.toggleTalk() }) {
         HStack(spacing: 6) {
           Image(systemName: model.isRecording ? "paperplane.fill" : "mic.fill")
-            .font(.system(size: compact ? 18 : 22, weight: .bold))
+            .font(.system(size: big ? 30 : 22, weight: .bold))
           Text(model.isRecording ? "SEND \(Int(AppModel.maxClipSeconds - model.recordingElapsed))" : "TALK")
-            .font(.system(size: compact ? 18 : 22, weight: .heavy))
+            .font(.system(size: big ? 30 : 22, weight: .heavy))
         }
         .foregroundStyle(.white)
-        .frame(maxWidth: .infinity, minHeight: compact ? 36 : 50)
+        .frame(maxWidth: .infinity, minHeight: 50, maxHeight: big ? .infinity : nil)
         .background(Capsule().fill(model.isRecording ? Color.red : Color.blue))
+        .modifier(RoundWhenBig(big: big))
       }
       .buttonStyle(.plain)
       .primaryActionShortcut()
@@ -410,6 +436,19 @@ struct TalkButton: View {
         Text("Microphone off: allow it in Settings")
           .font(.footnote).foregroundStyle(.orange)
       }
+    }
+  }
+}
+
+/// The talk page button is a circle filling the page.
+private struct RoundWhenBig: ViewModifier {
+  let big: Bool
+
+  func body(content: Content) -> some View {
+    if big {
+      content.aspectRatio(1, contentMode: .fit)
+    } else {
+      content
     }
   }
 }
