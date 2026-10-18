@@ -87,7 +87,7 @@ Payload notes for the JS side:
 | --- | --- | --- |
 | Digital Crown | Compass pages: overview radar first, then one page per rider (nearest first, SOS first); stops at the first and last page | Choose the recipient, one page per recipient: Group → the rider on the compass → the other riders (`directionUp` haptic for a rider, `directionDown` for Group) |
 | Double tap (watchOS 11+, Series 9 / Ultra 2 and later) | Start talking **to the group** | Stop and send to the chosen recipient |
-| Action button (Ultra), assigned to the *Talk* shortcut | Same as double tap | Same as double tap |
+| Action button (Ultra, watchOS 26+), assigned to the *Talk* control | Start talking **to the group**, also from the watch face (opens ComX) | Stop and send to the chosen recipient |
 | Action button, assigned to *Workout > ComX* | Starts the session | — |
 | Touch (fallback) | Talk page: swipe down from the overview radar, one big round TALK button; swipe left/right for Riders and Messages; tap a rider in the list to put it on the compass | Tap SEND; tap the "To:" label to cycle recipients |
 
@@ -188,20 +188,32 @@ Implications:
 
 ### Apple Watch Ultra Action button
 
-Two routes are implemented; **neither has been tried on a device.**
+The route for talk is a **control** (watchOS 26+):
+`ios/SoarXVoiceWatchControls/` is a WidgetKit extension with one
+`ControlWidgetButton`, *Talk*, embedded in the watch app (bundle id
+`com.xavier.comx.watchkitapp.controls`, watchOS 26.0 minimum for this target
+only; the app itself stays watchOS 10+). Its intent, `TalkControlIntent`
+(`ios/SoarXVoiceWatch/TalkControl.swift`), is compiled into both targets with
+`openAppWhenRun`, so `perform()` runs in the app and calls `toggleTalk()`; the
+extension build defines `COMX_CONTROLS_EXTENSION` to leave the app-only code
+out. The target is created by `scripts/add-watch-controls-target.rb` (run
+after `scripts/add-watch-target.rb`).
 
-1. `StartSessionIntent` conforms to `StartWorkoutIntent`. That is the
-   documented way for a workout app to appear under *Settings > Action Button
-   > Workout*. Pressing the button then launches ComX and starts the
-   session.
-2. `ToggleTalkIntent` is an App Shortcut ("Talk"). It can be assigned with
-   *Action Button > Shortcut*, and also runs from Siri and the Smart Stack.
-   It opens the app and toggles recording.
+Set up: watch *Settings > Action Button > Action: Control*, then *Control:
+Talk* (ComX's is the only control, it is picked by default). The control
+also shows in Control Center and the Smart Stack.
 
-There is no public API, as far as I know, for a third-party app to receive
-*every* Action button press as a push-to-talk key (I may be wrong; this is not
-verified). Route 2 is the candidate for talk; whether starting the recorder
-from a Shortcut works without an extra tap must be checked on a watch.
+Checked in the simulator (Apple Watch Ultra 3, watchOS 26.4), not yet on a
+watch: the Action button press from the app grid opens ComX, the Input test
+log shows *Action TalkControlIntent* and recording starts (after the one-time
+microphone prompt); with ComX in front, a press stops and sends, the next
+starts again. Not checked: with water lock on.
+
+Older routes, kept: `StartSessionIntent` conforms to `StartWorkoutIntent`
+(*Action Button > Workout > ComX* starts the session). `ToggleTalkIntent` is
+an App Shortcut (*Action Button > Shortcut > Talk*, Siri): on a real watch
+(watchOS 26.6) it only opened ComX, `perform()` never ran, from the watch
+face or with ComX in front.
 
 ## Manual steps before the first signed release
 

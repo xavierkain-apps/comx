@@ -18,8 +18,10 @@
 		251E6A312F6617440079205C /* BLEButtonManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 251E6A302F6617440079205C /* BLEButtonManager.swift */; };
 		251E6A322F6617440079205C /* BLEButtonManager.m in Sources */ = {isa = PBXBuildFile; fileRef = 251E6A2F2F6617440079205C /* BLEButtonManager.m */; };
 		2A1C5FCBFC131CC5D60D1BFF /* SoarXVoiceWatch.app in Embed Watch Content */ = {isa = PBXBuildFile; fileRef = 021D0002C5EAD9E0AFC05688 /* SoarXVoiceWatch.app */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
+		33B39FFCE998AB4314FDD886 /* TalkControl.swift in Sources */ = {isa = PBXBuildFile; fileRef = E3B28A541969B6483C137576 /* TalkControl.swift */; };
 		356CD5CBC1C4AE7F28156711 /* inactivity_warning.mp3 in Resources */ = {isa = PBXBuildFile; fileRef = 93F3057EFF69D4E909C6D916 /* inactivity_warning.mp3 */; };
 		3C19CE8FC4D3ED89001205A5 /* Protocol.swift in Sources */ = {isa = PBXBuildFile; fileRef = 673C89F49B6497C51278E6CE /* Protocol.swift */; };
+		3EEBC61D0C7909C7597B6781 /* SoarXVoiceWatchControls.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = 56CDA5D398BFF9A58B61FE67 /* SoarXVoiceWatchControls.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 		4D7FE641F4AA7B1F704D83A1 /* SoarXVoiceWatchApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9E95C1F8A1BC27223BD88309 /* SoarXVoiceWatchApp.swift */; };
 		50B06CE23F958A3699B2A995 /* voice_unmute.mp3 in Resources */ = {isa = PBXBuildFile; fileRef = 05834232ED914EEBA7C06F17 /* voice_unmute.mp3 */; };
 		52561D880E0E1DBFB722365B /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 5E8337D89E96B19AB6945747 /* Assets.xcassets */; };
@@ -39,12 +41,21 @@
 		B0D281E952D6660F804FE237 /* Audio.swift in Sources */ = {isa = PBXBuildFile; fileRef = DFC03273D5D73C9C59C36D9C /* Audio.swift */; };
 		D398C0BBA36E17D2852BC08F /* TTSManager.m in Sources */ = {isa = PBXBuildFile; fileRef = F6F7EE5FC0A5AB17D84956F3 /* TTSManager.m */; };
 		E28F7F6B79ED856EF1F2D2CD /* Views.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3FFECBA0D1C53C08B74AA5F8 /* Views.swift */; };
+		E5B4F6084C92CCE92B52EEAD /* TalkControl.swift in Sources */ = {isa = PBXBuildFile; fileRef = E3B28A541969B6483C137576 /* TalkControl.swift */; };
 		E7E39ACF8BF094F35FFCBA16 /* PhoneLink.swift in Sources */ = {isa = PBXBuildFile; fileRef = CC3A2A6FCB9620F3033A6981 /* PhoneLink.swift */; };
 		F10BB64ECB0FE82DF4CADC14 /* ConnectIQ in Frameworks */ = {isa = PBXBuildFile; productRef = 94464BE5EC8170347F7F18F6 /* ConnectIQ */; };
 		F2D36FDBEA3E5F17654124D6 /* HapticManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = C6BE7A5A9CC84E9591B871ED /* HapticManager.swift */; };
+		F75901C0AEA7B4D5B117BEA9 /* TalkControlWidget.swift in Sources */ = {isa = PBXBuildFile; fileRef = AE2F3657C7F05C325788C312 /* TalkControlWidget.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
+		9044F444FFC53ACF6C459C70 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 83CBB9F71A601CBA00E9B192 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = B9E9985CB05514B4C0A461F7;
+			remoteInfo = SoarXVoiceWatchControls;
+		};
 		ADA1F51E1DEA7CA4309DE170 /* PBXContainerItemProxy */ = {
 			isa = PBXContainerItemProxy;
 			containerPortal = 83CBB9F71A601CBA00E9B192 /* Project object */;
@@ -55,6 +66,17 @@
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXCopyFilesBuildPhase section */
+		3B7E52F27AF9EA23614528DF /* Embed Foundation Extensions */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
+			dstPath = "";
+			dstSubfolderSpec = 13;
+			files = (
+				3EEBC61D0C7909C7597B6781 /* SoarXVoiceWatchControls.appex in Embed Foundation Extensions */,
+			);
+			name = "Embed Foundation Extensions";
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		EDE6275686C94661901F5103 /* Embed Watch Content */ = {
 			isa = PBXCopyFilesBuildPhase;
 			buildActionMask = 2147483647;
@@ -86,7 +108,9 @@
 		3B4392A12AC88292D35C810B /* Pods-SoarXVoice.debug.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-SoarXVoice.debug.xcconfig"; path = "Target Support Files/Pods-SoarXVoice/Pods-SoarXVoice.debug.xcconfig"; sourceTree = "<group>"; };
 		3FFECBA0D1C53C08B74AA5F8 /* Views.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = Views.swift; sourceTree = "<group>"; };
 		5054D08A17FD631FE83BFBCD /* AppModel.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = AppModel.swift; sourceTree = "<group>"; };
+		56CDA5D398BFF9A58B61FE67 /* SoarXVoiceWatchControls.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = SoarXVoiceWatchControls.appex; sourceTree = BUILT_PRODUCTS_DIR; };
 		5709B34CF0A7D63546082F79 /* Pods-SoarXVoice.release.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-SoarXVoice.release.xcconfig"; path = "Target Support Files/Pods-SoarXVoice/Pods-SoarXVoice.release.xcconfig"; sourceTree = "<group>"; };
+		5862D2F8AB5D3394735961A9 /* Info.plist */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 		5AA19339BAD4B3B37A120531 /* InputTest.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = InputTest.swift; sourceTree = "<group>"; };
 		5D52D1C7337F28C1523D64E6 /* WatchBridge.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = WatchBridge.swift; sourceTree = "<group>"; };
 		5DCACB8F33CDC322A6C60F78 /* libPods-SoarXVoice.a */ = {isa = PBXFileReference; explicitFileType = archive.ar; includeInIndex = 0; path = "libPods-SoarXVoice.a"; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -101,11 +125,13 @@
 		A5D10C012F80000000000001 /* AudioSessionManager.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = AudioSessionManager.swift; sourceTree = "<group>"; };
 		A5D10C012F80000000000002 /* AudioSessionManager.m */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.c.objc; path = AudioSessionManager.m; sourceTree = "<group>"; };
 		A99F0168CA49634E8F39762D /* voice_mute.mp3 */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = audio.mp3; path = voice_mute.mp3; sourceTree = "<group>"; };
+		AE2F3657C7F05C325788C312 /* TalkControlWidget.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = TalkControlWidget.swift; sourceTree = "<group>"; };
 		AF9E717AA22B4B02F24149B4 /* WatchBridge.m */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.c.objc; path = WatchBridge.m; sourceTree = "<group>"; };
 		C6BE7A5A9CC84E9591B871ED /* HapticManager.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = HapticManager.swift; sourceTree = "<group>"; };
 		CC3A2A6FCB9620F3033A6981 /* PhoneLink.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = PhoneLink.swift; sourceTree = "<group>"; };
 		DE9C44A7567B31232C6E7161 /* Intents.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = Intents.swift; sourceTree = "<group>"; };
 		DFC03273D5D73C9C59C36D9C /* Audio.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = Audio.swift; sourceTree = "<group>"; };
+		E3B28A541969B6483C137576 /* TalkControl.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = TalkControl.swift; sourceTree = "<group>"; };
 		ED060D1026DF1618E569F407 /* Sensors.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = Sensors.swift; sourceTree = "<group>"; };
 		ED297162215061F000B7C4FE /* JavaScriptCore.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = JavaScriptCore.framework; path = System/Library/Frameworks/JavaScriptCore.framework; sourceTree = SDKROOT; };
 		F6F7EE5FC0A5AB17D84956F3 /* TTSManager.m */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.c.objc; path = TTSManager.m; sourceTree = "<group>"; };
@@ -125,6 +151,13 @@
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 		2421593E48D6EC7B997975A3 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		80907D82EE329A2DDDD5E77E /* Frameworks */ = {
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
@@ -170,6 +203,16 @@
 			name = Frameworks;
 			sourceTree = "<group>";
 		};
+		54B4A620C6F29B57D0ED69CE /* SoarXVoiceWatchControls */ = {
+			isa = PBXGroup;
+			children = (
+				AE2F3657C7F05C325788C312 /* TalkControlWidget.swift */,
+				5862D2F8AB5D3394735961A9 /* Info.plist */,
+			);
+			name = SoarXVoiceWatchControls;
+			path = SoarXVoiceWatchControls;
+			sourceTree = "<group>";
+		};
 		832341AE1AAA6A7D00B99B32 /* Libraries */ = {
 			isa = PBXGroup;
 			children = (
@@ -191,6 +234,7 @@
 				BBD78D7AC51CEA395F1C20DB /* Pods */,
 				251E6A2E2F66059C0079205C /* SoarXVoice-Bridging-Header.h */,
 				A9A659B1A2FC3606740065FE /* SoarXVoiceWatch */,
+				54B4A620C6F29B57D0ED69CE /* SoarXVoiceWatchControls */,
 			);
 			indentWidth = 2;
 			sourceTree = "<group>";
@@ -202,6 +246,7 @@
 			children = (
 				13B07F961A680F5B00A75B9A /* SoarXVoice.app */,
 				021D0002C5EAD9E0AFC05688 /* SoarXVoiceWatch.app */,
+				56CDA5D398BFF9A58B61FE67 /* SoarXVoiceWatchControls.appex */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -221,6 +266,7 @@
 				698F3A250F987F54F0E05B9C /* Info.plist */,
 				06FDE1EE20D8138FF7544A6A /* SoarXVoiceWatch.entitlements */,
 				5AA19339BAD4B3B37A120531 /* InputTest.swift */,
+				E3B28A541969B6483C137576 /* TalkControl.swift */,
 			);
 			name = SoarXVoiceWatch;
 			path = SoarXVoiceWatch;
@@ -271,15 +317,34 @@
 				88BF92349F592917971112B2 /* Sources */,
 				2421593E48D6EC7B997975A3 /* Frameworks */,
 				B6DC3D6AB4A0115B10B97BFB /* Resources */,
+				3B7E52F27AF9EA23614528DF /* Embed Foundation Extensions */,
 			);
 			buildRules = (
 			);
 			dependencies = (
+				C985BF7172A10E74EDE7C9B9 /* PBXTargetDependency */,
 			);
 			name = SoarXVoiceWatch;
 			productName = SoarXVoiceWatch;
 			productReference = 021D0002C5EAD9E0AFC05688 /* SoarXVoiceWatch.app */;
 			productType = "com.apple.product-type.application";
+		};
+		B9E9985CB05514B4C0A461F7 /* SoarXVoiceWatchControls */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = CCD41BB1E2970A5BC19389FD /* Build configuration list for PBXNativeTarget "SoarXVoiceWatchControls" */;
+			buildPhases = (
+				5293CDAFC7F1E8B056F59102 /* Sources */,
+				80907D82EE329A2DDDD5E77E /* Frameworks */,
+				21CE54252A65DA66CBF33D5C /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = SoarXVoiceWatchControls;
+			productName = SoarXVoiceWatchControls;
+			productReference = 56CDA5D398BFF9A58B61FE67 /* SoarXVoiceWatchControls.appex */;
+			productType = "com.apple.product-type.app-extension";
 		};
 /* End PBXNativeTarget section */
 
@@ -294,6 +359,9 @@
 					};
 					781CB3AB1211F73D9825DFD9 = {
 						CreatedOnToolsVersion = 15.0;
+					};
+					B9E9985CB05514B4C0A461F7 = {
+						CreatedOnToolsVersion = 26.0;
 					};
 				};
 			};
@@ -315,6 +383,7 @@
 			targets = (
 				13B07F861A680F5B00A75B9A /* SoarXVoice */,
 				781CB3AB1211F73D9825DFD9 /* SoarXVoiceWatch */,
+				B9E9985CB05514B4C0A461F7 /* SoarXVoiceWatchControls */,
 			);
 		};
 /* End PBXProject section */
@@ -332,6 +401,13 @@
 				8893BBBBDAA170459889A681 /* beep_single.mp3 in Resources */,
 				9D60CE20D2042E04EE36D6AC /* beep_double.mp3 in Resources */,
 				356CD5CBC1C4AE7F28156711 /* inactivity_warning.mp3 in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		21CE54252A65DA66CBF33D5C /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -442,6 +518,15 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		5293CDAFC7F1E8B056F59102 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				F75901C0AEA7B4D5B117BEA9 /* TalkControlWidget.swift in Sources */,
+				E5B4F6084C92CCE92B52EEAD /* TalkControl.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		88BF92349F592917971112B2 /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
@@ -455,6 +540,7 @@
 				4D7FE641F4AA7B1F704D83A1 /* SoarXVoiceWatchApp.swift in Sources */,
 				E28F7F6B79ED856EF1F2D2CD /* Views.swift in Sources */,
 				9F7D52E366594E3950FEA6E6 /* InputTest.swift in Sources */,
+				33B39FFCE998AB4314FDD886 /* TalkControl.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -466,6 +552,12 @@
 			name = SoarXVoiceWatch;
 			target = 781CB3AB1211F73D9825DFD9 /* SoarXVoiceWatch */;
 			targetProxy = ADA1F51E1DEA7CA4309DE170 /* PBXContainerItemProxy */;
+		};
+		C985BF7172A10E74EDE7C9B9 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			name = SoarXVoiceWatchControls;
+			target = B9E9985CB05514B4C0A461F7 /* SoarXVoiceWatchControls */;
+			targetProxy = 9044F444FFC53ACF6C459C70 /* PBXContainerItemProxy */;
 		};
 /* End PBXTargetDependency section */
 
@@ -532,6 +624,36 @@
 			};
 			name = Release;
 		};
+		1695C83189F4802E7791932D /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				APPLICATION_EXTENSION_API_ONLY = YES;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 14;
+				DEVELOPMENT_TEAM = S96H22CQ8W;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = SoarXVoiceWatchControls/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = ComX;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				MARKETING_VERSION = 0.1;
+				PRODUCT_BUNDLE_IDENTIFIER = com.xavier.comx.watchkitapp.controls;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = watchos;
+				SKIP_INSTALL = YES;
+				SUPPORTED_PLATFORMS = "watchos watchsimulator";
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "$(inherited) DEBUG COMX_CONTROLS_EXTENSION";
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = 4;
+				WATCHOS_DEPLOYMENT_TARGET = 26.0;
+			};
+			name = Debug;
+		};
 		20B93F05A4E53A8A0722D5CA /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
@@ -570,6 +692,36 @@
 				WATCHOS_DEPLOYMENT_TARGET = 10.0;
 			};
 			name = Debug;
+		};
+		74199C8677EE958CB7948A62 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				APPLICATION_EXTENSION_API_ONLY = YES;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 14;
+				DEVELOPMENT_TEAM = S96H22CQ8W;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = SoarXVoiceWatchControls/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = ComX;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				MARKETING_VERSION = 0.1;
+				PRODUCT_BUNDLE_IDENTIFIER = com.xavier.comx.watchkitapp.controls;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = watchos;
+				SKIP_INSTALL = YES;
+				SUPPORTED_PLATFORMS = "watchos watchsimulator";
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "$(inherited) COMX_CONTROLS_EXTENSION";
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = 4;
+				VALIDATE_PRODUCT = YES;
+				WATCHOS_DEPLOYMENT_TARGET = 26.0;
+			};
+			name = Release;
 		};
 		83CBBA201A601CBA00E9B192 /* Debug */ = {
 			isa = XCBuildConfiguration;
@@ -791,6 +943,15 @@
 			buildConfigurations = (
 				87A06696C2ECF17ADC96852A /* Release */,
 				20B93F05A4E53A8A0722D5CA /* Debug */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		CCD41BB1E2970A5BC19389FD /* Build configuration list for PBXNativeTarget "SoarXVoiceWatchControls" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				74199C8677EE958CB7948A62 /* Release */,
+				1695C83189F4802E7791932D /* Debug */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
