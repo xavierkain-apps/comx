@@ -61,8 +61,11 @@ Local checks that are cheap: `npx tsc --noEmit`, `npx eslint src --quiet`,
   the crown never reached `.focusable` + `.digitalCrownRotation` views on the
   device (the system went back to the watch face), so the compass now pages
   riders with a vertical page TabView (build 4, not yet confirmed on device).
-- Android: phone and Wear OS APKs launch without crash on emulators (demo
-  mode OK on the phone); phone ↔ Wear pairing not tested yet.
+- Android: phone (API 34) ↔ Wear OS (API 35) emulators paired; demo mode
+  works end to end (state, quick message, SOS, voice clip + echo), no crash.
+  Pairing needs the *Google Pixel Watch* companion app + Android Studio's
+  Pair Wearable (the *Wear OS by Google* app is not installable on API 34+).
+  Not tested on real Android hardware.
 - A local Claude session on the owner's Mac runs iOS / Android simulators
   (Xcode, AVDs `Medium_Phone_API_36.1`, `ComX_Wear`).
 - App Store Connect record exists (`com.xavier.comx`, name "ComX Rider").
