@@ -656,7 +656,7 @@ struct RiderRow: View {
         .minimumScaleFactor(0.6)
       Spacer(minLength: 0)
       if rider.isSOS {
-        Text("SOS").font(.condensed(14))
+        Text("SOS").font(.condensed(14)).fixedSize()
       }
       Text(distText)
         .font(rider.dist == nil ? .plain(13) : .condensed(22))
