@@ -45,6 +45,8 @@ final class AppModel: ObservableObject {
   @Published var banner: Banner?
   @Published var sosAlert: SOSAlert?
   @Published private(set) var mySOSActive = false
+  /// Last messages sent and received, newest first (History page).
+  @Published private(set) var history: [HistoryItem] = []
 
   // Session
   @Published private(set) var workoutRunning = false
@@ -63,6 +65,7 @@ final class AppModel: ObservableObject {
   private let recorder = ClipRecorder()
   private let player = ClipPlayer()
   private let headingProvider = HeadingProvider()
+  private let messageHistory = MessageHistory()
   let workout = WorkoutKeeper()
 
   private var tick: Timer?
@@ -255,9 +258,15 @@ final class AppModel: ObservableObject {
     WKInterfaceDevice.current().play(.stop)
     player.paused = false
     let target = talkTarget
+    let targetName = talkTargetName
     talkTarget = nil
     guard let clip = result else { return }
     let (url, ms) = clip
+    // Kept before the transfer, which deletes the file once delivered.
+    if let kept = messageHistory.keepClip(url) {
+      record(HistoryItem(who: targetName, outgoing: true, isPrivate: target != nil,
+                         kind: .voice(kept, durationMs: ms)))
+    }
     link.sendClip(url, metaJSON: Outgoing.clipMeta(durationMs: ms, to: target))
     lastSent = Date()
     DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) {
@@ -280,6 +289,7 @@ final class AppModel: ObservableObject {
 
   func send(_ message: QuickMessage) {
     link.send(Outgoing.text(message))
+    record(HistoryItem(who: "Group", outgoing: true, isPrivate: false, kind: .text(message.label)))
     WKInterfaceDevice.current().play(.success)
     show(Banner(title: "Sent", body: message.label, at: Date()))
   }
@@ -291,6 +301,23 @@ final class AppModel: ObservableObject {
   }
 
   func dismissSOSAlert() { sosAlert = nil }
+
+  // MARK: - History
+
+  private func record(_ item: HistoryItem) {
+    messageHistory.add(item)
+    history = messageHistory.items
+  }
+
+  /// Plays a voice message of the history again (after anything queued).
+  func replay(_ item: HistoryItem) {
+    guard case .voice(let url, _) = item.kind, !isRecording,
+          let copy = messageHistory.playableCopy(of: url) else {
+      WKInterfaceDevice.current().play(.failure)
+      return
+    }
+    player.enqueue(.init(url: copy, from: item.outgoing ? "Me" : item.who))
+  }
 
   private func show(_ b: Banner) {
     banner = b
@@ -340,10 +367,13 @@ final class AppModel: ObservableObject {
       }
     case "text":
       WKInterfaceDevice.current().play(.notification)
-      show(Banner(title: from, body: QuickMessage.label(forId: e.id, fallback: e.text), at: Date()))
+      let label = QuickMessage.label(forId: e.id, fallback: e.text)
+      record(HistoryItem(who: from, outgoing: false, isPrivate: false, kind: .text(label)))
+      show(Banner(title: from, body: label, at: Date()))
     case "sos":
       if e.active ?? true {
         sosAlert = SOSAlert(uid: uid, from: from, dist: e.dist, brg: e.brg, at: Date())
+        record(HistoryItem(who: from, outgoing: false, isPrivate: false, kind: .text("SOS")))
         if sosSeenAt[uid] == nil { sosSeenAt[uid] = Date() }
         AppModel.alarmHaptics()
       } else if sosAlert?.uid == uid {
@@ -358,7 +388,13 @@ final class AppModel: ObservableObject {
 
   private func handleClip(_ url: URL, _ meta: ClipMeta?) {
     let from = meta?.from ?? meta?.uid.flatMap { rider($0)?.displayName } ?? "Rider"
-    let label = (meta?.isPrivate ?? false) ? "\(from) (to you)" : from
+    let isPrivate = meta?.isPrivate ?? false
+    let label = isPrivate ? "\(from) (to you)" : from
+    // Kept before playing: the player deletes what it has played.
+    if let kept = messageHistory.keepClip(url) {
+      record(HistoryItem(who: from, outgoing: false, isPrivate: isPrivate,
+                         kind: .voice(kept, durationMs: meta?.durationMs.map { Int($0) })))
+    }
     player.enqueue(.init(url: url, from: label))
   }
 

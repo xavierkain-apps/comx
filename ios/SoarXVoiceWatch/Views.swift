@@ -21,6 +21,7 @@ struct ContentView: View {
             page = 0
           }).tag(1)
           MessagesView().tag(2)
+          HistoryView().tag(3)
         }
         .tabViewStyle(.page)
       }
@@ -667,6 +668,87 @@ struct DirectionArrow: View {
 }
 
 // MARK: - Messages and SOS
+
+/// The last messages sent and received, newest first. Tap a voice message
+/// to hear it again. The list scrolls with the crown.
+struct HistoryView: View {
+  @EnvironmentObject var model: AppModel
+
+  private static let time: DateFormatter = {
+    let f = DateFormatter()
+    f.dateFormat = "HH:mm"
+    return f
+  }()
+
+  var body: some View {
+    List {
+      Section {
+        if model.history.isEmpty {
+          Text("No messages yet").foregroundStyle(.secondary)
+        }
+        ForEach(model.history) { item in
+          if item.isVoice {
+            Button { model.replay(item) } label: { row(item) }
+          } else {
+            row(item)
+          }
+        }
+      } header: {
+        HStack {
+          Text("History")
+          Spacer(minLength: 0)
+          if let who = model.playingFrom {
+            Label(who, systemImage: "speaker.wave.2.fill")
+              .foregroundStyle(.yellow)
+              .lineLimit(1)
+          }
+        }
+        .font(.system(size: 15, weight: .heavy))
+      }
+    }
+  }
+
+  private func row(_ item: HistoryItem) -> some View {
+    HStack(spacing: 6) {
+      Image(systemName: item.isVoice ? "play.circle.fill" : (item.outgoing ? "arrow.up.circle" : "text.bubble"))
+        .font(.system(size: 22, weight: .bold))
+        .foregroundStyle(item.isVoice ? .cyan : .secondary)
+      VStack(alignment: .leading, spacing: 0) {
+        HStack(spacing: 4) {
+          Text(item.outgoing ? "To \(item.who)" : item.who)
+            .font(.system(size: 15, weight: .bold))
+            .foregroundStyle(item.isPrivate ? .yellow : .white)
+            .lineLimit(1)
+          Spacer(minLength: 0)
+          Text(HistoryView.time.string(from: item.at))
+            .font(.system(size: 12, weight: .semibold, design: .rounded))
+            .foregroundStyle(.secondary)
+        }
+        Text(item.summary)
+          .font(.system(size: 16, weight: .heavy))
+          .foregroundStyle(item.summary == "SOS" ? .red : .primary)
+          .lineLimit(2)
+          .minimumScaleFactor(0.7)
+      }
+    }
+  }
+}
+
+private extension HistoryItem {
+  var isVoice: Bool {
+    if case .voice = kind { return true }
+    return false
+  }
+
+  var summary: String {
+    switch kind {
+    case .text(let text): return text
+    case .voice(_, let ms):
+      guard let ms = ms else { return "Voice message" }
+      return "Voice, \(max(1, Int((Double(ms) / 1000).rounded()))) s"
+    }
+  }
+}
 
 struct MessagesView: View {
   @EnvironmentObject var model: AppModel

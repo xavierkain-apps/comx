@@ -159,6 +159,12 @@ about 20 KB for 10 s. Not yet checked on a watch that the encoder accepts it
 - **Messages** (third page): the six contract quick messages, an SOS that needs
   a 1.2 s press and then a confirmation, *Cancel my SOS*, *Water lock*,
   *Input test*, and start / end session.
+- **History** (fourth page): the last messages sent and received, newest
+  first (quick messages, SOS, voice messages, private ones in yellow). Tap a
+  voice message to hear it again; the header shows who is playing. Kept for
+  the app's run only: at most 30 items and 10 voice clips, copied into
+  `Caches/history` (the player and the file transfer delete their own
+  copies), cleared at launch. `History.swift`.
 - Incoming text: banner for 6 s. Incoming SOS: full-screen red alert with
   arrow and distance, kept until dismissed or cancelled by the sender, with a
   repeated strong haptic.
