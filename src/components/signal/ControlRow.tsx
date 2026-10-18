@@ -11,6 +11,8 @@ interface ControlRowProps {
   onSos: (active: boolean) => void;
   talk: TalkState;
   onTalk: () => void;
+  /** A memo is recording: the stream stays muted, TALK can't go live. */
+  talkDisabled: boolean;
   memoRecording: boolean;
   memoSecondsLeft: number;
   memoEnabled: boolean;
@@ -38,7 +40,7 @@ export function ControlRow(p: ControlRowProps) {
         <Text style={[styles.sosText, p.mySos && styles.sosCancel]}>{p.mySos ? 'CANCEL' : 'SOS'}</Text>
       </TouchableOpacity>
 
-      <TalkButton state={p.talk} onPress={p.onTalk} />
+      <TalkButton state={p.talk} onPress={p.onTalk} disabled={p.talkDisabled} />
 
       <TouchableOpacity
         style={[styles.round, p.memoRecording ? styles.memoOn : styles.secondary, memoDisabled && styles.disabled]}
@@ -65,7 +67,7 @@ export function ControlRow(p: ControlRowProps) {
   );
 }
 
-function TalkButton({state, onPress}: {state: TalkState; onPress: () => void}) {
+function TalkButton({state, onPress, disabled}: {state: TalkState; onPress: () => void; disabled: boolean}) {
   if (state === 'watch' || state === 'garmin' || state === 'garminTalking') {
     const title = state === 'watch' ? 'WATCH MODE' : 'GARMIN';
     const sub = state === 'watch' ? 'TALK ON YOUR WATCH' : state === 'garminTalking' ? 'PHONE MIC ON' : 'TALK VIA PHONE';
@@ -83,14 +85,16 @@ function TalkButton({state, onPress}: {state: TalkState; onPress: () => void}) {
   const live = state === 'live';
   return (
     <TouchableOpacity
-      style={[styles.talk, {backgroundColor: live ? signal.yellow : signal.teal}]}
+      style={[styles.talk, {backgroundColor: live ? signal.yellow : signal.teal}, disabled && styles.disabled]}
       onPress={onPress}
+      disabled={disabled}
       activeOpacity={0.75}
       accessibilityRole="button"
-      accessibilityLabel={live ? 'Live, tap to mute' : 'Muted, tap to talk'}>
+      accessibilityState={{disabled}}
+      accessibilityLabel={disabled ? 'Muted while the memo records' : live ? 'Live, tap to mute' : 'Muted, tap to talk'}>
       <Text style={styles.talkText}>{live ? 'LIVE' : 'TALK'}</Text>
       <Text style={styles.talkSub} numberOfLines={1} adjustsFontSizeToFit>
-        {live ? 'TAP TO MUTE' : 'TAP TO TALK'}
+        {disabled ? 'MEMO RECORDING' : live ? 'TAP TO MUTE' : 'TAP TO TALK'}
       </Text>
     </TouchableOpacity>
   );

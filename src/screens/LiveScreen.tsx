@@ -81,11 +81,13 @@ export function LiveScreen({onLeft}: LiveScreenProps) {
     onLeft();
   }, [leaveChannel, onLeft]);
 
+  // A recording memo keeps the stream muted (AgoraContext) without touching
+  // isMuted, so TALK shows muted meanwhile and comes back as it was after.
   const talk: TalkState = watch.watchMode
     ? 'watch'
     : watch.pttMode
       ? watch.phonePtt ? 'garminTalking' : 'garmin'
-      : isMuted ? 'muted' : 'live';
+      : memo.recording || isMuted ? 'muted' : 'live';
 
   // Decision 7: everyone in the channel, me included
   const count = riders.length + 1;
@@ -125,6 +127,7 @@ export function LiveScreen({onLeft}: LiveScreenProps) {
             onSos={setSos}
             talk={talk}
             onTalk={toggle}
+            talkDisabled={memo.recording}
             memoRecording={memo.recording}
             memoSecondsLeft={memo.secondsLeft}
             memoEnabled={memo.canRecord}
