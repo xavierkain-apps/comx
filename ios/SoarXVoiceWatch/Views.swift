@@ -914,7 +914,7 @@ struct BannerView: View {
     .background(RoundedRectangle(cornerRadius: 14).fill(Theme.yellow))
     .accessibilityElement(children: .combine)
     .accessibilityAddTraits(.isButton)
-    .accessibilityHint("Dismiss")
+    .accessibilityHint("Dismisses the message")
   }
 }
 
@@ -941,7 +941,7 @@ struct SOSAlertView: View {
           .minimumScaleFactor(0.5)
       }
       .accessibilityElement(children: .ignore)
-      .accessibilityLabel("SOS from \(alert.from), \(Format.distance(alert.dist))")
+      .accessibilityLabel("SOS from \(alert.from), \(Format.distance(alert.dist)), \(directionWord(model.arrowAngle(bearing: alert.brg)))")
       Button { model.dismissSOSAlert() } label: {
         Text("Dismiss")
           .font(.condensed(18))
@@ -958,5 +958,22 @@ struct SOSAlertView: View {
     .frame(maxWidth: .infinity, maxHeight: .infinity)
     .background(Theme.red.ignoresSafeArea())
     .accessibilityAddTraits(.isModal)
+    .onAppear { AccessibilityNotification.Announcement("SOS from \(alert.from)").post() }
+  }
+
+  private func directionWord(_ angle: Double?) -> String {
+    guard let angle else { return "direction unknown" }
+    var a = angle.truncatingRemainder(dividingBy: 360)
+    if a < 0 { a += 360 }
+    switch a {
+    case 337.5..<360, 0..<22.5: return "ahead"
+    case ..<67.5: return "ahead right"
+    case ..<112.5: return "right"
+    case ..<157.5: return "behind right"
+    case ..<202.5: return "behind"
+    case ..<247.5: return "behind left"
+    case ..<292.5: return "left"
+    default: return "ahead left"
+    }
   }
 }
