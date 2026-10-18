@@ -706,11 +706,10 @@ struct HistoryView: View {
     return f
   }()
 
-  /// The newest voice message gets a highlighted row (the one to replay).
-  private var newestVoiceId: UUID? { model.history.first(where: { $0.isVoice })?.id }
-
   var body: some View {
-    List {
+    // The newest voice message gets a highlighted row (the one to replay).
+    let newest = model.history.first(where: { $0.isVoice })?.id
+    return List {
       Section {
         if model.history.isEmpty {
           Text("No messages yet").font(.plain(13)).foregroundStyle(Theme.textMuted)
@@ -720,13 +719,15 @@ struct HistoryView: View {
           Group {
             if item.isVoice {
               Button { model.replay(item) } label: { row(item) }
+                .accessibilityHint("Plays the message again")
             } else {
               row(item)
+                .accessibilityElement(children: .combine)
             }
           }
           .listRowBackground(
             RoundedRectangle(cornerRadius: 12)
-              .fill(item.id == newestVoiceId ? Theme.surfaceAlt : Color.clear))
+              .fill(item.id == newest ? Theme.surfaceAlt : Color.clear))
         }
       } header: {
         HStack {
