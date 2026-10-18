@@ -26,6 +26,9 @@ APP_NAME = "SoarXVoice"
 # Apple Watch companion, embedded in the iOS app (docs/watch-ios.md).
 WATCH_APP_ID = "#{APP_ID}.watchkitapp"
 WATCH_TARGET = "SoarXVoiceWatch"
+# Talk control for the Ultra Action button (WidgetKit extension in the watch app).
+CONTROLS_APP_ID = "#{WATCH_APP_ID}.controls"
+CONTROLS_TARGET = "SoarXVoiceWatchControls"
 
 platform :ios do
   desc "List the distribution certificates on the account"
@@ -264,7 +267,7 @@ platform :ios do
     )
 
     healthkit = Spaceship::ConnectAPI::BundleIdCapability::Type::HEALTHKIT
-    [[APP_ID, "ComX", false], [WATCH_APP_ID, "ComX Watch", true]].each do |identifier, name, needs_health|
+    [[APP_ID, "ComX", false], [WATCH_APP_ID, "ComX Watch", true], [CONTROLS_APP_ID, "ComX Watch Controls", false]].each do |identifier, name, needs_health|
       bundle = Spaceship::ConnectAPI::BundleId.find(identifier)
       if bundle
         UI.message("App ID #{identifier} already registered")
@@ -325,7 +328,7 @@ platform :ios do
 
     match(
       type: "appstore",
-      app_identifier: [APP_ID, WATCH_APP_ID],
+      app_identifier: [APP_ID, WATCH_APP_ID, CONTROLS_APP_ID],
       api_key: api_key,
       readonly: false,
       storage_mode: "git",
@@ -342,6 +345,7 @@ platform :ios do
     # placed in the shared store.
     profile_name = ENV.fetch("sigh_#{APP_ID}_appstore_profile-name", "match AppStore #{APP_ID}")
     watch_profile_name = ENV.fetch("sigh_#{WATCH_APP_ID}_appstore_profile-name", "match AppStore #{WATCH_APP_ID}")
+    controls_profile_name = ENV.fetch("sigh_#{CONTROLS_APP_ID}_appstore_profile-name", "match AppStore #{CONTROLS_APP_ID}")
 
     update_code_signing_settings(
       use_automatic_signing: false,
@@ -363,13 +367,25 @@ platform :ios do
       targets: [WATCH_TARGET]
     )
 
+    update_code_signing_settings(
+      use_automatic_signing: false,
+      path: "ios/#{APP_NAME}.xcodeproj",
+      team_id: ENV.fetch("APPLE_TEAM_ID"),
+      code_sign_identity: "Apple Distribution",
+      profile_name: controls_profile_name,
+      bundle_identifier: CONTROLS_APP_ID,
+      targets: [CONTROLS_TARGET]
+    )
+
     build_app(
       workspace: "ios/#{APP_NAME}.xcworkspace",
       scheme: APP_NAME,
       export_method: "app-store",
       export_team_id: ENV.fetch("APPLE_TEAM_ID"),
       export_options: {
-        provisioningProfiles: {APP_ID => profile_name, WATCH_APP_ID => watch_profile_name}
+        provisioningProfiles: {
+          APP_ID => profile_name, WATCH_APP_ID => watch_profile_name, CONTROLS_APP_ID => controls_profile_name
+        }
       }
     )
 
