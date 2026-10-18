@@ -1,72 +1,94 @@
-// SoarX Voice — Dual Theme Design System
+// ComX "Signal · Radar" design system (design_handoff_comx_signal_radar).
+// One dark palette, no light mode. Teal = normal or listening, yellow =
+// someone speaking, red = SOS.
+
+import {TextStyle} from 'react-native';
 
 type StatusBarStyle = 'light-content' | 'dark-content';
 
-// No `as const` here: the palette values must widen to `string` so the light and
-// dark palettes stay assignable to the same ThemeColors type.
-const darkColors = {
-  primary: '#0EA5E9',
-  primaryDark: '#0284C7',
-  primaryLight: 'rgba(14, 165, 233, 0.12)',
-  primaryBorder: 'rgba(14, 165, 233, 0.25)',
-  primaryGlow: 'rgba(14, 165, 233, 0.40)',
-  bg: '#0F172A',
-  bgCard: '#1E293B',
-  bgCardActive: '#334155',
-  bgInput: '#1E293B',
-  green: '#22C55E',
-  greenLight: 'rgba(34, 197, 94, 0.15)',
-  red: '#EF4444',
-  redLight: 'rgba(239, 68, 68, 0.12)',
-  redGlow: 'rgba(239, 68, 68, 0.40)',
-  amber: '#F59E0B',
-  white: '#F8FAFC',
-  text: '#F1F5F9',
-  textSecondary: '#94A3B8',
-  textMuted: '#64748B',
-  textDim: '#475569',
-  cardBorder: 'rgba(255,255,255,0.06)',
-  statusBar: 'light-content' as StatusBarStyle,
-};
+export const signal = {
+  bg: '#071518',
+  surface: '#0F2327',
+  surfaceAlt: '#12282C',
+  ring: '#16343A',
+  outline: '#2A4448',
+  text: '#EAF4F3',
+  textMuted: '#7FA3A6',
+  textDim: '#4E7276',
+  teal: '#2ED3C4',
+  yellow: '#FFD23F',
+  /** Halo around a speaking badge. */
+  yellowHalo: 'rgba(255, 210, 63, 0.2)',
+  red: '#FF453A',
+  /** Warnings (reconnecting, banners). Same as the watch Theme.amber. */
+  amber: '#FFB020',
+  /** Text and icons on a teal or yellow fill. */
+  onAccent: '#071518',
+} as const;
 
-const lightColors: typeof darkColors = {
-  primary: '#0EA5E9',
-  primaryDark: '#0284C7',
-  primaryLight: 'rgba(14, 165, 233, 0.08)',
-  primaryBorder: 'rgba(14, 165, 233, 0.20)',
-  primaryGlow: 'rgba(14, 165, 233, 0.35)',
-  bg: '#F0F4F8',
-  bgCard: '#FFFFFF',
-  bgCardActive: '#E2E8F0',
-  bgInput: '#FFFFFF',
-  green: '#22C55E',
-  greenLight: 'rgba(34, 197, 94, 0.12)',
-  red: '#EF4444',
-  redLight: 'rgba(239, 68, 68, 0.08)',
-  redGlow: 'rgba(239, 68, 68, 0.30)',
-  amber: '#F59E0B',
-  white: '#FFFFFF',
-  text: '#0F172A',
-  textSecondary: '#64748B',
-  textMuted: '#94A3B8',
-  textDim: '#CBD5E1',
-  cardBorder: 'rgba(0,0,0,0.08)',
-  statusBar: 'dark-content',
+// Legacy token names used by SettingsScreen, mapped onto the Signal palette.
+// No `as const`: values widen to string.
+const darkColors = {
+  primary: signal.teal as string,
+  primaryDark: '#22A89C',
+  primaryLight: 'rgba(46, 211, 196, 0.12)',
+  primaryBorder: 'rgba(46, 211, 196, 0.25)',
+  primaryGlow: 'rgba(46, 211, 196, 0.40)',
+  bg: signal.bg as string,
+  bgCard: signal.surface as string,
+  bgCardActive: signal.surfaceAlt as string,
+  bgInput: signal.surfaceAlt as string,
+  green: signal.teal as string,
+  greenLight: 'rgba(46, 211, 196, 0.15)',
+  red: signal.red as string,
+  redLight: 'rgba(255, 69, 58, 0.12)',
+  redGlow: 'rgba(255, 69, 58, 0.40)',
+  amber: signal.amber as string,
+  white: signal.text as string,
+  text: signal.text as string,
+  textSecondary: signal.textMuted as string,
+  textMuted: signal.textMuted as string,
+  textDim: signal.textDim as string,
+  cardBorder: 'rgba(234, 244, 243, 0.06)',
+  statusBar: 'light-content' as StatusBarStyle,
 };
 
 export type ThemeColors = typeof darkColors;
 export type ThemeMode = 'dark' | 'light';
 
-export function getColors(mode: ThemeMode): ThemeColors {
-  return mode === 'dark' ? darkColors : lightColors;
+/** Kept until HomeScreen is gone (Task 18); ComX has one palette. */
+export function getColors(_mode: ThemeMode): ThemeColors {
+  return darkColors;
 }
 
-// Default export for backward compat (dark mode)
 export const colors = darkColors;
 
-// Legacy aliases
-export const navy = darkColors.bg;
-export const cyan = darkColors.primary;
+// Bundled from assets/fonts (OFL). The family name is the file name, which is
+// also the PostScript name iOS looks up. Never add fontWeight next to these:
+// the weight is part of the family, and Android would fake a bold.
+export const fontFamily = {
+  condensed600: 'BarlowCondensed-SemiBold',
+  condensed700: 'BarlowCondensed-Bold',
+  condensed800: 'BarlowCondensed-ExtraBold',
+  plain500: 'Barlow-Medium',
+  plain600: 'Barlow-SemiBold',
+  plain700: 'Barlow-Bold',
+} as const;
+
+/** Headings, names, distances, button labels: Barlow Condensed, uppercase. */
+export function condensed(size: number, weight: 600 | 700 | 800 = 800, letterSpacing = 0): TextStyle {
+  return {
+    fontFamily: fontFamily[`condensed${weight}` as const],
+    fontSize: size,
+    letterSpacing,
+    textTransform: 'uppercase',
+  };
+}
+
+/** Secondary sentences ("Riding as …", "No GPS", "Voice, 6 s"): Barlow. */
+export function plain(size: number, weight: 500 | 600 | 700 = 600): TextStyle {
+  return {fontFamily: fontFamily[`plain${weight}` as const], fontSize: size};
+}
 
 export const fonts = {
   xs: 11,
