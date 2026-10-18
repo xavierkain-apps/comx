@@ -8,7 +8,6 @@
 #
 #   bundle exec ruby scripts/add-phone-fonts.rb
 
-require "json"
 require "xcodeproj"
 
 ROOT = File.expand_path("..", __dir__)
@@ -36,5 +35,25 @@ fonts.each do |name|
 end
 project.save
 
-system("plutil", "-replace", "UIAppFonts", "-json", JSON.generate(fonts), PLIST_PATH) or abort("plutil failed")
-puts "UIAppFonts: #{fonts.join(', ')}"
+# Info.plist is edited as text (plutil would reorder and reformat the file):
+# add the UIAppFonts array before the final </dict>, or only the missing
+# <string> entries if it is already there. Written only when it changed.
+plist = File.read(PLIST_PATH)
+updated =
+  if (m = plist.match(%r{(<key>UIAppFonts</key>\s*<array>)(.*?)(\n?[ \t]*</array>)}m))
+    listed = m[2].scan(%r{<string>(.*?)</string>}).flatten
+    missing = fonts - listed
+    added = missing.map { |f| "\n\t\t<string>#{f}</string>" }.join
+    missing.empty? ? plist : plist.sub(m[0], "#{m[1]}#{m[2]}#{added}#{m[3]}")
+  else
+    entries = fonts.map { |f| "\t\t<string>#{f}</string>\n" }.join
+    block = "\t<key>UIAppFonts</key>\n\t<array>\n#{entries}\t</array>\n"
+    at = plist.rindex("</dict>") or abort("No </dict> in #{PLIST_PATH}")
+    plist[0...at] + block + plist[at..]
+  end
+if updated == plist
+  puts "UIAppFonts: already lists #{fonts.join(', ')}"
+else
+  File.write(PLIST_PATH, updated)
+  puts "UIAppFonts: #{fonts.join(', ')}"
+end
