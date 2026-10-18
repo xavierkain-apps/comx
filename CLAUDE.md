@@ -8,21 +8,21 @@ touchscreen** (wet screen, water lock).
 
 ## Relationship to SoarX Voice
 
-ComX is built from the SoarX Voice code (React Native + Agora) but is a
+ComX was built from the SoarX Voice code (React Native + Agora) but is a
 **separate app**. The owner does not want SoarX Voice touched.
 
-- Same GitHub repo, `xavierkain-apps/soarx-voice`, branch **`comx`** (this
-  checkout; remote name `org`). Never push to `master`, never run the
-  `iOS — TestFlight` or `Android — Release` workflows from here.
+- Own repository: `xavierkain-apps/comx` (public), default branch `main`,
+  remote `origin`. It started as branch `comx` of `xavierkain-apps/soarx-voice`
+  (history kept); that branch is frozen and SoarX Voice is not touched from
+  here.
+- Secrets live in this repository or at the organisation level (public
+  repositories only, on the GitHub Free plan).
 - Separate identifiers: iOS `com.xavier.comx`, watch
   `com.xavier.comx.watchkitapp` (HealthKit enabled), and the Talk control
   extension `com.xavier.comx.watchkitapp.controls` (target
   `SoarXVoiceWatchControls`, watchOS 26, added by
   `scripts/add-watch-controls-target.rb`). All three are signed by match. Android: `com.xavier.comx` (phone and Wear OS; Kotlin
   namespaces stay `com.soarxvoice`). No Play Console listing yet. Garmin app id `8ac2d628-66c4-40a4-96b0-10061a6d6519`.
-- It stays in the SoarX repo because GitHub secrets (App Store Connect key,
-  match passphrase) cannot be copied: a separate repo means re-supplying them
-  from the original sources.
 - Xcode target names are still `SoarXVoice` / `SoarXVoiceWatch` (internal only).
 
 ## Where things are
@@ -48,9 +48,9 @@ builds locally.** Everything compiles on GitHub Actions:
 
 | Workflow | Builds | Trigger |
 | --- | --- | --- |
-| `watch-ios-build.yml` | iOS app + watch app, simulator, unsigned | push on `comx` |
-| `watch-garmin-build.yml` | Connect IQ `.prg` for 14 devices (artifact `comx-garmin-prg`) | push on `comx` touching `garmin/**` |
-| `watch-android-build.yml` | Phone APK (release build, debug-signed, no Agora App ID: demo mode only) + Wear OS APK, artifacts `comx-phone` / `comx-wear` | push on `comx` |
+| `watch-ios-build.yml` | iOS app + watch app, simulator, unsigned | push / PR on `main` |
+| `watch-garmin-build.yml` | Connect IQ `.prg` for 14 devices (artifact `comx-garmin-prg`) | push / PR on `main` touching `garmin/**`, or manual |
+| `watch-android-build.yml` | Phone APK (release build, debug-signed, no Agora App ID: demo mode only) + Wear OS APK, artifacts `comx-phone` / `comx-wear` | push / PR on `main` |
 | `comx-testflight.yml` | Signed ComX build to TestFlight | tag `comx-v*` |
 
 Local checks that are cheap: `npx tsc --noEmit`, `npx eslint src --quiet`,
@@ -79,8 +79,8 @@ Local checks that are cheap: `npx tsc --noEmit`, `npx eslint src --quiet`,
   Internal TestFlight group "Team" (all builds) with the owner in it.
 - Demo mode (Settings → Demo) gives virtual riders for testing alone; see
   `docs/watch-companion.md`.
-- Next release: bump the tag (`git tag comx-v0.1.1 && git push org comx-v0.1.1`);
-  the build number is read from TestFlight and incremented.
+- Next release: `git tag comx-v0.2.0 && git push origin comx-v0.2.0`; the build
+  number is read from TestFlight and incremented.
 - Signing uses the shared match store (`xavierkain-apps/apple-certs`); see the
   owner's global notes on certificates before touching signing.
 
