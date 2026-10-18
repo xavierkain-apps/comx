@@ -14,6 +14,7 @@ import {Pilot, ConnectionState, ChannelConfig} from '../types';
 import {startForegroundService, stopForegroundService, updateForegroundMuteStatus} from '../services/AndroidForegroundService';
 import {appLog} from '../utils/logger';
 import {utf8Encode, utf8Decode} from '../utils/encoding';
+import {PROTOCOL_VERSION, isOlderRider} from '../ride/protocol';
 
 export type InactivityWarning = null | 'solo' | 'silence';
 
@@ -64,6 +65,17 @@ interface AgoraContextValue {
   micOverride: MicOverride;
   /** Our Agora uid in the current channel, or null when not joined. */
   localUid: number | null;
+  /**
+   * A phone voice memo is recording: the live stream is muted and the mic is
+   * captured at full volume (even in watch mode) for Agora's file recorder.
+   */
+  setMemoCapture: (on: boolean) => void;
+  /** True while a phone memo records (read by the watch's remote-speech recorder). */
+  isMemoCapture: () => boolean;
+  /** Riders whose ComX is older than ours (no group memos for them), not dismissed yet. */
+  olderRiders: {uid: number; name: string}[];
+  /** Hide a rider's "older ComX" banner; it does not come back this session. */
+  dismissOlderRider: (uid: number) => void;
 }
 
 export type MicOverride = 'normal' | 'silenced' | 'open';
@@ -91,6 +103,10 @@ export function AgoraProvider({children}: {children: ReactNode}) {
   const [localUid, setLocalUid] = useState<number | null>(null);
   const micOverrideRef = useRef<MicOverride>('normal');
   const [micOverride, setMicOverrideState] = useState<MicOverride>('normal');
+  const memoCaptureRef = useRef(false);
+  const [olderRiders, setOlderRiders] = useState<{uid: number; name: string}[]>([]);
+  // Riders already warned about in this channel session (once per rider)
+  const olderWarnedRef = useRef<Set<number>>(new Set());
 
   const lastActivityRef = useRef<number>(Date.now());
   const aloneStartRef = useRef<number | null>(null);
@@ -173,15 +189,22 @@ export function AgoraProvider({children}: {children: ReactNode}) {
 
   // Send pilot name to all users in the channel via data stream
   const broadcastName = useCallback((engine: IRtcEngine) => {
-    if (sendJson(engine, {type: 'name', name: pilotNameRef.current})) {
+    if (sendJson(engine, {type: 'name', name: pilotNameRef.current, v: PROTOCOL_VERSION})) {
       console.log('[Agora] Broadcast name:', pilotNameRef.current);
     }
   }, [sendJson]);
 
-  // The stream must stay published while the phone mic is silenced, otherwise
-  // the watch clips mixed into it would never leave the phone.
+  // A memo being recorded always mutes the live stream. Otherwise the mute
+  // button decides, except under a watch override ('silenced' keeps the
+  // stream published at volume 0, 'open' is the Garmin "talk via phone").
   const applyLocalStreamMute = useCallback((engine: IRtcEngine) => {
-    engine.muteLocalAudioStream(micOverrideRef.current === 'normal' ? isMutedRef.current : false);
+    const muted = memoCaptureRef.current || (micOverrideRef.current === 'normal' ? isMutedRef.current : false);
+    engine.muteLocalAudioStream(muted);
+  }, []);
+
+  // Watch mode captures the mic at volume 0 (pouch); a phone memo needs it back.
+  const applyRecordingVolume = useCallback((engine: IRtcEngine) => {
+    engine.adjustRecordingSignalVolume(!memoCaptureRef.current && micOverrideRef.current === 'silenced' ? 0 : 100);
   }, []);
 
   const initEngine = useCallback(async () => {
@@ -258,6 +281,11 @@ export function AgoraProvider({children}: {children: ReactNode}) {
           if (!announcedUidsRef.current.has(remoteUid)) {
             announcedUidsRef.current.add(remoteUid);
             speak(`${msg.name} joined`);
+          }
+          if (isOlderRider(msg) && !olderWarnedRef.current.has(remoteUid)) {
+            olderWarnedRef.current.add(remoteUid);
+            appLog('Agora', `${msg.name} uses protocol ${typeof msg.v === 'number' ? msg.v : 1}`);
+            setOlderRiders(prev => [...prev, {uid: remoteUid, name: String(msg.name)}]);
           }
           setRemotePilots(prev => {
             const updated = prev.map(p => p.uid === remoteUid ? {...p, name: msg.name} : p);
@@ -441,6 +469,8 @@ export function AgoraProvider({children}: {children: ReactNode}) {
     isMutedRef.current = false;
     dataStreamIdRef.current = null;
     announcedUidsRef.current.clear();
+    olderWarnedRef.current.clear();
+    setOlderRiders([]);
 
     const engine = await initEngine();
 
@@ -508,10 +538,13 @@ export function AgoraProvider({children}: {children: ReactNode}) {
     isMutedRef.current = false;
     dataStreamIdRef.current = null;
     announcedUidsRef.current.clear();
+    olderWarnedRef.current.clear();
+    setOlderRiders([]);
     audioInterruptedRef.current = false;
     setIsPausedForVideo(false);
     micOverrideRef.current = 'normal';
     setMicOverrideState('normal');
+    memoCaptureRef.current = false;
     setLocalUid(null);
     appLog('Agora', 'leaveChannel() END');
   }, [stopInactivityTimer]);
@@ -608,10 +641,26 @@ export function AgoraProvider({children}: {children: ReactNode}) {
     setMicOverrideState(mode);
     const engine = engineRef.current;
     if (!engine) return;
-    engine.adjustRecordingSignalVolume(mode === 'silenced' ? 0 : 100);
+    applyRecordingVolume(engine);
     applyLocalStreamMute(engine);
     appLog('Agora', `phone mic override: ${mode}`);
-  }, [applyLocalStreamMute]);
+  }, [applyLocalStreamMute, applyRecordingVolume]);
+
+  const setMemoCapture = useCallback((on: boolean) => {
+    if (memoCaptureRef.current === on) return;
+    memoCaptureRef.current = on;
+    const engine = engineRef.current;
+    if (!engine) return;
+    applyRecordingVolume(engine);
+    applyLocalStreamMute(engine);
+    appLog('Agora', `memo capture ${on ? 'on' : 'off'}`);
+  }, [applyLocalStreamMute, applyRecordingVolume]);
+
+  const isMemoCapture = useCallback(() => memoCaptureRef.current, []);
+
+  const dismissOlderRider = useCallback((uid: number) => {
+    setOlderRiders(prev => prev.filter(r => r.uid !== uid));
+  }, []);
 
   const sendStreamJson = useCallback((msg: object): boolean => {
     const engine = engineRef.current;
@@ -743,6 +792,10 @@ export function AgoraProvider({children}: {children: ReactNode}) {
         setMicOverride,
         micOverride,
         localUid,
+        setMemoCapture,
+        isMemoCapture,
+        olderRiders,
+        dismissOlderRider,
       }}>
       {children}
     </AgoraContext.Provider>
