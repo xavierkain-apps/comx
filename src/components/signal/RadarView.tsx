@@ -61,8 +61,30 @@ function Ring({centre, radius, label}: {centre: Point; radius: number; label: st
   );
 }
 
+interface BadgeProps {
+  rider: RiderView;
+  x: number;
+  y: number;
+}
+
+/** Riders are rebuilt every tick, so compare only what a badge draws. */
+function sameBadge(a: BadgeProps, b: BadgeProps): boolean {
+  const r = a.rider;
+  const s = b.rider;
+  return (
+    a.x === b.x &&
+    a.y === b.y &&
+    r.uid === s.uid &&
+    r.name === s.name &&
+    r.sos === s.sos &&
+    r.speaking === s.speaking &&
+    r.stale === s.stale &&
+    shortDistance(r.dist) === shortDistance(s.dist)
+  );
+}
+
 /** Takes x and y (not a Point) so the memo holds across layouts that keep a badge in place. */
-const Badge = memo(function Badge({rider, x, y}: {rider: RiderView; x: number; y: number}) {
+const Badge = memo(function Badge({rider, x, y}: BadgeProps) {
   const d = rider.sos ? BADGE + SOS_GROWTH : BADGE;
   const fill = rider.sos ? signal.red : rider.speaking ? signal.yellow : signal.teal;
   const halo = rider.speaking && !rider.sos;
@@ -87,7 +109,7 @@ const Badge = memo(function Badge({rider, x, y}: {rider: RiderView; x: number; y
       <Text style={styles.badgeDistance}>{shortDistance(rider.dist)}</Text>
     </View>
   );
-});
+}, sameBadge);
 
 const styles = StyleSheet.create({
   ring: {
