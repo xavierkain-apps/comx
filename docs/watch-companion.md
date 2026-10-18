@@ -23,8 +23,11 @@ Voice from a watch is **walkie-talkie style**, not a live call:
 1. The rider presses the talk button, speaks, presses again (or releases).
 2. The watch records an AAC clip (mono, 16 kHz, ≤ 30 s) and sends the file
    to the phone.
-3. The phone plays the clip **into the channel** (`startAudioMixing`, not
-   heard locally). Phone users hear it live; watch users get it as a clip.
+3. The phone sends it as a **voice memo** over the Agora data stream (`vc`
+   messages, below) to the group or to one rider. Every receiving phone plays
+   it (unless it is in watch mode), forwards it to its watch and keeps it in
+   its history. Since protocol version 2 it is no longer mixed into the live
+   audio.
 
 Hearing on a watch:
 
@@ -40,8 +43,7 @@ watchOS SDK, and Garmin apps have no microphone access. Clips work the same
 on every platform and survive a flaky link.
 
 In **watch mode** the phone mic is silenced (`adjustRecordingSignalVolume(0)`)
-because it sits in a pouch; the stream stays published so injected clips go
-out.
+because it sits in a pouch.
 
 ### Garmin
 
@@ -74,14 +76,14 @@ JSON, UTF-8 (see `src/utils/encoding.ts`), each message < 1 KB.
 
 | `type` | Fields | When |
 | --- | --- | --- |
-| `name` | `name` | Existing. On join and when someone joins |
+| `name` | `name`, `v` (protocol version, 2) | On join and when someone joins. No `v` or `v < 2`: the rider runs an older ComX (banner) |
 | `pos` | `lat`, `lon`, `cog` (deg true or `null`), `sog` (m/s or `null`), `acc` (m), `t` (epoch ms) | Every 3 s while in a channel |
 | `text` | `id` (quick message id or `custom`), `text` | Quick message sent |
 | `sos` | `active` (bool), `lat`, `lon` | SOS raised or cancelled |
 
 ## Phone ↔ watch
 
-All payloads are JSON strings. Version field `v: 1`.
+All payloads are JSON strings. Version field `v` (currently 2; watches ignore it).
 
 ### Phone → watch: state (latest wins)
 
@@ -210,37 +212,57 @@ ComX is the standalone app built from this code: a **friend compass** first
 second. Everything must be usable **without the touchscreen** (wet screen,
 water lock).
 
-### Targeted voice messages
+### Voice memos (protocol version 2)
 
-A watch clip may be addressed to the whole group (default, unchanged: played
-live into the channel) or to **one rider**. Clip metadata from the watch gains
-`to`:
+A memo goes to the whole group or to **one rider**. It is recorded on the
+watch (clip metadata `to`) or on the phone (MEMO button: tap to record, the
+live microphone is muted meanwhile, tap again to send to the group, or tap a
+rider row to send to that rider only; 30 s at most).
 
 ```json
-{"v": 1, "kind": "clip", "durationMs": 3100, "to": 12345}
+{"v": 2, "kind": "clip", "durationMs": 3100, "to": 12345}
 ```
 
-`to` absent or `null` = group. A targeted clip is not mixed into the channel:
-the phone sends the file over the Agora data stream to that rider only
-(`vc` messages below), whose phone forwards it to its watch (`sendClip` with
-`"private": true` in the metadata) or plays it on its own headphones.
+`to` absent, `null` or `0` = group. The phone sends the file over the Agora
+data stream, sliced (`src/ride/voiceClips.ts`); `to: 0` addresses every rider
+(Agora never assigns uid 0), any other value one rider. Receiving phones play
+it (not in watch mode), forward it to their watch (`sendClip` with
+`"private": true` for a private memo) and keep it in the MSG history (30 items,
+10 memos, for the app's run). Phone memos are recorded with Agora's own file
+recorder (`startAudioRecording`, `AudioFileRecordingMic`) while the live
+stream is muted.
 
 Phone ↔ phone, chunked over the data stream (each message < 1 KB):
 
 | `type` | Fields |
 | --- | --- |
-| `vc` | `id` (clip id), `to` (uid), `seq` (0-based), `n` (chunk count), `d` (base64 slice, ≤ 600 chars), `ms` (duration, on chunk 0), `ext` (`m4a` / `aac`, on chunk 0) |
+| `vc` | `id` (clip id), `to` (uid, or `0` for the group), `seq` (0-based), `n` (chunk count), `d` (base64 slice, ≤ 600 chars), `ms` (duration, on chunk 0), `ext` (`m4a` / `aac`, on chunk 0) |
 
-Watches should record voice at **16 kbit/s AAC** so a 10 s message is about
-20 KB and crosses the data stream in a few seconds.
+Slices go out every 150 ms: about 7 s for 10 s of voice at 16 kbit/s.
+
+**Older riders** (protocol version 1) ignore `to: 0` slices, so they do not
+get group memos; their own watch group clips are still mixed into the live
+audio, which new phones hear. The `name` message now carries `v`; a rider
+whose `name` has no `v` or `v < 2` gets an amber "<name> uses an older ComX"
+banner on the live screen, once per rider per session. Every rider should run
+the same ComX.
+
+**Follow-up (transfer time).** A 30 s memo takes about 20 s to send: 600
+base64 characters every 150 ms is 4 KB/s. Agora's data stream allows about
+30 packets/s and 6 KB/s, so there is about 40 % headroom (for example 800
+characters per slice, as long as each JSON message stays under 1 KB). The real
+lever is the AAC bitrate of the clips (watch and phone recorders): halving it
+halves the transfer time.
 
 ### New bridge methods
 
 | Method | Purpose |
 | --- | --- |
-| `readClipBase64(path): Promise<string>` | Read a clip file as base64 (to send it over the data stream) |
+| `readClipBase64(path): Promise<string>` | Read a clip file as base64 (to send it as a memo) |
 | `writeClip(base64, ext): Promise<string>` | Write a received clip to `getClipDir()` and return its absolute path |
 | `selectGarminDevices(): Promise<void>` | iOS only: open Garmin Connect so the user picks the Garmin watches ComX may talk to (Connect IQ iOS SDK device selection). Resolves immediately on Android, where devices are discovered automatically |
+
+Both exist on iOS and Android.
 
 ### Compass focus
 
