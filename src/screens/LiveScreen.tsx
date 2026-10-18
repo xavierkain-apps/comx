@@ -53,7 +53,7 @@ export function LiveScreen({onLeft}: LiveScreenProps) {
   // The radar fills what the sheet leaves at rest, a little under its rounded top
   const radarHeight = height - detents.medium + 28;
 
-  // Audio warning for the silence timeout (unchanged from VoiceScreen)
+  // Audio warning for the silence timeout, vibration only when alone
   useEffect(() => {
     if (inactivityWarning === 'silence' && !audioPlayedRef.current) {
       audioPlayedRef.current = true;
