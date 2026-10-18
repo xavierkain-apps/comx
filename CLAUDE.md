@@ -61,6 +61,9 @@ Local checks that are cheap: `npx tsc --noEmit`, `npx eslint src --quiet`,
 - All CI builds green. Latest TestFlight: **0.1 (7)**, tag `comx-v0.1.6`.
   The Action button only works through the Talk *control* (watchOS 26):
   the App Shortcut route opened the app without running the intent.
+  **Verified on the owner's Ultra 2, water lock on and off.** Double tap does
+  not work on that watch at all (not even in Apple apps); the owner does not
+  want to rely on it.
   Apple Watch tested by the owner (Ultra 2, watchOS 26.6): demo mode works;
   the crown never reached `.focusable` + `.digitalCrownRotation` views on the
   device (the system went back to the watch face), so the compass now pages
