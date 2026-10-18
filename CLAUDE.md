@@ -56,9 +56,15 @@ Local checks that are cheap: `npx tsc --noEmit`, `npx eslint src --quiet`,
 
 ## Status (2026-10-17)
 
-- All CI builds green. First TestFlight build sent: **0.1 (1)**, tag
-  `comx-v0.1.0`, distributed to internal testers. **Not yet tested on a real
-  device.**
+- All CI builds green. Latest TestFlight: **0.1 (4)**, tag `comx-v0.1.3`.
+  Apple Watch tested by the owner (Ultra 2, watchOS 26.6): demo mode works;
+  the crown never reached `.focusable` + `.digitalCrownRotation` views on the
+  device (the system went back to the watch face), so the compass now pages
+  riders with a vertical page TabView (build 4, not yet confirmed on device).
+- Android: phone and Wear OS APKs launch without crash on emulators (demo
+  mode OK on the phone); phone ↔ Wear pairing not tested yet.
+- A local Claude session on the owner's Mac runs iOS / Android simulators
+  (Xcode, AVDs `Medium_Phone_API_36.1`, `ComX_Wear`).
 - App Store Connect record exists (`com.xavier.comx`, name "ComX Rider").
   Internal TestFlight group "Team" (all builds) with the owner in it.
 - Demo mode (Settings → Demo) gives virtual riders for testing alone; see
