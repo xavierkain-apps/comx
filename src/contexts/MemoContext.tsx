@@ -1,8 +1,8 @@
 // Voice memos. Recorded on this phone (MEMO button) or on the watch, sent to
 // the group (`to: 0`) or to one rider over the Agora data stream
 // (src/ride/voiceClips.ts). Received memos play on this phone (not in watch
-// mode: the phone is in a pouch), go to an active Apple Watch / Wear OS watch
-// and into the history (RideContext messages, replayable).
+// mode with a voice watch: the phone is in a pouch), go to an active Apple
+// Watch / Wear OS watch and into the history (RideContext messages, replayable).
 
 import React, {createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, ReactNode} from 'react';
 import {Vibration} from 'react-native';
@@ -45,7 +45,7 @@ const FILE_SETTLE_MS = 400;
 interface MemoContextValue {
   /** The phone is recording a memo. */
   recording: boolean;
-  /** Seconds left before the memo goes to the group by itself. */
+  /** Seconds left before the memo goes by itself to the selected recipient (the group by default). */
   secondsLeft: number;
   /** A memo can be recorded (in a channel). */
   canRecord: boolean;

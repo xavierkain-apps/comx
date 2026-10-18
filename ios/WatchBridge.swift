@@ -295,8 +295,8 @@ final class WatchHub: NSObject, WCSessionDelegate {
     }
   }
 
-  /// Received clips are only needed until JS has injected them into the
-  /// channel; keep the inbox from growing without bound.
+  /// Received clips are only needed until JS has read them and sent them as
+  /// memos; keep the inbox from growing without bound.
   static func pruneInbox(keep: Int = 30) {
     let fm = FileManager.default
     guard let files = try? fm.contentsOfDirectory(at: inboxDir, includingPropertiesForKeys: [.creationDateKey]) else { return }

@@ -55,9 +55,9 @@ interface AgoraContextValue {
   getEngine: () => IRtcEngine | null;
   /**
    * Override the phone microphone for watch use:
-   * - 'silenced': mic captured at volume 0 but the stream stays published, so
-   *   audio mixed in (watch voice clips) still reaches the channel. The phone
-   *   sits in a waterproof pouch.
+   * - 'silenced': mic captured at volume 0 (the stream stays published): the
+   *   phone sits in a waterproof pouch and the watch is the microphone. A
+   *   phone memo brings the capture back to full volume (setMemoCapture).
    * - 'open': mic published even if the user muted (talk via phone from a Garmin).
    * - 'normal': the mute button decides.
    */
