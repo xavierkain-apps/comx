@@ -116,27 +116,6 @@ export function LiveScreen({onLeft}: LiveScreenProps) {
         <Text style={styles.arrowMode}>{arrowMode === 'north' ? 'N ↑' : 'COG ↑'}</Text>
       </TouchableOpacity>
 
-      <View style={[styles.banners, {top: insets.top + 64}]} pointerEvents="box-none">
-        {memo.recording && (
-          <Banner tone="red" text={`${memo.targetLabel} · ${memo.secondsLeft} s. Tap a rider to pick them, MEMO sends.`} />
-        )}
-        {inactivityWarning && (
-          <Banner
-            text={
-              inactivityWarning === 'solo'
-                ? `You're alone. Disconnecting in ${formatCountdown(warningSecondsLeft)}`
-                : `No activity. Disconnecting in ${formatCountdown(warningSecondsLeft)}`
-            }
-            action={{label: 'STAY', onPress: dismissWarning}}
-          />
-        )}
-        {isInterrupted && <Banner text="Call in progress: your mic is paused, you're still in the channel" />}
-        {locationDenied && <Banner text="Location is off: others can't see where you are." />}
-        {olderRiders.map(r => (
-          <Banner key={r.uid} text={`${r.name} uses an older ComX`} action={{label: 'OK', onPress: () => dismissOlderRider(r.uid)}} />
-        ))}
-      </View>
-
       <BottomSheet
         detents={detents}
         bottomPad={bottomPad}
@@ -167,6 +146,28 @@ export function LiveScreen({onLeft}: LiveScreenProps) {
           ))
         )}
       </BottomSheet>
+
+      {/* After the sheet so its large detent never covers them */}
+      <View style={[styles.banners, {top: insets.top + 64}]} pointerEvents="box-none">
+        {memo.recording && (
+          <Banner tone="red" text={`${memo.targetLabel} · ${memo.secondsLeft} s. Tap a rider to pick them, MEMO sends.`} />
+        )}
+        {inactivityWarning && (
+          <Banner
+            text={
+              inactivityWarning === 'solo'
+                ? `You're alone. Disconnecting in ${formatCountdown(warningSecondsLeft)}`
+                : `No activity. Disconnecting in ${formatCountdown(warningSecondsLeft)}`
+            }
+            action={{label: 'STAY', onPress: dismissWarning}}
+          />
+        )}
+        {isInterrupted && <Banner text="Call in progress: your mic is paused, you're still in the channel" />}
+        {locationDenied && <Banner text="Location is off: others can't see where you are." />}
+        {olderRiders.map(r => (
+          <Banner key={r.uid} text={`${r.name} uses an older ComX`} action={{label: 'OK', onPress: () => dismissOlderRider(r.uid)}} />
+        ))}
+      </View>
 
       <MsgSheet visible={msgOpen} onClose={() => setMsgOpen(false)} onLeave={leave} />
     </View>
