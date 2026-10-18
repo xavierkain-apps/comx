@@ -1,4 +1,4 @@
-import React from 'react';
+import React, {memo, useMemo} from 'react';
 import {StyleSheet, Text, View} from 'react-native';
 import {RiderView} from '../../ride/protocol';
 import {Point, initials, layoutRadar, point, ringDistance, shortDistance} from '../../radar/radar';
@@ -23,9 +23,9 @@ interface RadarViewProps {
 }
 
 /** Every rider on one radar, me in the centre (watch OverviewPage). */
-export function RadarView({riders, heading, myCourse, width, height}: RadarViewProps) {
-  const layout = layoutRadar(riders, width, height, heading, BADGE);
-  const byUid = new Map(riders.map(r => [r.uid, r]));
+export const RadarView = memo(function RadarView({riders, heading, myCourse, width, height}: RadarViewProps) {
+  const layout = useMemo(() => layoutRadar(riders, width, height, heading, BADGE), [riders, width, height, heading]);
+  const byUid = useMemo(() => new Map(riders.map(r => [r.uid, r])), [riders]);
   const {centre, radius} = layout;
   return (
     <View style={{width, height}} pointerEvents="none">
@@ -39,11 +39,11 @@ export function RadarView({riders, heading, myCourse, width, height}: RadarViewP
       </View>
       {layout.spots.map(s => {
         const rider = byUid.get(s.uid);
-        return rider ? <Badge key={s.uid} rider={rider} at={s} /> : null;
+        return rider ? <Badge key={s.uid} rider={rider} x={s.x} y={s.y} /> : null;
       })}
     </View>
   );
-}
+});
 
 function Ring({centre, radius, label}: {centre: Point; radius: number; label: string}) {
   // Label at the bottom right of the ring, where N rarely is.
@@ -61,12 +61,13 @@ function Ring({centre, radius, label}: {centre: Point; radius: number; label: st
   );
 }
 
-function Badge({rider, at}: {rider: RiderView; at: Point}) {
+/** Takes x and y (not a Point) so the memo holds across layouts that keep a badge in place. */
+const Badge = memo(function Badge({rider, x, y}: {rider: RiderView; x: number; y: number}) {
   const d = rider.sos ? BADGE + SOS_GROWTH : BADGE;
   const fill = rider.sos ? signal.red : rider.speaking ? signal.yellow : signal.teal;
   const halo = rider.speaking && !rider.sos;
   return (
-    <View style={[styles.badgeBox, {left: at.x - d / 2 - HALO, top: at.y - d / 2 - HALO, opacity: rider.stale ? 0.4 : 1}]}>
+    <View style={[styles.badgeBox, {left: x - d / 2 - HALO, top: y - d / 2 - HALO, opacity: rider.stale ? 0.4 : 1}]}>
       <View
         style={[
           styles.halo,
@@ -86,7 +87,7 @@ function Badge({rider, at}: {rider: RiderView; at: Point}) {
       <Text style={styles.badgeDistance}>{shortDistance(rider.dist)}</Text>
     </View>
   );
-}
+});
 
 const styles = StyleSheet.create({
   ring: {
