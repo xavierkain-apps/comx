@@ -172,8 +172,9 @@ export function MemoProvider({children}: {children: ReactNode}) {
         });
       }
     }
-    // Decision 3: in watch mode the phone sits in a pouch, the watch plays it
-    if (!live.current.watchMode) play(clip);
+    // Decision 3: in watch mode the phone sits in a pouch, the watch plays it.
+    // Without a voice watch (Garmin only, or none linked) the phone still does.
+    if (!live.current.watchMode || !live.current.voiceWatch) play(clip);
   }, [logMessage, nameOf, play]);
 
   const assemblerRef = useRef(new ClipAssembler());
