@@ -89,7 +89,7 @@ Payload notes for the JS side:
 | Double tap (watchOS 11+, Series 9 / Ultra 2 and later) | Start talking **to the group** | Stop and send to the chosen recipient |
 | Action button (Ultra, watchOS 26+), assigned to the *Talk* control | Start talking **to the group**, also from the watch face (opens ComX) | Stop and send to the chosen recipient |
 | Action button, assigned to *Workout > ComX* | Starts the session | — |
-| Touch (fallback) | Talk page: swipe down from the overview radar, one big round TALK button; swipe left/right for Riders and Messages; tap a rider in the list to put it on the compass | Tap SEND; tap the "To:" label to cycle recipients |
+| Touch (fallback) | Talk page: swipe down from the overview radar, one big round TALK button; swipe left/right for Riders and Messages; tap a rider in the list to put it on the compass | Tap the SEND circle; swipe up or down (or turn the crown) to change recipient |
 
 Why this mapping: talk must default to the group with nothing to choose, so a
 private message needs a deliberate extra step. Turning the crown *while
@@ -112,7 +112,7 @@ riders without a position are listed under the radar ("M ?"). The overview
 and the rider pages are full screen, without a talk button (the status line
 is drawn over the radar). Talking by touch is on its own page, above the
 overview: swipe down from the radar. While recording, the recipient pages
-keep a SEND button. The double tap shortcut is attached to the visible talk
+show the red SEND circle. The double tap shortcut is attached to the visible talk
 button, so it only works on the talk page and while recording. There are no profile pictures: the phone does not send
 any (a picture does not fit the 1 KB data stream messages). The crown then goes through
 the riders, one page each. A rider whose SOS started after your last crown
@@ -147,9 +147,10 @@ teal-black background, teal for riders and Talk, yellow when someone speaks,
 red for SOS, the system font's condensed width in uppercase for names,
 distances and labels. Palette and type helpers: `Theme.swift`.
 
-- **Compass** (first page): the focused rider big (name, arrow, distance,
-  position `2/5`), who is speaking, and a wide TALK button. Tap to start, tap
-  again to stop and send; auto-stops at 30 s. AAC `.m4a`, mono, 16 kHz,
+- **Compass**: opens on the overview radar. The talk page above it (swipe
+  down / crown up) has one round TALK circle (red SEND n while recording);
+  rider pages have no talk button; a wide TALK capsule only appears when there
+  are no riders yet. Tap to start, tap again to stop and send; auto-stops at 30 s. AAC `.m4a`, mono, 16 kHz,
   16 kbit/s, `AVAudioRecorder`. Haptics: `start`, `stop`, then `success` once
   handed to WatchConnectivity (not a delivery receipt). Clips under 0.3 s are
   discarded as mis-taps. See the input mapping above.
