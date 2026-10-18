@@ -898,12 +898,20 @@ struct BannerView: View {
 
   var body: some View {
     VStack(alignment: .leading, spacing: 0) {
-      Text(banner.title).font(.system(size: 14, weight: .bold)).foregroundStyle(.yellow)
-      Text(banner.body).font(.system(size: 20, weight: .heavy)).lineLimit(2).minimumScaleFactor(0.7)
+      Text(banner.title)
+        .font(.condensed(13, .bold))
+        .tracking(1)
+        .textCase(.uppercase)
+      Text(banner.body)
+        .font(.condensed(20))
+        .textCase(.uppercase)
+        .lineLimit(2)
+        .minimumScaleFactor(0.7)
     }
+    .foregroundStyle(Theme.onAccent)
     .frame(maxWidth: .infinity, alignment: .leading)
     .padding(8)
-    .background(RoundedRectangle(cornerRadius: 12).fill(Color(white: 0.15)))
+    .background(RoundedRectangle(cornerRadius: 14).fill(Theme.yellow))
   }
 }
 
@@ -913,21 +921,30 @@ struct SOSAlertView: View {
 
   var body: some View {
     VStack(spacing: 2) {
-      Text("SOS \(alert.from)")
-        .font(.system(size: 20, weight: .heavy))
+      Text("SOS · \(alert.from)")
+        .font(.condensed(22))
+        .textCase(.uppercase)
         .lineLimit(1)
         .minimumScaleFactor(0.6)
-      DirectionArrow(angle: model.arrowAngle(bearing: alert.brg), color: .white)
+      DirectionArrow(angle: model.arrowAngle(bearing: alert.brg), color: Theme.text)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .padding(4)
       Text(Format.distance(alert.dist))
-        .font(.system(size: 30, weight: .heavy, design: .rounded))
-      Button("Dismiss") { model.dismissSOSAlert() }
-        .tint(.black)
+        .font(.condensed(40))
+        .textCase(.uppercase)
+      Button { model.dismissSOSAlert() } label: {
+        Text("Dismiss")
+          .font(.condensed(18))
+          .textCase(.uppercase)
+          .foregroundStyle(Theme.text)
+          .frame(maxWidth: .infinity, minHeight: 44)
+          .background(Capsule().fill(Theme.onAccent.opacity(0.35)))
+      }
+      .buttonStyle(.plain)
     }
-    .foregroundStyle(.white)
+    .foregroundStyle(Theme.text)
     .padding(6)
     .frame(maxWidth: .infinity, maxHeight: .infinity)
-    .background(Color.red.ignoresSafeArea())
+    .background(Theme.red.ignoresSafeArea())
   }
 }
