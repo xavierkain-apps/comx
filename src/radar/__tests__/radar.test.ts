@@ -103,6 +103,23 @@ describe('layoutRadar', () => {
     expect(l.innerRadius).toBeCloseTo(126 * Math.sqrt(20 / 50));
   });
 
+  it('leaves riders with a NaN distance or an undefined bearing unplaced', () => {
+    const bad = [
+      {uid: 1, dist: 900, brg: 0},
+      {uid: 4, dist: NaN, brg: 90},
+      {uid: 5, dist: 300, brg: undefined as unknown as number | null},
+    ];
+    const l = layoutRadar(bad, 300, 300, 0, 44);
+    expect(l.unplaced).toEqual([4, 5]);
+    expect(l.spots.map(s => s.uid)).toEqual([1]);
+    expect(l.farthest).toBe(900);
+    expect(Number.isFinite(l.innerRadius as number)).toBe(true);
+    l.spots.forEach(s => {
+      expect(Number.isFinite(s.x)).toBe(true);
+      expect(Number.isFinite(s.y)).toBe(true);
+    });
+  });
+
   it('uses the 50 m floor when nobody has a position', () => {
     const l = layoutRadar([{uid: 3, dist: null, brg: null}], 300, 300, 0, 44);
     expect(l.farthest).toBe(50);

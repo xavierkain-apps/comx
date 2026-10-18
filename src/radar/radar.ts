@@ -125,14 +125,19 @@ export interface RadarLayout {
   north: Point;
 }
 
+/** A rider goes on the radar only with a finite distance and bearing. */
+function isPlaced(r: RadarRider): boolean {
+  return r.dist != null && r.brg != null && Number.isFinite(r.dist) && Number.isFinite(r.brg);
+}
+
 /**
  * Lays out every rider in a `width` × `height` box. `heading` is the true
  * bearing at the top of the screen (0 = north up). `badge` is the badge
  * diameter (44 on the phone, 34 on the watch).
  */
 export function layoutRadar(riders: RadarRider[], width: number, height: number, heading: number, badge: number): RadarLayout {
-  const placed = riders.filter(r => r.dist !== null && r.brg !== null);
-  const unplaced = riders.filter(r => r.dist === null || r.brg === null).map(r => r.uid);
+  const placed = riders.filter(isPlaced);
+  const unplaced = riders.filter(r => !isPlaced(r)).map(r => r.uid);
   const farthest = Math.max(Math.max(0, ...placed.map(r => r.dist as number)), MIN_FARTHEST_M);
   const size = Math.min(width, height);
   // The farthest badge sits on the edge ring, inside the box.

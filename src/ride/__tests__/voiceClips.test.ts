@@ -76,6 +76,22 @@ describe('group clips', () => {
     a.add(2, p0, 0);
     expect(a.size).toBe(2);
   });
+
+  it('keeps a group clip and a private clip from the same sender with the same id apart', () => {
+    const a = new ClipAssembler();
+    const group = splitClip(clip, 'x', GROUP_UID, 1000, 'aac');
+    const priv = splitClip(clip.replace(/A/g, 'B'), 'x', 42, 2000, 'm4a');
+    a.add(1, group[0], 0);
+    a.add(1, priv[0], 0);
+    expect(a.size).toBe(2);
+    a.add(1, group[1], 1);
+    expect(a.add(1, group[2], 2)).toEqual({id: 'x', fromUid: 1, base64: clip, durationMs: 1000, ext: 'aac'});
+    a.add(1, priv[1], 3);
+    expect(a.add(1, priv[2], 4)).toEqual({
+      id: 'x', fromUid: 1, base64: clip.replace(/A/g, 'B'), durationMs: 2000, ext: 'm4a',
+    });
+    expect(a.size).toBe(0);
+  });
 });
 
 describe('isClipForMe', () => {

@@ -74,13 +74,13 @@ interface Pending {
   lastAt: number;
 }
 
-/** Collects slices per (sender, clip id) and returns the clip once complete. */
+/** Collects slices per (sender, recipient, clip id) and returns the clip once complete. */
 export class ClipAssembler {
   private pending = new Map<string, Pending>();
 
   add(fromUid: number, chunk: VoiceChunk, now: number): AssembledClip | null {
     this.expire(now);
-    const key = `${fromUid}:${chunk.id}`;
+    const key = `${fromUid}:${chunk.to}:${chunk.id}`;
     let p = this.pending.get(key);
     if (!p) {
       p = {fromUid, parts: new Array(chunk.n), received: 0, durationMs: 0, ext: 'm4a', lastAt: now};
