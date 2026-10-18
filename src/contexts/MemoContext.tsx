@@ -98,17 +98,26 @@ export function MemoProvider({children}: {children: ReactNode}) {
   const queueRef = useRef<HistoryClip[]>([]);
   const playingRef = useRef(false);
   const fallbackRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const currentPathRef = useRef<string | null>(null);
+  // Each playback has a number; callbacks of an older one are ignored, so the
+  // queue never advances twice for one clip.
+  const seqRef = useRef(0);
+  // The current playback when Agora mixes it. `playing` once Agora said it
+  // started, so a late "stopped" from the previous file is not taken for it.
+  const mixingRef = useRef<{seq: number; path: string; playing: boolean} | null>(null);
 
   const playNext = useCallback(async () => {
     if (fallbackRef.current) {
       clearTimeout(fallbackRef.current);
       fallbackRef.current = null;
     }
+    mixingRef.current = null;
+    const seq = ++seqRef.current;
+    const done = () => {
+      if (seq === seqRef.current) playNext();
+    };
     const clip = queueRef.current.shift();
     if (!clip) {
       playingRef.current = false;
-      currentPathRef.current = null;
       return;
     }
     playingRef.current = true;
@@ -116,38 +125,42 @@ export function MemoProvider({children}: {children: ReactNode}) {
     const path = await WatchBridge.writeClip(clip.base64, clip.ext);
     if (!path) {
       appLog('Memo', 'cannot write the memo for playback');
-      playNext();
+      done();
       return;
     }
-    currentPathRef.current = path;
     const engine = getEngine();
     if (engine && live.current.connected) {
       // Loopback: heard on this phone only, not sent to the channel
       const ret = engine.startAudioMixing(path, true, 1);
       appLog('Memo', `play ${path} (${clip.durationMs} ms) ret=${ret}`);
       if (ret === 0) {
+        mixingRef.current = {seq, path, playing: false};
         // Never get stuck if the mixing-finished callback does not come
-        fallbackRef.current = setTimeout(playNext, Math.max(clip.durationMs, 1000) + 2000);
+        fallbackRef.current = setTimeout(done, Math.max(clip.durationMs, 1000) + 2000);
         return;
       }
     }
-    playWithSound(path, playNext);
+    playWithSound(path, done);
   }, [getEngine]);
 
   useEffect(() => {
     const engine = getEngine();
     if (!engine || !connected) return;
     const onMixing = (state: AudioMixingStateType) => {
-      if (!playingRef.current) return;
-      if (state === AudioMixingStateType.AudioMixingStateStopped) {
-        playNext();
+      const mixing = mixingRef.current;
+      if (!mixing || mixing.seq !== seqRef.current) return;
+      if (state === AudioMixingStateType.AudioMixingStatePlaying) {
+        mixing.playing = true;
+      } else if (state === AudioMixingStateType.AudioMixingStateStopped) {
+        if (mixing.playing) playNext();
       } else if (state === AudioMixingStateType.AudioMixingStateFailed) {
         // Agora could not open the file: same file, plain player
         if (fallbackRef.current) clearTimeout(fallbackRef.current);
         fallbackRef.current = null;
-        const path = currentPathRef.current;
-        if (path) playWithSound(path, playNext);
-        else playNext();
+        mixingRef.current = null;
+        playWithSound(mixing.path, () => {
+          if (mixing.seq === seqRef.current) playNext();
+        });
       }
     };
     engine.addListener('onAudioMixingStateChanged', onMixing);
