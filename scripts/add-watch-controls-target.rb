@@ -1,7 +1,8 @@
 #!/usr/bin/env ruby
 # frozen_string_literal: true
 
-# Adds the watchOS 26 controls extension (SoarXVoiceWatchControls) to
+# Adds the WidgetKit extension (SoarXVoiceWatchControls: complication and
+# watchOS 26 controls) to
 # ios/SoarXVoice.xcodeproj and embeds it in the watch app. Idempotent. Run
 # scripts/add-watch-target.rb first: the watch target must exist.
 #
@@ -10,7 +11,10 @@
 #
 # What it does:
 #   1. Creates the SoarXVoiceWatchControls target: a WidgetKit extension
-#      (watchOS 26+), bundle id com.xavier.comx.watchkitapp.controls. Every
+#      (watchOS 10+, like the watch app, so older watches get the complication
+#      and the extension never gets in the way of installing the app; the
+#      control itself is gated to watchOS 26 in code), bundle id
+#      com.xavier.comx.watchkitapp.controls. Every
 #      *.swift in ios/SoarXVoiceWatchControls is compiled, plus the intents
 #      shared with the watch app (SHARED_FILES), with COMX_CONTROLS_EXTENSION
 #      defined so their app-only code is left out.
@@ -30,7 +34,7 @@ WATCH_DIR = "SoarXVoiceWatch" # relative to ios/
 EXT_TARGET = "SoarXVoiceWatchControls"
 EXT_DIR = "SoarXVoiceWatchControls" # relative to ios/
 EXT_BUNDLE_ID = "com.xavier.comx.watchkitapp.controls"
-EXT_WATCHOS_VERSION = "26.0"
+EXT_WATCHOS_VERSION = "10.0"
 TEAM_ID = "S96H22CQ8W"
 EMBED_PHASE = "Embed Foundation Extensions"
 
