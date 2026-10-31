@@ -48,6 +48,7 @@
 		B0D281E952D6660F804FE237 /* Audio.swift in Sources */ = {isa = PBXBuildFile; fileRef = DFC03273D5D73C9C59C36D9C /* Audio.swift */; };
 		B749F3B4B6B9B3F34247297F /* Barlow-SemiBold.ttf in Resources */ = {isa = PBXBuildFile; fileRef = 9789B3E067BAC41F04177CF5 /* Barlow-SemiBold.ttf */; };
 		D398C0BBA36E17D2852BC08F /* TTSManager.m in Sources */ = {isa = PBXBuildFile; fileRef = F6F7EE5FC0A5AB17D84956F3 /* TTSManager.m */; };
+		D6CA2CE839CC92A86729B080 /* ComXComplication.swift in Sources */ = {isa = PBXBuildFile; fileRef = 693533DD29F9F9A00450890D /* ComXComplication.swift */; };
 		E28F7F6B79ED856EF1F2D2CD /* Views.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3FFECBA0D1C53C08B74AA5F8 /* Views.swift */; };
 		E5B4F6084C92CCE92B52EEAD /* TalkControl.swift in Sources */ = {isa = PBXBuildFile; fileRef = E3B28A541969B6483C137576 /* TalkControl.swift */; };
 		E7E39ACF8BF094F35FFCBA16 /* PhoneLink.swift in Sources */ = {isa = PBXBuildFile; fileRef = CC3A2A6FCB9620F3033A6981 /* PhoneLink.swift */; };
@@ -127,6 +128,7 @@
 		5E8337D89E96B19AB6945747 /* Assets.xcassets */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		665913BC7F776607753F3BF6 /* Barlow-Bold.ttf */ = {isa = PBXFileReference; includeInIndex = 1; path = "Barlow-Bold.ttf"; sourceTree = "<group>"; };
 		673C89F49B6497C51278E6CE /* Protocol.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = Protocol.swift; sourceTree = "<group>"; };
+		693533DD29F9F9A00450890D /* ComXComplication.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ComXComplication.swift; sourceTree = "<group>"; };
 		698F3A250F987F54F0E05B9C /* Info.plist */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 		6B6333A8387ACC28B5B6A9CD /* HapticManager.m */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.c.objc; path = HapticManager.m; sourceTree = "<group>"; };
 		6C0837EEC686ECE8E8EE6563 /* BarlowCondensed-ExtraBold.ttf */ = {isa = PBXFileReference; includeInIndex = 1; path = "BarlowCondensed-ExtraBold.ttf"; sourceTree = "<group>"; };
@@ -224,6 +226,7 @@
 			children = (
 				AE2F3657C7F05C325788C312 /* TalkControlWidget.swift */,
 				5862D2F8AB5D3394735961A9 /* Info.plist */,
+				693533DD29F9F9A00450890D /* ComXComplication.swift */,
 			);
 			name = SoarXVoiceWatchControls;
 			path = SoarXVoiceWatchControls;
@@ -563,6 +566,7 @@
 			files = (
 				F75901C0AEA7B4D5B117BEA9 /* TalkControlWidget.swift in Sources */,
 				E5B4F6084C92CCE92B52EEAD /* TalkControl.swift in Sources */,
+				D6CA2CE839CC92A86729B080 /* ComXComplication.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -691,7 +695,7 @@
 				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
 				SWIFT_VERSION = 5.0;
 				TARGETED_DEVICE_FAMILY = 4;
-				WATCHOS_DEPLOYMENT_TARGET = 26.0;
+				WATCHOS_DEPLOYMENT_TARGET = 10.0;
 			};
 			name = Debug;
 		};
@@ -760,7 +764,7 @@
 				SWIFT_VERSION = 5.0;
 				TARGETED_DEVICE_FAMILY = 4;
 				VALIDATE_PRODUCT = YES;
-				WATCHOS_DEPLOYMENT_TARGET = 26.0;
+				WATCHOS_DEPLOYMENT_TARGET = 10.0;
 			};
 			name = Release;
 		};

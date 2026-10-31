@@ -357,3 +357,18 @@ Test steps (not done yet):
    `platform: "garmin"`.
 5. Kill and relaunch ComX: the watch must reconnect without a new selection.
 6. Uninstall Garmin Connect: `selectGarminDevices()` must reject cleanly.
+
+## Watch face complication
+
+`ComXComplication` (`ios/SoarXVoiceWatchControls/ComXComplication.swift`) puts
+ComX on the watch face: edit the face, Complications, ComX. A tap opens the app.
+It lives in the same WidgetKit extension as the Talk control. The extension
+targets watchOS 10 like the app, and the control is gated to watchOS 26 in code.
+
+## Clip loudness
+
+watchOS gives apps no control over the system volume, and `AVAudioPlayer` stops
+at 1.0. `ClipLoudness` (`Audio.swift`) therefore normalises each clip before
+playing it (target RMS 0.25, gain capped at ×30 so silence does not become hiss,
+`tanh` to round the peaks off). The volume itself stays on the crown, or in
+Settings > Sound & Haptics.
