@@ -75,6 +75,60 @@ final class ClipRecorder {
   }
 }
 
+/// Makes a clip loud enough for the watch speaker. watchOS gives apps no way
+/// to raise the system volume and AVAudioPlayer stops at 1.0, while voices
+/// recorded by a phone in a pouch or by a watch at arm's length arrive very
+/// quiet. So each clip is normalised to a strong level, and tanh rounds the
+/// peaks off instead of clipping them.
+enum ClipLoudness {
+  static let targetRMS: Float = 0.25
+  /// A silent clip must not turn into loud hiss.
+  static let maxGain: Float = 30
+
+  static func gain(rms: Float) -> Float {
+    guard rms > 0 else { return 1 }
+    return min(max(targetRMS / rms, 1), maxGain)
+  }
+
+  /// A louder copy in the temporary folder, nil if the clip cannot be decoded.
+  static func boostedCopy(of url: URL) -> URL? {
+    do {
+      let input = try AVAudioFile(forReading: url)
+      let format = input.processingFormat
+      guard input.length > 0,
+            let buffer = AVAudioPCMBuffer(pcmFormat: format, frameCapacity: AVAudioFrameCount(input.length)) else {
+        return nil
+      }
+      try input.read(into: buffer)
+      guard let channels = buffer.floatChannelData else { return nil }
+      let frames = Int(buffer.frameLength)
+      let count = Int(format.channelCount)
+
+      var energy: Float = 0
+      for c in 0..<count {
+        for i in 0..<frames { energy += channels[c][i] * channels[c][i] }
+      }
+      let g = gain(rms: (energy / Float(max(frames * count, 1))).squareRoot())
+      for c in 0..<count {
+        for i in 0..<frames { channels[c][i] = tanh(channels[c][i] * g) }
+      }
+
+      let dest = FileManager.default.temporaryDirectory
+        .appendingPathComponent("loud-\(UUID().uuidString).caf")
+      // The file is finished when `output` goes out of scope.
+      do {
+        let output = try AVAudioFile(forWriting: dest, settings: format.settings,
+                                     commonFormat: format.commonFormat, interleaved: format.isInterleaved)
+        try output.write(from: buffer)
+      }
+      return dest
+    } catch {
+      NSLog("[Watch] cannot boost clip: \(error)")
+      return nil
+    }
+  }
+}
+
 /// Plays incoming clips one after another on the watch speaker.
 final class ClipPlayer: NSObject, AVAudioPlayerDelegate {
   struct Item { let url: URL; let from: String }
@@ -85,6 +139,8 @@ final class ClipPlayer: NSObject, AVAudioPlayerDelegate {
   private var queue: [Item] = []
   private var player: AVAudioPlayer?
   private var current: Item?
+  /// The louder copy being played, deleted with the clip.
+  private var boosted: URL?
   var paused = false { didSet { if !paused { playNext() } } }
 
   var isPlaying: Bool { player?.isPlaying ?? false }
@@ -109,9 +165,12 @@ final class ClipPlayer: NSObject, AVAudioPlayerDelegate {
     let item = queue.removeFirst()
     do {
       let session = AVAudioSession.sharedInstance()
+      // Leave the recording setup completely before playing on the speaker.
+      if session.category != .playback { try? session.setActive(false) }
       try session.setCategory(.playback, mode: .default, policy: .default, options: [])
       try session.setActive(true)
-      let p = try AVAudioPlayer(contentsOf: item.url)
+      boosted = ClipLoudness.boostedCopy(of: item.url)
+      let p = try AVAudioPlayer(contentsOf: boosted ?? item.url)
       p.delegate = self
       p.volume = 1.0
       p.prepareToPlay()
@@ -122,16 +181,23 @@ final class ClipPlayer: NSObject, AVAudioPlayerDelegate {
     } catch {
       NSLog("[Watch] cannot play clip: \(error)")
       try? FileManager.default.removeItem(at: item.url)
+      removeBoosted()
       playNext()
     }
   }
 
   private func finishCurrent() {
     if let item = current { try? FileManager.default.removeItem(at: item.url) }
+    removeBoosted()
     current = nil
     player = nil
     if queue.isEmpty { onIdle?() }
     playNext()
+  }
+
+  private func removeBoosted() {
+    if let url = boosted { try? FileManager.default.removeItem(at: url) }
+    boosted = nil
   }
 
   func audioPlayerDidFinishPlaying(_ player: AVAudioPlayer, successfully flag: Bool) {
