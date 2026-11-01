@@ -94,7 +94,8 @@ Local checks that are cheap: `npx tsc --noEmit`, `npx eslint src --quiet`,
 - Garmin Connect IQ iOS SDK licence accepted (2026-10-17): the iOS build
   keeps the Garmin link.
 - Phone in a pouch first; a watch working alone (cellular, needs a server)
-  comes later.
+  comes later. Field test 2026-11-01: a rider who left the phone on the beach
+  stayed frozen at the phone's position, as expected from this design.
 - Voice = voice messages (to the group, or private to one rider), not live
   calls. Live calls from Apple Watch would need CallKit VoIP + a custom audio
   transport + a relay server.

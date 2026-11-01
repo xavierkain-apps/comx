@@ -185,6 +185,12 @@ attached, so nothing is written to Health; the system still shows the workout
 indicator and uses more battery than an idle app. *End session* in the
 Messages page stops it.
 
+`WorkoutKeeper` repairs itself: every time the app becomes active it resumes a
+paused session, replaces a stopped or failed one, and takes back with
+`recoverActiveWorkoutSession` the session the system kept after a crash (only
+*End session* stops this). The amber bolt in the status row means no session is
+running.
+
 `WKExtendedRuntimeSession` was not used: its session types (self-care,
 mindfulness, physical therapy, smart alarm) do not fit and are capped in
 duration; a kitesurf session is a workout.
@@ -197,6 +203,41 @@ Implications:
 - First launch shows the HealthKit permission sheet (share: workouts).
 - App Review may ask why a communication app uses HealthKit; the answer is
   that it runs a water sports workout during the session.
+
+Testing it in the simulator needs the entitlements, which
+`CODE_SIGNING_ALLOWED=NO` strips (the session then fails with *Missing
+com.apple.developer.healthkit entitlement*). Build with `CODE_SIGN_IDENTITY=-
+CODE_SIGN_STYLE=Manual DEVELOPMENT_TEAM= PROVISIONING_PROFILE_SPECIFIER=
+CODE_SIGNING_REQUIRED=NO` instead.
+
+### Water lock
+
+`enableWaterLock()` only works in the foreground with a workout session
+running, and only the rider can turn it off (hold the crown). The app turns it
+on by itself once per session, as soon as the group is connected and the
+HealthKit, location and microphone prompts are answered (they could not be
+answered under the lock; the microphone is asked for when the session starts).
+*Auto water lock* in the Messages page turns this off. In the simulator a crown
+press under the lock stays in the app.
+
+### Session log
+
+*Session log* in the Messages page lists, with timestamps and across launches,
+app launches, active / inactive / background changes, workout state changes and
+failures, water lock and the phone link. **After a session where the app left
+the screen, read this first**: it tells a crash (*App launched*, *Workout
+recovered*) from the workout ending (*Workout running > ended*) or the system
+moving the app (*App in background, workout running*). `InputLog.system()`.
+
+### Without the phone
+
+The watch has no GPS link and no network path of its own: positions, messages
+and voice go through the paired phone. If the phone stays on the beach the group
+keeps seeing the phone's position. After 30 s without the phone the watch plays
+a failure haptic and shows *No phone: your position is no longer shared*. A
+watch working alone over cellular would need its own GPS updates and a relay
+server reached with `URLSession`: watchOS allows HTTP there, but not WebSockets
+(TN3135) and Agora has no watchOS SDK.
 
 ### Apple Watch Ultra Action button
 
@@ -211,9 +252,10 @@ extension build defines `COMX_CONTROLS_EXTENSION` to leave the app-only code
 out. The target is created by `scripts/add-watch-controls-target.rb` (run
 after `scripts/add-watch-target.rb`).
 
-Set up: watch *Settings > Action Button > Action: Control*, then *Control:
-Talk* (ComX's is the only control, it is picked by default). The control
-also shows in Control Center and the Smart Stack.
+Set up: watch *Settings > Action Button > Action: Control*, then ComX and
+*Talk*, or the same in the iPhone Watch app. The ComX phone app explains it in
+Settings (*Apple Watch Ultra: Action button*). The control also shows in Control
+Center and the Smart Stack.
 
 Checked in the simulator (Apple Watch Ultra 3, watchOS 26.4), not yet on a
 watch: the Action button press from the app grid opens ComX, the Input test
