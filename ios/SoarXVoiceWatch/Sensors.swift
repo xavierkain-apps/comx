@@ -9,6 +9,11 @@ final class HeadingProvider: NSObject, CLLocationManagerDelegate {
 
   static var hasCompass: Bool { CLLocationManager.headingAvailable() }
 
+  /// False while the system prompt may still be on screen.
+  var permissionDecided: Bool {
+    !HeadingProvider.hasCompass || manager.authorizationStatus != .notDetermined
+  }
+
   func start() {
     guard HeadingProvider.hasCompass else { return }
     manager.delegate = self
@@ -39,14 +44,48 @@ final class WorkoutKeeper: NSObject, HKWorkoutSessionDelegate {
 
   private let store = HKHealthStore()
   private var session: HKWorkoutSession?
+  private var starting = false
 
   var isRunning: Bool { session?.state == .running }
 
+  /// Safe to call at any time: starts a session, resumes a paused one, or
+  /// takes back the one the system kept after a crash.
   func start() {
-    guard HKHealthStore.isHealthDataAvailable(), session == nil else { return }
-    store.requestAuthorization(toShare: [HKObjectType.workoutType()], read: nil) { [weak self] ok, error in
-      if let error = error { NSLog("[Watch] HealthKit authorization: \(error)") }
-      DispatchQueue.main.async { self?.begin() }
+    guard HKHealthStore.isHealthDataAvailable(), !starting else { return }
+    if let s = session {
+      switch s.state {
+      case .running, .prepared:
+        return
+      case .paused:
+        s.resume()
+        return
+      case .notStarted:
+        s.startActivity(with: Date())
+        return
+      default:
+        // Stopped or ended: a new session replaces it.
+        s.end()
+        session = nil
+      }
+    }
+    starting = true
+    store.requestAuthorization(toShare: [HKObjectType.workoutType()], read: nil) { [weak self] _, error in
+      if let error = error { InputLog.shared.system("HealthKit authorization: \(error.localizedDescription)") }
+      self?.store.recoverActiveWorkoutSession { recovered, _ in
+        DispatchQueue.main.async { self?.adopt(recovered) }
+      }
+    }
+  }
+
+  private func adopt(_ recovered: HKWorkoutSession?) {
+    starting = false
+    if let s = recovered {
+      InputLog.shared.system("Workout recovered after a restart")
+      s.delegate = self
+      session = s
+      onRunning?(s.state == .running)
+    } else {
+      begin()
     }
   }
 
@@ -61,7 +100,7 @@ final class WorkoutKeeper: NSObject, HKWorkoutSessionDelegate {
       session = s
       s.startActivity(with: Date())
     } catch {
-      NSLog("[Watch] cannot start workout session: \(error)")
+      InputLog.shared.system("Workout cannot start: \(error.localizedDescription)")
       onRunning?(false)
     }
   }
@@ -73,20 +112,43 @@ final class WorkoutKeeper: NSObject, HKWorkoutSessionDelegate {
   func workoutSession(_ workoutSession: HKWorkoutSession, didChangeTo toState: HKWorkoutSessionState,
                       from fromState: HKWorkoutSessionState, date: Date) {
     DispatchQueue.main.async {
-      if toState == .ended || toState == .stopped {
-        if toState == .ended { self.session = nil }
+      guard workoutSession === self.session else { return }
+      InputLog.shared.system("Workout \(fromState.logName) > \(toState.logName)")
+      switch toState {
+      case .running:
+        self.onRunning?(true)
+      case .paused:
+        // A paused session does not keep the app alive.
+        workoutSession.resume()
+      case .ended:
+        self.session = nil
         self.onRunning?(false)
-      } else {
-        self.onRunning?(toState == .running)
+      default:
+        self.onRunning?(false)
       }
     }
   }
 
   func workoutSession(_ workoutSession: HKWorkoutSession, didFailWithError error: Error) {
-    NSLog("[Watch] workout session failed: \(error)")
     DispatchQueue.main.async {
+      guard workoutSession === self.session else { return }
+      InputLog.shared.system("Workout failed: \(error.localizedDescription)")
       self.session = nil
       self.onRunning?(false)
+    }
+  }
+}
+
+private extension HKWorkoutSessionState {
+  var logName: String {
+    switch self {
+    case .notStarted: return "not started"
+    case .running: return "running"
+    case .ended: return "ended"
+    case .paused: return "paused"
+    case .prepared: return "prepared"
+    case .stopped: return "stopped"
+    @unknown default: return "unknown"
     }
   }
 }

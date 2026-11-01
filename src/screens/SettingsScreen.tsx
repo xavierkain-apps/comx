@@ -316,6 +316,23 @@ export function SettingsScreen({onDone}: SettingsScreenProps) {
           )}
         </View>
 
+        {/* --- Action button help --- */}
+        {Platform.OS === 'ios' && (
+          <>
+            <Text style={[styles.sectionTitle, {color: colors.textSecondary}]}>APPLE WATCH ULTRA: ACTION BUTTON</Text>
+            <View style={[styles.card, {backgroundColor: colors.bgCard, borderColor: colors.cardBorder}]}>
+              <Text style={[styles.cardDescription, {color: colors.textSecondary}]}>
+                {'To talk with the Action button (watchOS 26 or later):\n\n' +
+                  '1. On the watch, open Settings, then Action Button.\n' +
+                  '2. Set the action to Control (Commande in French).\n' +
+                  '3. Pick ComX, then Talk.\n\n' +
+                  'You can do the same on the iPhone: Watch app, then Action Button.\n\n' +
+                  'Press once to record, press again to send. It works with water lock on.'}
+              </Text>
+            </View>
+          </>
+        )}
+
         {/* --- Demo Section --- */}
         <Text style={[styles.sectionTitle, {color: colors.textSecondary}]}>DEMO</Text>
         <View style={[styles.card, {backgroundColor: colors.bgCard, borderColor: colors.cardBorder}]}>

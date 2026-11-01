@@ -16,6 +16,13 @@ enum InputKind: String, CaseIterable {
   case waterLock = "Lock"
 }
 
+/// One line of the session log (lifecycle, workout, phone link).
+struct SessionEvent: Codable, Identifiable {
+  var id = UUID()
+  let at: Date
+  let text: String
+}
+
 struct InputEvent: Identifiable {
   let id = UUID()
   let at: Date
@@ -36,8 +43,20 @@ final class InputLog: ObservableObject {
   /// True while the Input test page is open: talk inputs are only logged.
   @Published var testMode = false
 
+  /// Newest first, kept across launches: read it after a session to see why
+  /// the app left the screen (see "Session log" in docs/watch-ios.md).
+  @Published private(set) var session: [SessionEvent] = []
+
   private var lockTimer: Timer?
   private let maxEvents = 200
+  private static let sessionKey = "comx.sessionLog"
+
+  private init() {
+    if let data = UserDefaults.standard.data(forKey: InputLog.sessionKey),
+       let saved = try? JSONDecoder().decode([SessionEvent].self, from: data) {
+      session = saved
+    }
+  }
 
   static let timeFormat: DateFormatter = {
     let f = DateFormatter()
@@ -55,6 +74,24 @@ final class InputLog: ObservableObject {
     events.insert(InputEvent(at: Date(), kind: kind, detail: detail, locked: locked), at: 0)
     if events.count > maxEvents { events.removeLast(events.count - maxEvents) }
     NSLog("[InputTest] %@ %@ lock=%@", kind.rawValue, detail, locked ? "on" : "off")
+  }
+
+  func system(_ text: String) {
+    guard Thread.isMainThread else {
+      DispatchQueue.main.async { self.system(text) }
+      return
+    }
+    NSLog("[Session] %@", text)
+    session.insert(SessionEvent(at: Date(), text: text), at: 0)
+    if session.count > maxEvents { session.removeLast(session.count - maxEvents) }
+    if let data = try? JSONEncoder().encode(session) {
+      UserDefaults.standard.set(data, forKey: InputLog.sessionKey)
+    }
+  }
+
+  func clearSession() {
+    session.removeAll()
+    UserDefaults.standard.removeObject(forKey: InputLog.sessionKey)
   }
 
   func reset() {
@@ -79,6 +116,31 @@ final class InputLog: ObservableObject {
   func stopWatchingWaterLock() {
     lockTimer?.invalidate()
     lockTimer = nil
+  }
+}
+
+struct SessionLogView: View {
+  @ObservedObject private var log = InputLog.shared
+
+  private static let format: DateFormatter = {
+    let f = DateFormatter()
+    f.dateFormat = "dd/MM HH:mm:ss"
+    return f
+  }()
+
+  var body: some View {
+    List {
+      ForEach(log.session) { e in
+        VStack(alignment: .leading, spacing: 1) {
+          Text(SessionLogView.format.string(from: e.at))
+            .font(.system(size: 11, design: .monospaced))
+            .foregroundStyle(.secondary)
+          Text(e.text).font(.system(size: 13))
+        }
+      }
+      Button("Clear", role: .destructive) { log.clearSession() }
+    }
+    .navigationTitle("Session log")
   }
 }
 

@@ -860,6 +860,18 @@ struct MessagesView: View {
       }
       .padding(.top, 8)
 
+      Toggle(isOn: $model.autoWaterLock) {
+        Text("Auto water lock").font(.plain(14))
+      }
+
+      NavigationLink {
+        SessionLogView()
+      } label: {
+        Label("Session log", systemImage: "list.bullet")
+          .font(.plain(14))
+          .foregroundStyle(Theme.textMuted)
+      }
+
       NavigationLink {
         InputTestView()
       } label: {

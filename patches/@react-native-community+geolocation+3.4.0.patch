@@ -1,0 +1,13 @@
+diff --git a/node_modules/@react-native-community/geolocation/ios/RNCGeolocation.mm b/node_modules/@react-native-community/geolocation/ios/RNCGeolocation.mm
+--- a/node_modules/@react-native-community/geolocation/ios/RNCGeolocation.mm
++++ b/node_modules/@react-native-community/geolocation/ios/RNCGeolocation.mm
+@@ -186,6 +186,9 @@ - (void)beginLocationUpdatesWithDesiredAccuracy:(CLLocationAccuracy)desiredAccur
+ 
+   _locationManager.distanceFilter  = distanceFilter;
+   _locationManager.desiredAccuracy = desiredAccuracy;
++  _locationManager.activityType = CLActivityTypeFitness;
++  // ComX: a phone left still in its pouch must not stop GPS for good.
++  _locationManager.pausesLocationUpdatesAutomatically = NO;
+   _usingSignificantChanges = useSignificantChanges;
+ 
+   if (@available(iOS 14.0, *)) {

@@ -184,7 +184,9 @@ Events (`NativeEventEmitter(NativeModules.WatchBridge)`):
 The phone shares its own GPS position (`@react-native-community/geolocation`),
 so it needs location permission "while in use", with background updates
 (iOS `UIBackgroundModes: location`, Android foreground service type
-`location`). The phone compass is never used: in a pouch it is meaningless.
+`location`). On iOS `patches/` sets `pausesLocationUpdatesAutomatically = NO`
+in the geolocation library: with the default, iOS may stop GPS for a phone lying
+still in its pouch and does not restart it in the background. The phone compass is never used: in a pouch it is meaningless.
 Phone users see north-up arrows; watches rotate them with their own heading.
 
 ## Platform identifiers
