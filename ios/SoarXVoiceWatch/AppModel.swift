@@ -1,3 +1,4 @@
+import AVFAudio
 import Combine
 import Foundation
 import WatchKit
@@ -23,6 +24,9 @@ final class AppModel: ObservableObject {
   static let maxClipSeconds: TimeInterval = 30
   /// The phone pushes state every 2 s; older than this means the link is down.
   static let linkTimeout: TimeInterval = 10
+  /// Link down for this long: tell the rider their position is frozen.
+  static let linkAlertAfter: TimeInterval = 30
+  private static let autoWaterLockKey = "comx.autoWaterLock"
 
   // Phone state
   @Published private(set) var state: PhoneState?
@@ -50,6 +54,16 @@ final class AppModel: ObservableObject {
 
   // Session
   @Published private(set) var workoutRunning = false
+  /// Turn water lock on once per session, as soon as the group is connected.
+  @Published var autoWaterLock: Bool {
+    didSet { UserDefaults.standard.set(autoWaterLock, forKey: AppModel.autoWaterLockKey) }
+  }
+  private var lockedThisSession = false
+  /// Set by End session: the app must not start a new one by itself.
+  private var sessionEndedByUser = false
+  private var wasLinkUp = false
+  private var linkAlerted = false
+  private var wasWaterLocked = false
 
   // Compass focus (see "Compass focus" in docs/watch-companion.md)
   /// Rider the user last picked with the crown or the list (nil = overview).
@@ -73,7 +87,9 @@ final class AppModel: ObservableObject {
   private var bannerTimer: Timer?
   private var started = false
 
-  private init() {}
+  private init() {
+    autoWaterLock = UserDefaults.standard.object(forKey: AppModel.autoWaterLockKey) as? Bool ?? true
+  }
 
   // MARK: - Lifecycle
 
@@ -96,16 +112,79 @@ final class AppModel: ObservableObject {
     headingProvider.onHeading = { [weak self] in self?.compassHeading = $0 }
     headingProvider.start()
 
-    workout.onRunning = { [weak self] in self?.workoutRunning = $0 }
+    workout.onRunning = { [weak self] in self?.workoutChanged(running: $0) }
     startSession()
 
     tick = Timer.scheduledTimer(withTimeInterval: 2, repeats: true) { [weak self] _ in
-      self?.now = Date()
+      guard let self = self else { return }
+      self.now = Date()
+      self.watchLink()
+      self.watchWaterLock()
+      self.autoLockIfReady()
     }
   }
 
-  func startSession() { workout.start() }
-  func endSession() { workout.stop() }
+  func startSession() {
+    sessionEndedByUser = false
+    workout.start()
+  }
+
+  func endSession() {
+    sessionEndedByUser = true
+    workout.stop()
+  }
+
+  /// A session the system ended or paused comes back when the app does.
+  func keepSessionAlive() {
+    guard started, !sessionEndedByUser else { return }
+    workout.start()
+  }
+
+  private func workoutChanged(running: Bool) {
+    workoutRunning = running
+    guard running else {
+      lockedThisSession = false
+      return
+    }
+    // Asked now: under water lock the prompt could not be answered.
+    ClipRecorder.requestPermission { [weak self] granted in
+      self?.micDenied = !granted
+    }
+  }
+
+  private func autoLockIfReady() {
+    guard autoWaterLock, !lockedThisSession, workoutRunning, channelConnected,
+          headingProvider.permissionDecided,
+          AVAudioApplication.shared.recordPermission != .undetermined,
+          WKApplication.shared().applicationState == .active else { return }
+    lockedThisSession = true
+    InputLog.shared.system("Water lock requested")
+    WKInterfaceDevice.current().enableWaterLock()
+  }
+
+  private func watchWaterLock() {
+    let locked = WKInterfaceDevice.current().isWaterLockEnabled
+    guard locked != wasWaterLocked else { return }
+    wasWaterLocked = locked
+    InputLog.shared.system("Water lock \(locked ? "on" : "off")")
+  }
+
+  /// The watch has no GPS link of its own: without the phone, the group keeps
+  /// seeing the phone's last position. Say so instead of staying silent.
+  private func watchLink() {
+    let up = linkUp
+    if up != wasLinkUp {
+      wasLinkUp = up
+      InputLog.shared.system(up ? "Phone link up" : "Phone link down")
+    }
+    if up {
+      linkAlerted = false
+    } else if !linkAlerted, let at = lastStateAt, now.timeIntervalSince(at) >= AppModel.linkAlertAfter {
+      linkAlerted = true
+      WKInterfaceDevice.current().play(.failure)
+      show(Banner(title: "No phone", body: "Your position is no longer shared", at: Date()))
+    }
+  }
 
   func sendHello() {
     link.send(Outgoing.hello(model: AppModel.hardwareModel(), hasCompass: HeadingProvider.hasCompass))

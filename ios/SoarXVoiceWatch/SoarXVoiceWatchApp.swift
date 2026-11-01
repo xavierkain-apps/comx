@@ -18,11 +18,22 @@ struct SoarXVoiceWatchApp: App {
 
 final class AppDelegate: NSObject, WKApplicationDelegate {
   func applicationDidFinishLaunching() {
+    InputLog.shared.system("App launched")
     AppModel.shared.startIfNeeded()
   }
 
   func applicationDidBecomeActive() {
+    InputLog.shared.system("App active")
     AppModel.shared.sendHello()
+    AppModel.shared.keepSessionAlive()
+  }
+
+  func applicationWillResignActive() {
+    InputLog.shared.system("App inactive")
+  }
+
+  func applicationDidEnterBackground() {
+    InputLog.shared.system("App in background, workout \(AppModel.shared.workoutRunning ? "running" : "NOT running")")
   }
 
   /// Launched to run a workout (Action button, or the system relaunching us).
