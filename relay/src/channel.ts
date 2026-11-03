@@ -10,6 +10,9 @@ const WIPE_AFTER_MS = 60 * 60_000;
 const ALARM_REFRESH_MS = 5 * 60_000;
 const MAX_CLIP_CHARS = 350_000;
 const MIN_CLIP_GAP_MS = 3_000;
+/** The cursor is `epoch * EPOCH_UNIT + lastSeq`: a new epoch after each wipe. */
+const EPOCH_UNIT = 2 ** 32;
+const EPOCH_LIMIT = 2 ** 20;
 
 interface ClipBody {
   id: string; uid: number; from: string; to: number; durationMs: number; ext: string; data: string;
@@ -44,15 +47,42 @@ export class Channel extends DurableObject<Env> {
         seq INTEGER PRIMARY KEY AUTOINCREMENT, id TEXT UNIQUE, uid INTEGER, sender TEXT,
         to_uid INTEGER, at INTEGER, body TEXT);
       CREATE TABLE IF NOT EXISTS clips (id TEXT PRIMARY KEY, at INTEGER, body TEXT);
+      CREATE TABLE IF NOT EXISTS sos_state (uid INTEGER PRIMARY KEY, active INTEGER, changed_at INTEGER);
+      CREATE TABLE IF NOT EXISTS meta (k TEXT PRIMARY KEY, v INTEGER);
     `);
+  }
+
+  /** Random per channel, renewed by the wipe, so old cursors are recognised. */
+  private epoch(): number {
+    const sql = this.ctx.storage.sql;
+    const row = sql.exec<{v: number}>("SELECT v FROM meta WHERE k = 'epoch'").toArray()[0];
+    if (row) return row.v;
+    const epoch = 1 + Math.floor(Math.random() * (EPOCH_LIMIT - 1));
+    sql.exec("INSERT INTO meta (k, v) VALUES ('epoch', ?)", epoch);
+    return epoch;
+  }
+
+  /** Last seq ever assigned, even if that event has expired since. */
+  private lastSeq(): number {
+    const row = this.ctx.storage.sql
+      .exec<{seq: number}>("SELECT seq FROM sqlite_sequence WHERE name = 'events'")
+      .toArray()[0];
+    return row?.seq ?? 0;
   }
 
   async fetch(request: Request): Promise<Response> {
     this.ensureSchema();
     const path = new URL(request.url).pathname;
-    if (path.endsWith('/sync')) return this.sync((await request.json()) as SyncBody);
-    if (path.endsWith('/clips')) return this.putClip((await request.json()) as ClipBody);
-    return this.getClip(path.split('/').pop() ?? '');
+    const isSync = path.endsWith('/sync');
+    if (!isSync && !path.endsWith('/clips')) return this.getClip(path.split('/').pop() ?? '');
+    let body: unknown;
+    try {
+      body = await request.json();
+    } catch {
+      return badRequest('not json');
+    }
+    if (isSync) return isSyncBody(body) ? this.sync(body) : badRequest('bad sync');
+    return isClipBody(body) ? this.putClip(body) : badRequest('bad clip');
   }
 
   private putClip(clip: ClipBody): Response {
@@ -87,13 +117,9 @@ export class Channel extends DurableObject<Env> {
       body.uid, body.source, body.name, body.pos ? JSON.stringify(body.pos) : null, body.sos ? 1 : 0, now,
     );
 
-    if (!!previous?.sos !== !!body.sos) {
-      const lat = (body.pos?.lat as number | undefined) ?? null;
-      const lon = (body.pos?.lon as number | undefined) ?? null;
-      this.addEvent(`sos-${body.uid}-${now}`, body, {type: 'sos', active: !!body.sos, lat, lon}, 0);
-    }
+    this.updateSos(body, previous, now);
     const acked: string[] = [];
-    for (const e of body.events ?? []) {
+    for (const e of body.events) {
       const {id, to, ...rest} = e;
       this.addEvent(id, body, rest, to ?? 0);
       acked.push(id);
@@ -108,9 +134,27 @@ export class Channel extends DurableObject<Env> {
       now,
       riders: this.riders(body, now),
       events: this.events(body, now),
-      cursor: sql.exec<{c: number}>('SELECT COALESCE(MAX(seq), 0) AS c FROM events').one().c,
+      cursor: this.epoch() * EPOCH_UNIT + this.lastSeq(),
       acked,
     });
+  }
+
+  /**
+   * One SOS state per uid, last change wins. A row that changes its value is a
+   * change; a new row is one only for a uid with no state yet, since a watch
+   * going solo carries the value its phone already reported.
+   */
+  private updateSos(body: SyncBody, previous: RiderRow | undefined, now: number) {
+    const sql = this.ctx.storage.sql;
+    const active = body.sos ? 1 : 0;
+    const state = sql.exec<{active: number}>('SELECT active FROM sos_state WHERE uid = ?', body.uid).toArray()[0];
+    const changed = previous ? previous.sos !== active : !state;
+    if (!changed || (state && state.active === active)) return;
+    sql.exec('INSERT OR REPLACE INTO sos_state (uid, active, changed_at) VALUES (?, ?, ?)', body.uid, active, now);
+    if ((state?.active ?? 0) === active) return;
+    const lat = (body.pos?.lat as number | undefined) ?? null;
+    const lon = (body.pos?.lon as number | undefined) ?? null;
+    this.addEvent(`sos-${body.uid}-${now}`, body, {type: 'sos', active: !!active, lat, lon}, 0);
   }
 
   private addEvent(id: string, who: SyncBody, body: Record<string, unknown>, to: number) {
@@ -123,7 +167,8 @@ export class Channel extends DurableObject<Env> {
   private riders(body: SyncBody, now: number) {
     return this.ctx.storage.sql
       .exec<RiderRow>(
-        'SELECT * FROM riders WHERE seen_at >= ? AND NOT (uid = ? AND source = ?)',
+        `SELECT r.*, COALESCE(s.active, 0) AS sos FROM riders r LEFT JOIN sos_state s ON s.uid = r.uid
+         WHERE r.seen_at >= ? AND NOT (r.uid = ? AND r.source = ?)`,
         now - RIDER_TTL_MS, body.uid, body.source,
       )
       .toArray()
@@ -135,14 +180,20 @@ export class Channel extends DurableObject<Env> {
 
   private events(body: SyncBody, now: number) {
     const sql = this.ctx.storage.sql;
-    const rows = body.cursor > 0
-      ? sql.exec<EventRow>(
-          'SELECT * FROM events WHERE seq > ? AND uid != ? AND to_uid IN (0, ?) ORDER BY seq',
-          body.cursor, body.uid, body.uid)
-      : sql.exec<EventRow>(
-          'SELECT * FROM events WHERE at >= ? AND uid != ? AND to_uid IN (0, ?) ORDER BY seq',
-          now - FIRST_SYNC_WINDOW_MS, body.uid, body.uid);
-    return rows.toArray().map(e => ({seq: e.seq, id: e.id, uid: e.uid, from: e.sender, to: e.to_uid, ...JSON.parse(e.body)}));
+    const cursor = body.cursor;
+    let rows;
+    if (cursor > 0) {
+      // A cursor from another epoch predates a wipe: send everything retained.
+      const after = Math.floor(cursor / EPOCH_UNIT) === this.epoch() ? cursor % EPOCH_UNIT : 0;
+      rows = sql.exec<EventRow>(
+        'SELECT * FROM events WHERE seq > ? AND uid != ? AND to_uid IN (0, ?) ORDER BY seq',
+        after, body.uid, body.uid);
+    } else {
+      rows = sql.exec<EventRow>(
+        'SELECT * FROM events WHERE at >= ? AND uid != ? AND to_uid IN (0, ?) ORDER BY seq',
+        now - FIRST_SYNC_WINDOW_MS, body.uid, body.uid);
+    }
+    return rows.toArray().map(e => ({...JSON.parse(e.body), seq: e.seq, id: e.id, uid: e.uid, from: e.sender, to: e.to_uid}));
   }
 
   private keepAlarm(now: number) {
@@ -157,4 +208,30 @@ export class Channel extends DurableObject<Env> {
     this.lastClipAt.clear();
     this.alarmSetAt = 0;
   }
+}
+
+function badRequest(reason: string): Response {
+  return new Response(reason, {status: 400});
+}
+
+function isObject(v: unknown): v is Record<string, unknown> {
+  return typeof v === 'object' && v !== null && !Array.isArray(v);
+}
+
+/** Checks the fields the relay relies on and fills the optional ones. */
+function isSyncBody(v: unknown): v is SyncBody {
+  if (!isObject(v)) return false;
+  if (typeof v.uid !== 'number' || !Number.isFinite(v.uid)) return false;
+  if (v.source !== 'phone' && v.source !== 'watch') return false;
+  if (v.events === undefined || v.events === null) v.events = [];
+  if (!Array.isArray(v.events) || !v.events.every(e => isObject(e) && typeof e.id === 'string')) return false;
+  if (typeof v.cursor !== 'number' || !Number.isFinite(v.cursor) || v.cursor < 0) v.cursor = 0;
+  if (!isObject(v.pos)) v.pos = null;
+  if (typeof v.name !== 'string') v.name = '';
+  return true;
+}
+
+function isClipBody(v: unknown): v is ClipBody {
+  return isObject(v) && typeof v.id === 'string' && typeof v.data === 'string'
+    && typeof v.uid === 'number' && Number.isFinite(v.uid);
 }

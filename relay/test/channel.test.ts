@@ -39,7 +39,28 @@ describe('routing', () => {
     expect(res.status).toBe(200);
     const body = (await res.json()) as {riders: unknown[]; cursor: number};
     expect(body.riders).toEqual([]);
-    expect(body.cursor).toBe(0);
+    expect(typeof body.cursor).toBe('number');
+  });
+
+  it('refuses a body that is not JSON', async () => {
+    const res = await SELF.fetch(`https://relay.test/v1/channels/${KEY}/sync`, {
+      method: 'POST',
+      headers: {'content-type': 'application/json', 'x-comx-key': 'test-key'},
+      body: '{nope',
+    });
+    expect(res.status).toBe(400);
+  });
+
+  it('refuses a sync without a numeric uid or a known source', async () => {
+    expect((await post(`/v1/channels/${KEY}/sync`, syncBody(1, {uid: 'x'}))).status).toBe(400);
+    expect((await post(`/v1/channels/${KEY}/sync`, syncBody(1, {source: 'tablet'}))).status).toBe(400);
+    expect((await post(`/v1/channels/${KEY}/sync`, null)).status).toBe(400);
+  });
+
+  it('refuses a clip without a string id or data', async () => {
+    const base = {id: 'c', uid: 1, from: 'R1', to: 0, durationMs: 1, ext: 'm4a', data: 'QUJD'};
+    expect((await post(`/v1/channels/${KEY}/clips`, {...base, id: 3})).status).toBe(400);
+    expect((await post(`/v1/channels/${KEY}/clips`, {...base, data: undefined})).status).toBe(400);
   });
 });
 
@@ -149,6 +170,91 @@ describe('sync', () => {
     const {body} = await sync(key, syncBody(2));
     expect(body.riders[0].sos).toBe(true);
     expect(body.events.filter((e: any) => e.type === 'sos').map((e: any) => e.active)).toEqual([true]);
+  });
+
+  it('keeps the cursor when every event has expired', async () => {
+    const key = channelFor();
+    await at(key, 10_000);
+    const first = await sync(key, syncBody(1));
+    await at(key, 12_000);
+    await sync(key, syncBody(2, {events: [{id: 'e1', type: 'text', msg: 'ok', text: 'x'}]}));
+    await at(key, 12_000 + 15 * 60_000 + 1_000);
+    const quiet = await sync(key, syncBody(1, {cursor: first.body.cursor}));
+    expect(quiet.body.events).toEqual([]);
+    const t = 12_000 + 20 * 60_000;
+    await at(key, t);
+    await sync(key, syncBody(2, {events: [{id: 'e2', type: 'text', msg: 'ok', text: 'x'}]}));
+    await at(key, t + 3 * 60_000);
+    const back = await sync(key, syncBody(1, {cursor: quiet.body.cursor}));
+    expect(back.body.events.map((e: any) => e.id)).toEqual(['e2']);
+  });
+
+  it('gives a client with a cursor from before the wipe the new events', async () => {
+    const key = channelFor();
+    await at(key, 10_000);
+    await sync(key, syncBody(2, {events: [{id: 'e0', type: 'text', msg: 'ok', text: 'x'}]}));
+    await at(key, 12_000);
+    const a = await sync(key, syncBody(1));
+    const stub = env.CHANNEL.get(env.CHANNEL.idFromName(key));
+    await runInDurableObject(stub, (c: Channel) => c.alarm());
+    await at(key, 20_000);
+    await sync(key, syncBody(2, {events: [{id: 'e1', type: 'text', msg: 'ok', text: 'x'}]}));
+    await at(key, 22_000);
+    const back = await sync(key, syncBody(1, {cursor: a.body.cursor}));
+    expect(back.body.events.map((e: any) => e.id)).toEqual(['e1']);
+  });
+
+  it('keeps one sos state per rider, last change wins', async () => {
+    const key = channelFor();
+    const sosEvents = (b: any) => b.events.filter((e: any) => e.type === 'sos').map((e: any) => e.active);
+    const uid1 = (b: any) => b.riders.filter((r: any) => r.uid === 1).map((r: any) => r.sos);
+    await at(key, 10_000);
+    await sync(key, syncBody(1, {sos: false}));
+    const b0 = await sync(key, syncBody(2));
+    await at(key, 12_000);
+    await sync(key, syncBody(1, {sos: true, pos: pos(11_000)}));
+    await at(key, 14_000);
+    const b1 = await sync(key, syncBody(2, {cursor: b0.body.cursor}));
+    expect(uid1(b1.body)).toEqual([true]);
+    expect(sosEvents(b1.body)).toEqual([true]);
+
+    await sync(key, syncBody(1, {source: 'watch', sos: true}));
+    await at(key, 16_000);
+    const b2 = await sync(key, syncBody(2, {cursor: b1.body.cursor}));
+    expect(sosEvents(b2.body)).toEqual([]);
+    expect(uid1(b2.body)).toEqual([true, true]);
+
+    await sync(key, syncBody(1, {source: 'watch', sos: false}));
+    await at(key, 18_000);
+    const b3 = await sync(key, syncBody(2, {cursor: b2.body.cursor}));
+    expect(sosEvents(b3.body)).toEqual([false]);
+    expect(uid1(b3.body)).toEqual([false, false]);
+
+    await sync(key, syncBody(1, {sos: true}));
+    await at(key, 20_000);
+    const b4 = await sync(key, syncBody(2, {cursor: b3.body.cursor}));
+    expect(sosEvents(b4.body)).toEqual([]);
+    expect(uid1(b4.body)).toEqual([false, false]);
+  });
+
+  it('raises the sos of a newcomer whose first sync has it on', async () => {
+    const key = channelFor();
+    await at(key, 10_000);
+    await sync(key, syncBody(1, {sos: true}));
+    await at(key, 12_000);
+    await sync(key, syncBody(1, {sos: true}));
+    const {body} = await sync(key, syncBody(2));
+    expect(body.riders[0].sos).toBe(true);
+    expect(body.events.filter((e: any) => e.type === 'sos').map((e: any) => e.active)).toEqual([true]);
+  });
+
+  it('keeps the server fields of an event', async () => {
+    const key = channelFor();
+    await at(key, 10_000);
+    await sync(key, syncBody(1, {events: [{id: 'e1', type: 'text', msg: 'ok', text: 'x', seq: 999, uid: 7, from: 'X'}]}));
+    const {body} = await sync(key, syncBody(2));
+    expect(body.events[0]).toMatchObject({id: 'e1', uid: 1, from: 'R1', to: 0});
+    expect(body.events[0].seq).not.toBe(999);
   });
 
   it('refuses a second sync within 1 s', async () => {
