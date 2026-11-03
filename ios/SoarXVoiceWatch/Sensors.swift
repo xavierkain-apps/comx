@@ -152,3 +152,37 @@ private extension HKWorkoutSessionState {
     }
   }
 }
+
+/// The watch's own GPS, on only in solo mode: with a phone, the phone's is used.
+final class SoloLocation: NSObject, CLLocationManagerDelegate {
+  private(set) var last: RelayPosition?
+  private let manager = CLLocationManager()
+
+  /// Below this speed the GPS course is noise (same value as the phone).
+  private static let minSpeedForCourse = 1.0
+
+  func start() {
+    manager.delegate = self
+    manager.desiredAccuracy = kCLLocationAccuracyBest
+    manager.activityType = .fitness
+    manager.allowsBackgroundLocationUpdates = true
+    manager.startUpdatingLocation()
+  }
+
+  func stop() {
+    manager.stopUpdatingLocation()
+    last = nil
+  }
+
+  func locationManager(_ manager: CLLocationManager, didUpdateLocations locations: [CLLocation]) {
+    guard let l = locations.last, l.horizontalAccuracy >= 0 else { return }
+    let sog = l.speed >= 0 ? l.speed : nil
+    let cog = (sog ?? 0) >= SoloLocation.minSpeedForCourse && l.course >= 0 ? l.course : nil
+    last = RelayPosition(lat: l.coordinate.latitude, lon: l.coordinate.longitude, cog: cog, sog: sog,
+                         acc: l.horizontalAccuracy, t: l.timestamp.timeIntervalSince1970 * 1000)
+  }
+
+  func locationManager(_ manager: CLLocationManager, didFailWithError error: Error) {
+    InputLog.shared.system("GPS error: \(error.localizedDescription)")
+  }
+}
