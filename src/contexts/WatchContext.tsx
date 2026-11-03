@@ -59,6 +59,8 @@ export function WatchProvider({children}: {children: ReactNode}) {
   const {pilotName} = useUser();
   const {myPosition, riders, sendQuickMessage, setSos, subscribeRideEvents, demo} = useRide();
   const connected = connectionState === 'connected';
+  // An Agora reconnect is a blip, not leaving: the watch keeps its channel and relay settings.
+  const inChannel = connected || connectionState === 'reconnecting';
 
   const [watches, setWatches] = useState<WatchInfo[]>([]);
   const [setting, setSettingState] = useState<WatchModeSetting>('auto');
@@ -157,16 +159,16 @@ export function WatchProvider({children}: {children: ReactNode}) {
   // ---- Channel → watches ----------------------------------------------------
   const stateRef = useRef<object | null>(null);
   // Demo mode without a channel still looks like one to the watch
-  const demoOnly = demo && !connected;
+  const demoOnly = demo && !inChannel;
   // Lets the watch reach the relay alone when the phone is out of range. Never in demo mode.
   const relay = useMemo(
-    () => (relayEnabled && connected && !demo && localUid !== null
+    () => (relayEnabled && inChannel && !demo && localUid !== null
       ? {...relaySettings, channelKey: channelKey(channelName), uid: localUid}
       : null),
-    [connected, demo, localUid, channelName],
+    [inChannel, demo, localUid, channelName],
   );
   stateRef.current = buildWatchState({
-    connected: connected || demo,
+    connected: inChannel || demo,
     channel: demoOnly ? 'Demo' : channelName,
     watchMode,
     myName: pilotName,
@@ -183,7 +185,7 @@ export function WatchProvider({children}: {children: ReactNode}) {
       if (stateRef.current) WatchBridge.sendState(stateRef.current);
     }, STATE_INTERVAL_MS);
     return () => clearInterval(timer);
-  }, [connected, watchMode, demo]);
+  }, [inChannel, watchMode, demo]);
 
   // Text and SOS events
   const ridersRef = useRef(riders);
