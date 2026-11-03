@@ -53,7 +53,8 @@ export type StreamMessage =
   | {type: 'name'; name: string}
   | ({type: 'pos'} & Position)
   | {type: 'text'; id: string; text: string; mid?: string}
-  | {type: 'sos'; active: boolean; lat: number | null; lon: number | null};
+  /** `at`: time of the sender's last SOS change, epoch ms (receive time for older apps). */
+  | {type: 'sos'; active: boolean; at: number; lat: number | null; lon: number | null};
 
 const isNum = (v: unknown): v is number => typeof v === 'number' && Number.isFinite(v);
 const numOrNull = (v: unknown): number | null => (isNum(v) ? v : null);
@@ -85,7 +86,13 @@ export function parseStreamMessage(raw: unknown): StreamMessage | null {
         ...(typeof m.mid === 'string' ? {mid: m.mid} : {}),
       };
     case 'sos':
-      return {type: 'sos', active: m.active === true, lat: numOrNull(m.lat), lon: numOrNull(m.lon)};
+      return {
+        type: 'sos',
+        active: m.active === true,
+        at: isNum(m.at) ? m.at : Date.now(),
+        lat: numOrNull(m.lat),
+        lon: numOrNull(m.lon),
+      };
     default:
       return null;
   }

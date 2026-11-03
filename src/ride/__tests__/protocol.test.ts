@@ -30,8 +30,14 @@ describe('parseStreamMessage', () => {
   });
 
   it('reads SOS with or without a position', () => {
-    expect(parseStreamMessage({type: 'sos', active: true, lat: 1, lon: 2})).toEqual({type: 'sos', active: true, lat: 1, lon: 2});
-    expect(parseStreamMessage({type: 'sos'})).toEqual({type: 'sos', active: false, lat: null, lon: null});
+    expect(parseStreamMessage({type: 'sos', active: true, at: 5, lat: 1, lon: 2})).toEqual({type: 'sos', active: true, at: 5, lat: 1, lon: 2});
+    expect(parseStreamMessage({type: 'sos', at: 5})).toEqual({type: 'sos', active: false, at: 5, lat: null, lon: null});
+  });
+
+  it('stamps an SOS without a time with the receive time', () => {
+    const before = Date.now();
+    const m = parseStreamMessage({type: 'sos', active: true, at: 'x'});
+    expect(m?.type === 'sos' && m.at >= before && m.at <= Date.now()).toBe(true);
   });
 });
 

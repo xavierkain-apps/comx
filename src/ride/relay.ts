@@ -16,12 +16,14 @@ export interface RelayRider {
   source: RelaySource;
   pos: Position | null;
   sos: boolean;
+  /** Time of the uid's last SOS change (epoch ms); the relay sends the same on every row of a uid. */
+  sosAt?: number;
   seenAt: number;
 }
 
 export type RelayEvent =
   | {seq: number; id: string; uid: number; from: string; to: number; type: 'text'; msg: string; text: string}
-  | {seq: number; id: string; uid: number; from: string; to: number; type: 'sos'; active: boolean}
+  | {seq: number; id: string; uid: number; from: string; to: number; type: 'sos'; active: boolean; at?: number}
   | {seq: number; id: string; uid: number; from: string; to: number; type: 'clip'; clip: string; durationMs: number; ext: string};
 
 export interface RelayOutgoingText {
@@ -37,6 +39,8 @@ export interface SyncRequest {
   source: RelaySource;
   pos: Position | null;
   sos: boolean;
+  /** Time of our last SOS change, epoch ms. */
+  sosAt: number;
   cursor: number;
   events: RelayOutgoingText[];
 }
@@ -65,6 +69,7 @@ export interface MergedRelayRider {
   phone?: Position;
   watch?: Position;
   sos: boolean;
+  sosAt: number;
 }
 
 export function channelKey(channel: string): string {
@@ -81,12 +86,42 @@ export function pickPosition(phone: Position | undefined, watch: Position | unde
 export function mergeRelayRiders(riders: RelayRider[]): Record<number, MergedRelayRider> {
   const out: Record<number, MergedRelayRider> = {};
   for (const r of riders) {
-    const entry = out[r.uid] ?? {uid: r.uid, name: r.name, sos: false};
+    const entry = out[r.uid] ?? {uid: r.uid, name: r.name, sos: false, sosAt: 0};
     if (r.pos) entry[r.source] = r.pos;
-    entry.sos = entry.sos || r.sos;
+    // The newest SOS change wins (rows of one uid normally agree)
+    const at = r.sosAt ?? 0;
+    if (at > entry.sosAt) {
+      entry.sos = r.sos;
+      entry.sosAt = at;
+    } else if (at === entry.sosAt) {
+      entry.sos = entry.sos || r.sos;
+    }
     out[r.uid] = entry;
   }
   return out;
+}
+
+export interface SosState {
+  active: boolean;
+  /** Time of the change, epoch ms, on the clock of the rider who made it. */
+  at: number;
+}
+
+/**
+ * One rule for every SOS path (Agora, relay rows, relay events): a state is
+ * taken only if it is newer than the one known for that uid. `changed` is true
+ * when the active flag differs, which is when alerts fire. A rider seen for
+ * the first time counts as not in SOS before.
+ */
+export function applySosChange(
+  known: Record<number, SosState>,
+  uid: number,
+  active: boolean,
+  at: number,
+): {next: Record<number, SosState>; changed: boolean} {
+  const prev = known[uid];
+  if (prev && at <= prev.at) return {next: known, changed: false};
+  return {next: {...known, [uid]: {active, at}}, changed: (prev?.active ?? false) !== active};
 }
 
 /** Someone can only be reached through the relay: phone memos must go there too. */
