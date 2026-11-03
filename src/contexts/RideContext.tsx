@@ -42,6 +42,8 @@ import {
 const POSITION_BROADCAST_MS = 3000;
 const DEMO_KEY = '@comx_demo';
 const DEMO_TICK_MS = 2000;
+/** Quick messages waiting for the relay; the oldest go first when it is unreachable. */
+const RELAY_OUTBOX_MAX = 20;
 
 /** A voice memo's audio, kept in memory so it can be played again. */
 export interface HistoryClip {
@@ -125,6 +127,10 @@ export function RideProvider({children}: {children: ReactNode}) {
   const active = connected || demo;
   // Relay (watch solo mode), see docs/superpowers/specs/2026-11-01-comx-watch-solo-design.md
   const [relayRiders, setRelayRiders] = useState<RelayRider[]>([]);
+  // The relay's clock at the last sync: `seenAt` is in that clock
+  const [relayNow, setRelayNow] = useState(0);
+  const remotePilotsRef = useRef(remotePilots);
+  remotePilotsRef.current = remotePilots;
   const relayCursorRef = useRef(0);
   const relayOutboxRef = useRef<RelayOutgoingText[]>([]);
   const seenTextsRef = useRef(new SeenIds());
@@ -289,14 +295,19 @@ export function RideProvider({children}: {children: ReactNode}) {
       relayCursorRef.current = res.cursor;
       relayOutboxRef.current = relayOutboxRef.current.filter(e => !res.acked.includes(e.id));
       setRelayRiders(res.riders);
+      setRelayNow(res.now);
       // The relay keeps one SOS state per uid: a change made on our watch wins,
       // unless our own state changed while the request was in flight
       const own = res.riders.find(r => r.uid === localUid);
       if (own && own.sos !== sentSos && mySosRef.current === sentSos) setSosRef.current(own.sos);
-      for (const r of res.riders) {
+      // A rider only on the relay follows its SOS state both ways. For a rider
+      // also on Agora the relay only raises: its phone may be ahead of the relay.
+      const onAgora = new Set(remotePilotsRef.current.map(p => p.uid));
+      for (const r of Object.values(mergeRelayRiders(res.riders))) {
         if (r.uid === localUid) continue;
         namesRef.current[r.uid] ??= r.name;
-        if (r.sos) receiveSosRef.current(r.uid, true);
+        if (!onAgora.has(r.uid)) receiveSosRef.current(r.uid, r.sos);
+        else if (r.sos) receiveSosRef.current(r.uid, true);
       }
       res.events.forEach(e => handleRelayEventRef.current(e));
     }, RELAY_SYNC_MS);
@@ -305,6 +316,7 @@ export function RideProvider({children}: {children: ReactNode}) {
       clearInterval(timer);
       relayOutboxRef.current = [];
       setRelayRiders([]);
+      setRelayNow(0);
     };
   }, [connected, demo, localUid, channelName]);
 
@@ -336,7 +348,14 @@ export function RideProvider({children}: {children: ReactNode}) {
       return;
     }
     // Demo mode never syncs, so nothing is queued for the relay
-    if (relayEnabled && !demoRef.current) relayOutboxRef.current.push({id: mid, type: 'text', msg: id, text: body});
+    if (relayEnabled && !demoRef.current) {
+      const outbox = relayOutboxRef.current;
+      outbox.push({id: mid, type: 'text', msg: id, text: body});
+      if (outbox.length > RELAY_OUTBOX_MAX) {
+        const dropped = outbox.shift();
+        appLog('Relay', `outbox full, dropped quick message ${dropped?.msg}`);
+      }
+    }
     pushMessage({uid: null, from: 'You', id, text: body, t: Date.now()});
     if (demoRef.current) {
       // The nearest virtual rider answers
@@ -456,8 +475,8 @@ export function RideProvider({children}: {children: ReactNode}) {
   }, []);
   // Our own watch gets nothing we send through the relay (same uid), so it does not count
   const soloRiderPresent = useMemo(
-    () => hasSoloRider(relayRiders.filter(r => r.uid !== localUid), now),
-    [relayRiders, localUid, now],
+    () => hasSoloRider(relayRiders.filter(r => r.uid !== localUid), relayNow),
+    [relayRiders, localUid, relayNow],
   );
 
   const relayMerged = useMemo(() => mergeRelayRiders(relayRiders), [relayRiders]);
