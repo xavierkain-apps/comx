@@ -25,7 +25,7 @@ struct RelayOutEvent: Codable {
 typealias RelayCursor = Int64
 
 struct SyncRequest: Encodable {
-  var uid: Int
+  var uid: Int64
   var name: String
   var source = "watch"
   var pos: RelayPosition?
@@ -48,7 +48,7 @@ struct SyncRequest: Encodable {
 }
 
 struct RelayRider: Decodable {
-  var uid: Int
+  var uid: Int64
   var name: String
   var source: String
   var pos: RelayPosition?
@@ -58,9 +58,9 @@ struct RelayRider: Decodable {
 
 struct RelayEvent: Decodable {
   var id: String
-  var uid: Int
+  var uid: Int64
   var from: String
-  var to: Int?
+  var to: Int64?
   var type: String
   var msg: String?
   var text: String?
@@ -80,9 +80,9 @@ struct SyncResponse: Decodable {
 
 struct RelayClip: Codable {
   var id: String
-  var uid: Int
+  var uid: Int64
   var from: String
-  var to: Int
+  var to: Int64
   var durationMs: Int
   var ext: String
   var data: String

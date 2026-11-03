@@ -78,11 +78,11 @@ struct CompassView: View {
   @EnvironmentObject var model: AppModel
   /// Page on screen: a rider uid, `overview` or `talk`; while recording a talk
   /// target uid or `group`. There is no overview or talk page while recording.
-  @State private var page: Int?
+  @State private var page: Int64?
   /// Page ids that are never a rider uid.
-  static let overview = Int.min
-  static let talk = Int.min + 1
-  static let group = Int.min + 2
+  static let overview = Int64.min
+  static let talk = Int64.min + 1
+  static let group = Int64.min + 2
 
   var body: some View {
     Group {
@@ -133,7 +133,7 @@ struct CompassView: View {
     }
   }
 
-  private var shownByModel: Int {
+  private var shownByModel: Int64 {
     model.isRecording
       ? model.talkTarget ?? CompassView.group
       : model.compassRider?.uid ?? CompassView.overview
@@ -143,7 +143,7 @@ struct CompassView: View {
 /// Full-screen pages stacked vertically, one page per crown or swipe step.
 /// `page` is the id (`.page(_:)`) of the page on screen, read and written.
 struct PagedColumn<Content: View>: View {
-  @Binding var page: Int?
+  @Binding var page: Int64?
   @ViewBuilder var content: Content
 
   var body: some View {
@@ -200,7 +200,7 @@ extension EnvironmentValues {
 private struct PageFrame: ViewModifier {
   @Environment(\.pageHeight) private var height
   @Environment(\.pageInsets) private var insets
-  let id: Int
+  let id: Int64
 
   func body(content: Content) -> some View {
     content
@@ -212,7 +212,7 @@ private struct PageFrame: ViewModifier {
 
 private extension View {
   /// One page of a PagedColumn: as tall as the column, identified by `id`.
-  func page(_ id: Int) -> some View { modifier(PageFrame(id: id)) }
+  func page(_ id: Int64) -> some View { modifier(PageFrame(id: id)) }
 }
 
 /// Every rider on one radar: me in the centre, the top of the screen is the
@@ -473,7 +473,7 @@ struct RiderPage: View {
 /// red send circle. The crown moves to the next recipient page.
 struct TalkTargetPage: View {
   @EnvironmentObject var model: AppModel
-  let uid: Int?
+  let uid: Int64?
 
   var body: some View {
     let rider = uid.flatMap { model.rider($0) }
@@ -600,7 +600,7 @@ struct StatusLine: View {
 
 struct RidersView: View {
   @EnvironmentObject var model: AppModel
-  var onSelect: (Int) -> Void = { _ in }
+  var onSelect: (Int64) -> Void = { _ in }
 
   var body: some View {
     let riders = model.riders

@@ -4,7 +4,7 @@ import Foundation
 import WatchKit
 
 struct SOSAlert: Equatable {
-  var uid: Int
+  var uid: Int64
   var from: String
   var dist: Double?
   var brg: Double?
@@ -41,7 +41,7 @@ final class AppModel: ObservableObject {
   @Published private(set) var isRecording = false
   @Published private(set) var recordingElapsed: TimeInterval = 0
   @Published private(set) var playingFrom: String?
-  @Published private(set) var talkingNow: [Int: String] = [:]
+  @Published private(set) var talkingNow: [Int64: String] = [:]
   @Published private(set) var micDenied = false
   @Published private(set) var lastSent: Date?
 
@@ -67,13 +67,13 @@ final class AppModel: ObservableObject {
 
   // Compass focus (see "Compass focus" in docs/watch-companion.md)
   /// Rider the user last picked with the crown or the list (nil = overview).
-  @Published private(set) var selectedUid: Int?
+  @Published private(set) var selectedUid: Int64?
   private var selectedAt: Date = .distantPast
   /// When each rider currently in SOS was first seen in SOS.
-  private var sosSeenAt: [Int: Date] = [:]
+  private var sosSeenAt: [Int64: Date] = [:]
 
   /// Who the clip being recorded goes to: nil = the whole group (default).
-  @Published private(set) var talkTarget: Int?
+  @Published private(set) var talkTarget: Int64?
 
   private let link = PhoneLink()
   private let recorder = ClipRecorder()
@@ -226,7 +226,7 @@ final class AppModel: ObservableObject {
     }
   }
 
-  func rider(_ uid: Int) -> Rider? { state?.riders?.first { $0.uid == uid } }
+  func rider(_ uid: Int64) -> Rider? { state?.riders?.first { $0.uid == uid } }
 
   /// The rider page the compass shows, nil for the overview: a rider whose
   /// SOS started after the user's last pick, else the rider the user picked.
@@ -250,15 +250,15 @@ final class AppModel: ObservableObject {
     selectedAt = Date()
   }
 
-  func select(_ uid: Int) {
+  func select(_ uid: Int64) {
     selectedUid = uid
     selectedAt = Date()
   }
 
   /// Recipients in crown order: group, the rider on the compass, the others.
-  var talkTargets: [Int?] {
+  var talkTargets: [Int64?] {
     let focused = focusedRider?.uid
-    var out: [Int?] = [nil]
+    var out: [Int64?] = [nil]
     if let f = focused { out.append(f) }
     for r in riders where r.uid != focused { out.append(r.uid) }
     return out
@@ -274,7 +274,7 @@ final class AppModel: ObservableObject {
   }
 
   /// Recipient picked with the crown (a page of the compass) while recording.
-  func setTalkTarget(_ uid: Int?) {
+  func setTalkTarget(_ uid: Int64?) {
     guard isRecording, uid != talkTarget else { return }
     talkTarget = uid
     WKInterfaceDevice.current().play(uid == nil ? .directionDown : .directionUp)

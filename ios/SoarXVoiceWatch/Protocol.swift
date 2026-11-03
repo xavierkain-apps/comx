@@ -14,7 +14,9 @@ struct MePosition: Decodable {
 }
 
 struct Rider: Decodable, Identifiable, Equatable {
-  var uid: Int
+  /// Agora uids are random 32-bit unsigned values: Int64, since Swift's Int
+  /// is 32-bit on arm64_32 watches and would fail to decode the whole state.
+  var uid: Int64
   var name: String?
   var lat: Double?
   var lon: Double?
@@ -25,7 +27,7 @@ struct Rider: Decodable, Identifiable, Equatable {
   var sos: Bool?
   var stale: Bool?
 
-  var id: Int { uid }
+  var id: Int64 { uid }
   var displayName: String { (name?.isEmpty == false ? name! : "Rider \(uid)") }
   var isSpeaking: Bool { speaking ?? false }
   var isSOS: Bool { sos ?? false }
@@ -37,7 +39,7 @@ struct RelaySettings: Codable, Equatable {
   var url: String
   var key: String
   var channelKey: String
-  var uid: Int
+  var uid: Int64
 }
 
 struct PhoneState: Decodable {
@@ -56,7 +58,7 @@ struct PhoneEvent: Decodable {
   var v: Int?
   var kind: String?
   var type: String?
-  var uid: Int?
+  var uid: Int64?
   var from: String?
   var active: Bool?
   var id: String?
@@ -68,7 +70,7 @@ struct PhoneEvent: Decodable {
 struct ClipMeta: Decodable {
   var v: Int?
   var kind: String?
-  var uid: Int?
+  var uid: Int64?
   var from: String?
   var durationMs: Double?
   /// The sender addressed this clip to us only (ComX targeted message).
@@ -127,7 +129,7 @@ enum Outgoing {
 
   /// `to`: uid of the one rider the clip is for; nil = the whole group
   /// (the key is then omitted, which the contract reads as group).
-  static func clipMeta(durationMs: Int, to: Int?) -> String {
+  static func clipMeta(durationMs: Int, to: Int64?) -> String {
     var obj: [String: Any] = ["kind": "clip", "durationMs": durationMs]
     if let to = to { obj["to"] = to }
     return encode(obj)

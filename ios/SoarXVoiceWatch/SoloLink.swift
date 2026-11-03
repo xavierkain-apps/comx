@@ -6,7 +6,7 @@ import Foundation
 struct QueuedClip {
   var clip: RelayClip
   var url: URL
-  var to: Int?
+  var to: Int64?
   var ms: Int
 }
 
@@ -134,7 +134,7 @@ enum SoloGeometry {
   }
 
   /// The riders of a relay answer, in the form the compass already draws.
-  static func riders(_ response: SyncResponse, me: RelayPosition?, myUid: Int) -> [Rider] {
+  static func riders(_ response: SyncResponse, me: RelayPosition?, myUid: Int64) -> [Rider] {
     let nowMs = response.now
     return Dictionary(grouping: response.riders.filter { $0.uid != myUid }, by: { $0.uid }).map { uid, rows in
       let watch = rows.first { $0.source == "watch" }?.pos
