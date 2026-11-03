@@ -95,7 +95,7 @@ struct CompassView: View {
       } else if model.riders.isEmpty {
         CompassPage {
           Spacer(minLength: 0)
-          Text(model.linkUp ? "No riders yet" : "Waiting for phone")
+          Text(model.linkUp || model.mode == .solo ? "No riders yet" : "Waiting for phone")
             .font(.condensed(18, .bold))
             .foregroundStyle(Theme.textMuted)
           Spacer(minLength: 0)
@@ -586,10 +586,12 @@ struct StatusLine: View {
   }
 
   private var dotColor: Color {
-    model.channelConnected ? Theme.teal : (model.linkUp ? Theme.amber : Theme.red)
+    if model.mode == .solo { return model.soloOnline ? Theme.teal : Theme.red }
+    return model.channelConnected ? Theme.teal : (model.linkUp ? Theme.amber : Theme.red)
   }
 
   private var statusText: String {
+    if model.mode == .solo { return model.soloOnline ? "Solo" : "No network" }
     if !model.linkUp { return "No phone" }
     if !(model.state?.connected ?? false) { return "Not in channel" }
     return model.state?.channel ?? "Connected"
@@ -607,7 +609,7 @@ struct RidersView: View {
     List {
       HeadingSourceRow()
       if riders.isEmpty {
-        Text(model.linkUp ? "No riders yet" : "Waiting for phone")
+        Text(model.linkUp || model.mode == .solo ? "No riders yet" : "Waiting for phone")
           .font(.condensed(18, .bold))
           .foregroundStyle(Theme.textMuted)
       }
