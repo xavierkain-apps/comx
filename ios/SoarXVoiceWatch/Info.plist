@@ -13,7 +13,6 @@
 	<true/>
 	<key>WKBackgroundModes</key>
 	<array>
-		<string>location</string>
 		<string>workout-processing</string>
 	</array>
 </dict>

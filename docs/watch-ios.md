@@ -302,7 +302,8 @@ These give the numbers to tune the 10 s interval after a field test.
 **Why `allowsBackgroundLocationUpdates` is not set**: on watchOS, setting it on
 the `CLLocationManager` raises an assertion and the app crashes. The workout
 session keeps the app running, and location updates keep coming with it.
-`WKBackgroundModes` has `location` and `workout-processing`.
+`WKBackgroundModes` has only `workout-processing`: App Store Connect rejects
+`location` in a watch app (error 90362).
 
 **Two fixes found on the way**:
 
