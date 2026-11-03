@@ -52,6 +52,8 @@ struct PhoneState: Decodable {
   var riders: [Rider]?
   var ts: Double?
   var relay: RelaySettings?
+  /// The phone was in a channel and left it (not a fresh, never-joined process).
+  var left: Bool?
 }
 
 struct PhoneEvent: Decodable {

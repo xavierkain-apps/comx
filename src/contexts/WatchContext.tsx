@@ -167,6 +167,12 @@ export function WatchProvider({children}: {children: ReactNode}) {
       : null),
     [inChannel, demo, localUid, channelName],
   );
+  // Left = this process was in a channel and is not any more (user Leave,
+  // disconnected). A process iOS woke in the background never joined: the
+  // watch must keep its relay settings then.
+  const joinedRef = useRef(false);
+  if (inChannel) joinedRef.current = true;
+  const left = joinedRef.current && !inChannel;
   stateRef.current = buildWatchState({
     connected: inChannel || demo,
     channel: demoOnly ? 'Demo' : channelName,
@@ -176,6 +182,7 @@ export function WatchProvider({children}: {children: ReactNode}) {
     riders,
     now,
     relay,
+    left,
   });
 
   useEffect(() => {

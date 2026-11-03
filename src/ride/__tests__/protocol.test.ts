@@ -98,7 +98,7 @@ describe('buildWatchState', () => {
     expect(s).toEqual({
       v: 2, kind: 'state', connected: true, channel: 'TARIFA-01', watchMode: true,
       me: {name: 'Xav', lat: null, lon: null, cog: null, sog: null, t: null},
-      riders: [], ts: 42, relay: null,
+      riders: [], ts: 42, relay: null, left: false,
     });
   });
 });
@@ -113,6 +113,11 @@ describe('buildWatchState relay', () => {
 
   it('sends null without them', () => {
     expect(buildWatchState(base).relay).toBeNull();
+  });
+
+  it('says left only when asked (a fresh phone process never joined)', () => {
+    expect(buildWatchState({...base, connected: false}).left).toBe(false);
+    expect(buildWatchState({...base, connected: false, left: true}).left).toBe(true);
   });
 });
 

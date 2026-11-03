@@ -76,6 +76,8 @@ final class AppModel: ObservableObject {
   static let phoneBackAfter: TimeInterval = 5
   /// ...as long as states keep coming: none for this long restarts the wait.
   static let phoneBackGap: TimeInterval = 3
+  /// A phone that says it is not in a channel for this long: the watch goes solo.
+  static let offChannelAfter: TimeInterval = 5
   /// No relay answer for this long: say the position is not shared.
   static let noNetworkAfter: TimeInterval = 30
   /// *SOS sent* needs a relay answer within this time.
@@ -91,6 +93,10 @@ final class AppModel: ObservableObject {
   private var relayName = ""
   private var relayChannel = ""
   private var phoneBackSince: Date?
+  /// `connected` of the latest phone state, shown or not (nil: none yet).
+  private var phoneInChannel: Bool?
+  /// Since when the phone's states have said it is not in a channel.
+  private var offChannelSince: Date?
   private var soloSince: Date?
   /// The 15 s before solo mode count from here until a first phone state.
   private var launchedAt = Date()
@@ -232,10 +238,12 @@ final class AppModel: ObservableObject {
     InputLog.shared.system("Water lock \(locked ? "on" : "off")")
   }
 
-  /// Phone mode while the phone pushes state; solo mode (the watch syncs with
-  /// the relay itself) once it has been silent for `soloAfter` and the watch
-  /// has relay settings. Without settings the group keeps seeing the phone's
-  /// last position: say so instead of staying silent.
+  /// Phone mode while the phone pushes state from a channel; solo mode (the
+  /// watch syncs with the relay itself) when the watch has relay settings and
+  /// the phone has been silent for `soloAfter`, or has said for
+  /// `offChannelAfter` that it is not in a channel (iOS killed the app and
+  /// WatchConnectivity woke a fresh process). Without settings the group keeps
+  /// seeing the phone's last position: say so instead of staying silent.
   private func watchLink() {
     let up = linkUp
     if up != wasLinkUp {
@@ -246,6 +254,10 @@ final class AppModel: ObservableObject {
     case .phone:
       if up {
         linkAlerted = false
+        if let settings = relay, let since = offChannelSince,
+           now.timeIntervalSince(since) >= AppModel.offChannelAfter {
+          enterSolo(settings, reason: "phone not in a channel")
+        }
         return
       }
       let silent = now.timeIntervalSince(lastStateAt ?? launchedAt)
@@ -259,10 +271,12 @@ final class AppModel: ObservableObject {
       }
     case .solo:
       // A phone that goes quiet again restarts the wait: a single stray state
-      // must not end solo mode.
+      // must not end solo mode. A phone outside a channel does not end it
+      // either, unless it took the relay settings away (a real leave).
       let fresh = lastStateAt.map { now.timeIntervalSince($0) < AppModel.phoneBackGap } ?? false
       if !fresh { phoneBackSince = nil }
-      if let since = phoneBackSince, fresh, now.timeIntervalSince(since) >= AppModel.phoneBackAfter {
+      if let since = phoneBackSince, fresh, now.timeIntervalSince(since) >= AppModel.phoneBackAfter,
+         phoneInChannel == true || relay == nil {
         exitSolo()
       } else {
         watchSolo()
@@ -270,8 +284,8 @@ final class AppModel: ObservableObject {
     }
   }
 
-  private func enterSolo(_ settings: RelaySettings) {
-    InputLog.shared.system("Solo mode on")
+  private func enterSolo(_ settings: RelaySettings, reason: String? = nil) {
+    InputLog.shared.system(reason.map { "Solo mode on (\($0))" } ?? "Solo mode on")
     mode = .solo
     soloSince = Date()
     noNetworkAlerted = false
@@ -350,6 +364,8 @@ final class AppModel: ObservableObject {
   }
 
   /// Follows the phone: a channel gives settings, leaving it clears them.
+  /// Only a real leave (`left`) clears them: a phone process iOS restarted in
+  /// the background is not in a channel either, and the watch may need them.
   /// After End session the phone's next state must not bring them back.
   private func storeRelay(from s: PhoneState) {
     guard !sessionEndedByUser else { return }
@@ -361,7 +377,8 @@ final class AppModel: ObservableObject {
       d.set(try? JSONEncoder().encode(r), forKey: AppModel.relayKey)
       d.set(relayName, forKey: AppModel.nameKey)
       d.set(relayChannel, forKey: AppModel.channelKey)
-    } else if s.connected == false {
+    } else if s.left == true {
+      if relay != nil { InputLog.shared.system("Relay settings cleared: phone left the channel") }
       clearRelay()
     }
   }
@@ -625,6 +642,12 @@ final class AppModel: ObservableObject {
     case .state(let s):
       storeRelay(from: s)
       lastStateAt = Date()
+      phoneInChannel = s.connected
+      if s.connected == false {
+        if offChannelSince == nil { offChannelSince = Date() }
+      } else {
+        offChannelSince = nil
+      }
       if mode == .solo {
         // The relay feeds the compass until solo mode ends.
         if phoneBackSince == nil { phoneBackSince = Date() }

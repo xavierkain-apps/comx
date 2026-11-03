@@ -166,6 +166,8 @@ export interface WatchState {
   riders: RiderView[];
   ts: number;
   relay: WatchRelaySettings | null;
+  /** This phone process was in a channel and left it; false for one that never joined. */
+  left: boolean;
 }
 
 export function buildWatchState(args: {
@@ -177,6 +179,7 @@ export function buildWatchState(args: {
   riders: RiderView[];
   now: number;
   relay?: WatchRelaySettings | null;
+  left?: boolean;
 }): WatchState {
   const {me} = args;
   return {
@@ -196,6 +199,7 @@ export function buildWatchState(args: {
     riders: args.riders,
     ts: args.now,
     relay: args.relay ?? null,
+    left: args.left ?? false,
   };
 }
 
