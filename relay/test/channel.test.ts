@@ -199,6 +199,15 @@ describe('sync', () => {
     expect(body.events[0].seq).not.toBe(999);
   });
 
+  it('stamps an event with the relay time it was stored', async () => {
+    const key = channelFor();
+    await at(key, 10_000);
+    await sync(key, syncBody(1, {events: [{id: 'e1', type: 'text', msg: 'ok', text: 'x'}]}));
+    await at(key, 20_000);
+    const {body} = await sync(key, syncBody(2));
+    expect(body.events[0].sentAt).toBe(10_000);
+  });
+
   it('refuses a second sync within 1 s', async () => {
     const key = channelFor();
     await at(key, 10_000);
@@ -219,6 +228,23 @@ describe('sos', () => {
     const {body} = await sync(key, syncBody(2));
     expect(uid1(body)).toEqual([[true, 1_000]]);
     expect(sosEvents(body).map((e: any) => [e.active, e.at, e.lat, e.lon])).toEqual([[true, 1_000, 36, -5.6]]);
+  });
+
+  it('answers a client with its own sos state, after this sync update', async () => {
+    const key = channelFor();
+    await at(key, 10_000);
+    const raised = await sync(key, syncBody(1, {sos: true, sosAt: 1_000}));
+    expect(raised.body.self).toEqual({sos: true, sosAt: 1_000});
+    await at(key, 12_000);
+    const watch = await sync(key, syncBody(1, {source: 'watch', sos: false, sosAt: 0}));
+    expect(watch.body.self).toEqual({sos: true, sosAt: 1_000});
+  });
+
+  it('answers self as off for a client that never touched sos', async () => {
+    const key = channelFor();
+    await at(key, 10_000);
+    const {body} = await sync(key, syncBody(1));
+    expect(body.self).toEqual({sos: false, sosAt: 0});
   });
 
   it('lets the watch row of the same uid cancel with a newer time', async () => {

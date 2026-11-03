@@ -33,7 +33,7 @@ interface SyncBody {
 }
 
 type RiderRow = {uid: number; source: string; name: string; pos: string | null; seen_at: number; sos: number; sos_at: number};
-type EventRow = {seq: number; id: string; uid: number; sender: string; to_uid: number; body: string};
+type EventRow = {seq: number; id: string; uid: number; sender: string; to_uid: number; at: number; body: string};
 
 export class Channel extends DurableObject<Env> {
   /** Replaced in tests. */
@@ -137,6 +137,7 @@ export class Channel extends DurableObject<Env> {
     return Response.json({
       now,
       riders: this.riders(body, now),
+      self: this.selfSos(body.uid),
       events: this.events(body, now),
       cursor: this.epoch() * EPOCH_UNIT + this.lastSeq(),
       acked,
@@ -162,6 +163,14 @@ export class Channel extends DurableObject<Env> {
     const lat = (body.pos?.lat as number | undefined) ?? null;
     const lon = (body.pos?.lon as number | undefined) ?? null;
     this.addEvent(`sos-${body.uid}-${sosAt}`, body, {type: 'sos', active: !!active, at: sosAt, lat, lon}, 0);
+  }
+
+  /** The caller's own SOS state: a solo watch has no row of its own to read it from. */
+  private selfSos(uid: number) {
+    const state = this.ctx.storage.sql
+      .exec<{active: number; changed_at: number}>('SELECT active, changed_at FROM sos_state WHERE uid = ?', uid)
+      .toArray()[0];
+    return {sos: state?.active === 1, sosAt: state?.changed_at ?? 0};
   }
 
   private addEvent(id: string, who: SyncBody, body: Record<string, unknown>, to: number) {
@@ -202,7 +211,7 @@ export class Channel extends DurableObject<Env> {
         'SELECT * FROM events WHERE at >= ? AND uid != ? AND to_uid IN (0, ?) ORDER BY seq',
         now - FIRST_SYNC_WINDOW_MS, body.uid, body.uid);
     }
-    return rows.toArray().map(e => ({...JSON.parse(e.body), seq: e.seq, id: e.id, uid: e.uid, from: e.sender, to: e.to_uid}));
+    return rows.toArray().map(e => ({...JSON.parse(e.body), seq: e.seq, id: e.id, uid: e.uid, from: e.sender, to: e.to_uid, sentAt: e.at}));
   }
 
   private keepAlarm(now: number) {
