@@ -10,6 +10,8 @@ const WIPE_AFTER_MS = 60 * 60_000;
 const ALARM_REFRESH_MS = 5 * 60_000;
 const MAX_CLIP_CHARS = 350_000;
 const MIN_CLIP_GAP_MS = 3_000;
+/** A change time further ahead than this is a wrong clock: clamped to the relay's now. */
+const MAX_SOS_AHEAD_MS = 10 * 60_000;
 /** The cursor is `epoch * EPOCH_UNIT + lastSeq`: a new epoch after each wipe. */
 const EPOCH_UNIT = 2 ** 32;
 const EPOCH_LIMIT = 2 ** 20;
@@ -24,11 +26,13 @@ interface SyncBody {
   source: 'phone' | 'watch';
   pos: Record<string, unknown> | null;
   sos: boolean;
+  /** Epoch ms of the client's last SOS change, 0 if it never changed it. */
+  sosAt: number;
   cursor: number;
   events: (Record<string, unknown> & {id: string; to?: number})[];
 }
 
-type RiderRow = {uid: number; source: string; name: string; pos: string | null; sos: number; seen_at: number};
+type RiderRow = {uid: number; source: string; name: string; pos: string | null; seen_at: number; sos: number; sos_at: number};
 type EventRow = {seq: number; id: string; uid: number; sender: string; to_uid: number; body: string};
 
 export class Channel extends DurableObject<Env> {
@@ -41,7 +45,7 @@ export class Channel extends DurableObject<Env> {
   private ensureSchema() {
     this.ctx.storage.sql.exec(`
       CREATE TABLE IF NOT EXISTS riders (
-        uid INTEGER, source TEXT, name TEXT, pos TEXT, sos INTEGER, seen_at INTEGER,
+        uid INTEGER, source TEXT, name TEXT, pos TEXT, seen_at INTEGER,
         PRIMARY KEY (uid, source));
       CREATE TABLE IF NOT EXISTS events (
         seq INTEGER PRIMARY KEY AUTOINCREMENT, id TEXT UNIQUE, uid INTEGER, sender TEXT,
@@ -108,16 +112,16 @@ export class Channel extends DurableObject<Env> {
     const sql = this.ctx.storage.sql;
     const now = this.clock();
     const previous = sql
-      .exec<RiderRow>('SELECT * FROM riders WHERE uid = ? AND source = ?', body.uid, body.source)
+      .exec<{seen_at: number}>('SELECT seen_at FROM riders WHERE uid = ? AND source = ?', body.uid, body.source)
       .toArray()[0];
     if (previous && now - previous.seen_at < MIN_SYNC_GAP_MS) return new Response('too fast', {status: 429});
 
     sql.exec(
-      'INSERT OR REPLACE INTO riders (uid, source, name, pos, sos, seen_at) VALUES (?, ?, ?, ?, ?, ?)',
-      body.uid, body.source, body.name, body.pos ? JSON.stringify(body.pos) : null, body.sos ? 1 : 0, now,
+      'INSERT OR REPLACE INTO riders (uid, source, name, pos, seen_at) VALUES (?, ?, ?, ?, ?)',
+      body.uid, body.source, body.name, body.pos ? JSON.stringify(body.pos) : null, now,
     );
 
-    this.updateSos(body, previous, now);
+    this.updateSos(body, now);
     const acked: string[] = [];
     for (const e of body.events) {
       const {id, to, ...rest} = e;
@@ -140,21 +144,24 @@ export class Channel extends DurableObject<Env> {
   }
 
   /**
-   * One SOS state per uid, last change wins. A row that changes its value is a
-   * change; a new row is one only for a uid with no state yet, since a watch
-   * going solo carries the value its phone already reported.
+   * One SOS state per uid: the newest change wins, by the time the client
+   * says it made it. An older or equal time never changes the state, so a
+   * client re-sending a stale value cannot reverse a newer change.
    */
-  private updateSos(body: SyncBody, previous: RiderRow | undefined, now: number) {
+  private updateSos(body: SyncBody, now: number) {
     const sql = this.ctx.storage.sql;
+    const sosAt = body.sosAt > now + MAX_SOS_AHEAD_MS ? now : body.sosAt;
+    if (sosAt <= 0) return;
+    const state = sql
+      .exec<{active: number; changed_at: number}>('SELECT active, changed_at FROM sos_state WHERE uid = ?', body.uid)
+      .toArray()[0];
+    if (state && sosAt <= state.changed_at) return;
     const active = body.sos ? 1 : 0;
-    const state = sql.exec<{active: number}>('SELECT active FROM sos_state WHERE uid = ?', body.uid).toArray()[0];
-    const changed = previous ? previous.sos !== active : !state;
-    if (!changed || (state && state.active === active)) return;
-    sql.exec('INSERT OR REPLACE INTO sos_state (uid, active, changed_at) VALUES (?, ?, ?)', body.uid, active, now);
+    sql.exec('INSERT OR REPLACE INTO sos_state (uid, active, changed_at) VALUES (?, ?, ?)', body.uid, active, sosAt);
     if ((state?.active ?? 0) === active) return;
     const lat = (body.pos?.lat as number | undefined) ?? null;
     const lon = (body.pos?.lon as number | undefined) ?? null;
-    this.addEvent(`sos-${body.uid}-${now}`, body, {type: 'sos', active: !!active, lat, lon}, 0);
+    this.addEvent(`sos-${body.uid}-${sosAt}`, body, {type: 'sos', active: !!active, at: sosAt, lat, lon}, 0);
   }
 
   private addEvent(id: string, who: SyncBody, body: Record<string, unknown>, to: number) {
@@ -167,14 +174,16 @@ export class Channel extends DurableObject<Env> {
   private riders(body: SyncBody, now: number) {
     return this.ctx.storage.sql
       .exec<RiderRow>(
-        `SELECT r.*, COALESCE(s.active, 0) AS sos FROM riders r LEFT JOIN sos_state s ON s.uid = r.uid
+        `SELECT r.uid, r.source, r.name, r.pos, r.seen_at,
+           COALESCE(s.active, 0) AS sos, COALESCE(s.changed_at, 0) AS sos_at
+         FROM riders r LEFT JOIN sos_state s ON s.uid = r.uid
          WHERE r.seen_at >= ? AND NOT (r.uid = ? AND r.source = ?)`,
         now - RIDER_TTL_MS, body.uid, body.source,
       )
       .toArray()
       .map(r => ({
         uid: r.uid, name: r.name, source: r.source,
-        pos: r.pos ? JSON.parse(r.pos) : null, sos: r.sos === 1, seenAt: r.seen_at,
+        pos: r.pos ? JSON.parse(r.pos) : null, sos: r.sos === 1, sosAt: r.sos_at, seenAt: r.seen_at,
       }));
   }
 
@@ -227,6 +236,7 @@ function isSyncBody(v: unknown): v is SyncBody {
   if (!Array.isArray(v.events) || !v.events.every(e => isObject(e) && typeof e.id === 'string')) return false;
   if (typeof v.cursor !== 'number' || !Number.isFinite(v.cursor) || v.cursor < 0) v.cursor = 0;
   if (!isObject(v.pos)) v.pos = null;
+  if (typeof v.sosAt !== 'number' || !Number.isFinite(v.sosAt) || v.sosAt < 0) v.sosAt = 0;
   if (typeof v.name !== 'string') v.name = '';
   return true;
 }

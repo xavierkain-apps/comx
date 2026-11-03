@@ -158,20 +158,6 @@ describe('sync', () => {
     expect((await sync(key, syncBody(3))).body.events).toHaveLength(1);
   });
 
-  it('adds a sos event when the state changes, once', async () => {
-    const key = channelFor();
-    await at(key, 10_000);
-    await sync(key, syncBody(1, {sos: false}));
-    await at(key, 12_000);
-    await sync(key, syncBody(1, {sos: true, pos: pos(11_000)}));
-    await at(key, 14_000);
-    await sync(key, syncBody(1, {sos: true}));
-    await at(key, 16_000);
-    const {body} = await sync(key, syncBody(2));
-    expect(body.riders[0].sos).toBe(true);
-    expect(body.events.filter((e: any) => e.type === 'sos').map((e: any) => e.active)).toEqual([true]);
-  });
-
   it('keeps the cursor when every event has expired', async () => {
     const key = channelFor();
     await at(key, 10_000);
@@ -204,50 +190,6 @@ describe('sync', () => {
     expect(back.body.events.map((e: any) => e.id)).toEqual(['e1']);
   });
 
-  it('keeps one sos state per rider, last change wins', async () => {
-    const key = channelFor();
-    const sosEvents = (b: any) => b.events.filter((e: any) => e.type === 'sos').map((e: any) => e.active);
-    const uid1 = (b: any) => b.riders.filter((r: any) => r.uid === 1).map((r: any) => r.sos);
-    await at(key, 10_000);
-    await sync(key, syncBody(1, {sos: false}));
-    const b0 = await sync(key, syncBody(2));
-    await at(key, 12_000);
-    await sync(key, syncBody(1, {sos: true, pos: pos(11_000)}));
-    await at(key, 14_000);
-    const b1 = await sync(key, syncBody(2, {cursor: b0.body.cursor}));
-    expect(uid1(b1.body)).toEqual([true]);
-    expect(sosEvents(b1.body)).toEqual([true]);
-
-    await sync(key, syncBody(1, {source: 'watch', sos: true}));
-    await at(key, 16_000);
-    const b2 = await sync(key, syncBody(2, {cursor: b1.body.cursor}));
-    expect(sosEvents(b2.body)).toEqual([]);
-    expect(uid1(b2.body)).toEqual([true, true]);
-
-    await sync(key, syncBody(1, {source: 'watch', sos: false}));
-    await at(key, 18_000);
-    const b3 = await sync(key, syncBody(2, {cursor: b2.body.cursor}));
-    expect(sosEvents(b3.body)).toEqual([false]);
-    expect(uid1(b3.body)).toEqual([false, false]);
-
-    await sync(key, syncBody(1, {sos: true}));
-    await at(key, 20_000);
-    const b4 = await sync(key, syncBody(2, {cursor: b3.body.cursor}));
-    expect(sosEvents(b4.body)).toEqual([]);
-    expect(uid1(b4.body)).toEqual([false, false]);
-  });
-
-  it('raises the sos of a newcomer whose first sync has it on', async () => {
-    const key = channelFor();
-    await at(key, 10_000);
-    await sync(key, syncBody(1, {sos: true}));
-    await at(key, 12_000);
-    await sync(key, syncBody(1, {sos: true}));
-    const {body} = await sync(key, syncBody(2));
-    expect(body.riders[0].sos).toBe(true);
-    expect(body.events.filter((e: any) => e.type === 'sos').map((e: any) => e.active)).toEqual([true]);
-  });
-
   it('keeps the server fields of an event', async () => {
     const key = channelFor();
     await at(key, 10_000);
@@ -263,6 +205,98 @@ describe('sync', () => {
     await sync(key, syncBody(1));
     await at(key, 10_500);
     expect((await sync(key, syncBody(1))).status).toBe(429);
+  });
+});
+
+const sosEvents = (b: any) => b.events.filter((e: any) => e.type === 'sos');
+const uid1 = (b: any) => b.riders.filter((r: any) => r.uid === 1).map((r: any) => [r.sos, r.sosAt]);
+
+describe('sos', () => {
+  it('raises from a phone row with its change time', async () => {
+    const key = channelFor();
+    await at(key, 10_000);
+    await sync(key, syncBody(1, {sos: true, sosAt: 1_000, pos: pos(9_000)}));
+    const {body} = await sync(key, syncBody(2));
+    expect(uid1(body)).toEqual([[true, 1_000]]);
+    expect(sosEvents(body).map((e: any) => [e.active, e.at, e.lat, e.lon])).toEqual([[true, 1_000, 36, -5.6]]);
+  });
+
+  it('lets the watch row of the same uid cancel with a newer time', async () => {
+    const key = channelFor();
+    await at(key, 10_000);
+    await sync(key, syncBody(1, {sos: true, sosAt: 1_000}));
+    const b0 = await sync(key, syncBody(2));
+    await at(key, 12_000);
+    await sync(key, syncBody(1, {source: 'watch', sos: false, sosAt: 2_000}));
+    const b1 = await sync(key, syncBody(2, {cursor: b0.body.cursor}));
+    expect(sosEvents(b1.body).map((e: any) => [e.active, e.at])).toEqual([[false, 2_000]]);
+    expect(uid1(b1.body)).toEqual([[false, 2_000], [false, 2_000]]);
+  });
+
+  it('ignores a phone that keeps sending an older change', async () => {
+    const key = channelFor();
+    await at(key, 10_000);
+    await sync(key, syncBody(1, {sos: true, sosAt: 1_000}));
+    await sync(key, syncBody(1, {source: 'watch', sos: false, sosAt: 2_000}));
+    const b0 = await sync(key, syncBody(2));
+    await at(key, 12_000);
+    await sync(key, syncBody(1, {sos: true, sosAt: 1_000}));
+    await at(key, 14_000);
+    await sync(key, syncBody(1, {sos: true, sosAt: 1_000}));
+    const b1 = await sync(key, syncBody(2, {cursor: b0.body.cursor}));
+    expect(sosEvents(b1.body)).toEqual([]);
+    expect(uid1(b1.body)).toEqual([[false, 2_000], [false, 2_000]]);
+  });
+
+  it('lets a phone that adopted the state raise again', async () => {
+    const key = channelFor();
+    await at(key, 10_000);
+    await sync(key, syncBody(1, {sos: true, sosAt: 1_000}));
+    await sync(key, syncBody(1, {source: 'watch', sos: false, sosAt: 2_000}));
+    const b0 = await sync(key, syncBody(2));
+    await at(key, 12_000);
+    await sync(key, syncBody(1, {sos: false, sosAt: 2_000}));
+    const b1 = await sync(key, syncBody(2, {cursor: b0.body.cursor}));
+    expect(sosEvents(b1.body)).toEqual([]);
+    await at(key, 14_000);
+    await sync(key, syncBody(1, {sos: true, sosAt: 3_000}));
+    const b2 = await sync(key, syncBody(2, {cursor: b1.body.cursor}));
+    expect(sosEvents(b2.body).map((e: any) => [e.active, e.at])).toEqual([[true, 3_000]]);
+    expect(uid1(b2.body)).toEqual([[true, 3_000], [true, 3_000]]);
+  });
+
+  it('raises the sos of a newcomer whose first sync has it on', async () => {
+    const key = channelFor();
+    await at(key, 10_000);
+    await sync(key, syncBody(1, {sos: true, sosAt: 500}));
+    await at(key, 12_000);
+    await sync(key, syncBody(1, {sos: true, sosAt: 500}));
+    const {body} = await sync(key, syncBody(2));
+    expect(uid1(body)).toEqual([[true, 500]]);
+    expect(sosEvents(body).map((e: any) => e.active)).toEqual([true]);
+  });
+
+  it('keeps no state for a rider who never touched sos', async () => {
+    const key = channelFor();
+    await at(key, 10_000);
+    await sync(key, syncBody(1, {sos: true}));
+    await sync(key, syncBody(1, {source: 'watch', sos: true, sosAt: 'x'}));
+    const {body} = await sync(key, syncBody(2));
+    expect(sosEvents(body)).toEqual([]);
+    expect(uid1(body)).toEqual([[false, 0], [false, 0]]);
+  });
+
+  it('clamps a change time far in the future to the relay clock', async () => {
+    const key = channelFor();
+    await at(key, 10_000);
+    await sync(key, syncBody(1, {sos: true, sosAt: 10_000 + 60 * 60_000}));
+    const b0 = await sync(key, syncBody(2));
+    expect(uid1(b0.body)).toEqual([[true, 10_000]]);
+    await at(key, 20_000);
+    await sync(key, syncBody(1, {sos: false, sosAt: 21_000}));
+    const b1 = await sync(key, syncBody(2, {cursor: b0.body.cursor}));
+    expect(sosEvents(b1.body).map((e: any) => [e.active, e.at])).toEqual([[false, 21_000]]);
+    expect(uid1(b1.body)).toEqual([[false, 21_000]]);
   });
 });
 
