@@ -49,6 +49,8 @@ final class AppModel: ObservableObject {
   @Published var banner: Banner?
   @Published var sosAlert: SOSAlert?
   @Published private(set) var mySOSActive = false
+  /// When mySOSActive last changed (epoch ms): the newest change wins on the relay.
+  private var mySOSAt: Double = 0
   /// Last messages sent and received, newest first (History page).
   @Published private(set) var history: [HistoryItem] = []
 
@@ -64,6 +66,43 @@ final class AppModel: ObservableObject {
   private var wasLinkUp = false
   private var linkAlerted = false
   private var wasWaterLocked = false
+
+  // Solo mode (see "Watch modes" in docs/superpowers/specs/2026-11-01-comx-watch-solo-design.md)
+  enum Mode { case phone, solo }
+
+  /// Without phone state for this long, the watch goes solo.
+  static let soloAfter: TimeInterval = 15
+  /// Phone state for this long ends solo mode.
+  static let phoneBackAfter: TimeInterval = 5
+  /// No relay answer for this long: say the position is not shared.
+  static let noNetworkAfter: TimeInterval = 30
+  /// *SOS sent* needs a relay answer within this time.
+  static let sosConfirmAfter: TimeInterval = 15
+  private static let batteryLogEvery: TimeInterval = 15 * 60
+  private static let relayKey = "comx.relay"
+  private static let nameKey = "comx.relayName"
+  private static let channelKey = "comx.relayChannel"
+
+  @Published private(set) var mode: Mode = .phone
+  private let solo = SoloLink()
+  private var relay: RelaySettings?
+  private var relayName = ""
+  private var relayChannel = ""
+  private var phoneBackSince: Date?
+  private var soloSince: Date?
+  private var noNetworkAlerted = false
+  /// An SOS change made in solo mode that no relay answer has confirmed yet.
+  private var sosPendingSince: Date?
+  /// *SOS not transmitted* was shown for the pending change.
+  private var sosLateAlerted = false
+  /// The rider changed the SOS on the watch during solo mode: the phone gets
+  /// it on the way back. Otherwise the phone's own state stands (the phone
+  /// stamps the time it receives it, so a stale state would win there).
+  private var sosChangedInSolo = false
+  private var lastBatteryLog = Date.distantPast
+  /// Solo mode: time of the last SOS state applied per rider, so an older
+  /// state (the replay of a first sync) never raises an SOS again.
+  private var sosAppliedAt: [Int64: Double] = [:]
 
   // Compass focus (see "Compass focus" in docs/watch-companion.md)
   /// Rider the user last picked with the crown or the list (nil = overview).
@@ -101,6 +140,10 @@ final class AppModel: ObservableObject {
     link.onClip = { [weak self] url, meta in self?.handleClip(url, meta) }
     link.onReachability = { [weak self] in self?.reachable = $0 }
     link.onActivated = { [weak self] in self?.sendHello() }
+    loadRelay()
+    solo.onResponse = { [weak self] response, fix in self?.handleSolo(response, fix: fix) }
+    solo.onClipSent = { WKInterfaceDevice.current().play(.success) }
+    solo.onTextAcked = { WKInterfaceDevice.current().play(.success) }
     link.activate()
 
     player.onStart = { [weak self] from in
@@ -131,6 +174,8 @@ final class AppModel: ObservableObject {
 
   func endSession() {
     sessionEndedByUser = true
+    if mode == .solo { exitSolo() }
+    clearRelay()
     workout.stop()
   }
 
@@ -169,21 +214,135 @@ final class AppModel: ObservableObject {
     InputLog.shared.system("Water lock \(locked ? "on" : "off")")
   }
 
-  /// The watch has no GPS link of its own: without the phone, the group keeps
-  /// seeing the phone's last position. Say so instead of staying silent.
+  /// Phone mode while the phone pushes state; solo mode (the watch syncs with
+  /// the relay itself) once it has been silent for `soloAfter` and the watch
+  /// has relay settings. Without settings the group keeps seeing the phone's
+  /// last position: say so instead of staying silent.
   private func watchLink() {
     let up = linkUp
     if up != wasLinkUp {
       wasLinkUp = up
       InputLog.shared.system(up ? "Phone link up" : "Phone link down")
     }
-    if up {
-      linkAlerted = false
-    } else if !linkAlerted, let at = lastStateAt, now.timeIntervalSince(at) >= AppModel.linkAlertAfter {
-      linkAlerted = true
-      WKInterfaceDevice.current().play(.failure)
-      show(Banner(title: "No phone", body: "Your position is no longer shared", at: Date()))
+    switch mode {
+    case .phone:
+      if up {
+        linkAlerted = false
+        return
+      }
+      let silent = lastStateAt.map { now.timeIntervalSince($0) } ?? .infinity
+      if silent >= AppModel.soloAfter, let settings = relay {
+        enterSolo(settings)
+      } else if !linkAlerted, relay == nil, let at = lastStateAt,
+                now.timeIntervalSince(at) >= AppModel.linkAlertAfter {
+        linkAlerted = true
+        WKInterfaceDevice.current().play(.failure)
+        show(Banner(title: "No phone", body: "Your position is no longer shared", at: Date()))
+      }
+    case .solo:
+      if !up { phoneBackSince = nil } // a phone that goes quiet again restarts the wait
+      if let since = phoneBackSince, up, now.timeIntervalSince(since) >= AppModel.phoneBackAfter {
+        exitSolo()
+      } else {
+        watchSolo()
+      }
     }
+  }
+
+  private func enterSolo(_ settings: RelaySettings) {
+    InputLog.shared.system("Solo mode on")
+    mode = .solo
+    soloSince = Date()
+    noNetworkAlerted = false
+    phoneBackSince = nil
+    WKInterfaceDevice.current().isBatteryMonitoringEnabled = true
+    solo.sos = mySOSActive
+    solo.sosAt = mySOSAt
+    solo.start(settings, name: relayName)
+  }
+
+  /// Back to the phone: what the relay has not taken yet goes to the phone.
+  private func exitSolo() {
+    InputLog.shared.system("Solo mode off")
+    mode = .phone
+    solo.stop()
+    let left = solo.drain()
+    for t in left.texts {
+      if let m = QuickMessage(rawValue: t.msg) { link.send(Outgoing.text(m)) }
+    }
+    for c in left.clips {
+      link.sendClip(c.url, metaJSON: Outgoing.clipMeta(durationMs: c.ms, to: c.to))
+    }
+    if sosChangedInSolo { link.send(Outgoing.sos(active: mySOSActive)) }
+    sosChangedInSolo = false
+    sosPendingSince = nil
+    sosLateAlerted = false
+  }
+
+  /// Solo mode and the relay answered recently.
+  var soloOnline: Bool {
+    guard let ok = solo.lastSyncOK else { return false }
+    return now.timeIntervalSince(ok) < AppModel.noNetworkAfter
+  }
+
+  private func watchSolo() {
+    let reference = solo.lastSyncOK ?? soloSince ?? now
+    let silent = now.timeIntervalSince(reference)
+    if silent >= AppModel.noNetworkAfter, !noNetworkAlerted {
+      noNetworkAlerted = true
+      InputLog.shared.system("No network")
+      WKInterfaceDevice.current().play(.failure)
+      show(Banner(title: "No network", body: "Your position is no longer shared", at: Date()))
+    } else if silent < AppModel.noNetworkAfter, noNetworkAlerted {
+      noNetworkAlerted = false
+      InputLog.shared.system("Network back")
+    }
+    // Only a raised SOS is chased; it keeps retrying with every sync.
+    if let since = sosPendingSince, mySOSActive, !sosLateAlerted,
+       now.timeIntervalSince(since) >= AppModel.sosConfirmAfter {
+      sosLateAlerted = true
+      WKInterfaceDevice.current().play(.failure)
+      show(Banner(title: "SOS not transmitted", body: "Still trying", at: Date()))
+    }
+    if now.timeIntervalSince(lastBatteryLog) >= AppModel.batteryLogEvery {
+      lastBatteryLog = now
+      let device = WKInterfaceDevice.current()
+      device.isBatteryMonitoringEnabled = true
+      InputLog.shared.system("Battery \(Int(device.batteryLevel * 100))%")
+    }
+  }
+
+  // MARK: - Relay settings
+
+  private func loadRelay() {
+    let d = UserDefaults.standard
+    if let data = d.data(forKey: AppModel.relayKey) {
+      relay = try? JSONDecoder().decode(RelaySettings.self, from: data)
+    }
+    relayName = d.string(forKey: AppModel.nameKey) ?? ""
+    relayChannel = d.string(forKey: AppModel.channelKey) ?? ""
+  }
+
+  /// Follows the phone: a channel gives settings, leaving it clears them.
+  /// After End session the phone's next state must not bring them back.
+  private func storeRelay(from s: PhoneState) {
+    guard !sessionEndedByUser else { return }
+    let d = UserDefaults.standard
+    if let r = s.relay {
+      relay = r
+      relayName = s.me?.name ?? relayName
+      relayChannel = s.channel ?? relayChannel
+      d.set(try? JSONEncoder().encode(r), forKey: AppModel.relayKey)
+      d.set(relayName, forKey: AppModel.nameKey)
+      d.set(relayChannel, forKey: AppModel.channelKey)
+    } else if s.connected == false {
+      clearRelay()
+    }
+  }
+
+  private func clearRelay() {
+    relay = nil
+    UserDefaults.standard.removeObject(forKey: AppModel.relayKey)
   }
 
   func sendHello() {
@@ -197,7 +356,9 @@ final class AppModel: ObservableObject {
     return now.timeIntervalSince(at) < AppModel.linkTimeout
   }
 
-  var channelConnected: Bool { linkUp && (state?.connected ?? false) }
+  var channelConnected: Bool {
+    mode == .solo ? soloOnline : linkUp && (state?.connected ?? false)
+  }
 
   enum HeadingSource { case compass, course, north }
 
@@ -346,11 +507,19 @@ final class AppModel: ObservableObject {
       record(HistoryItem(who: targetName, outgoing: true, isPrivate: target != nil,
                          kind: .voice(kept, durationMs: ms)))
     }
-    link.sendClip(url, metaJSON: Outgoing.clipMeta(durationMs: ms, to: target))
-    lastSent = Date()
-    DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) {
-      WKInterfaceDevice.current().play(.success)
+    // In solo mode the success haptic waits for the upload (solo.onClipSent);
+    // the queued file stays until uploaded or handed to the phone.
+    if mode == .solo, let settings = relay, let data = try? Data(contentsOf: url) {
+      let clip = RelayClip(id: UUID().uuidString, uid: settings.uid, from: relayName, to: target ?? 0,
+                           durationMs: ms, ext: url.pathExtension, data: data.base64EncodedString())
+      solo.enqueue(clip: QueuedClip(clip: clip, url: url, to: target, ms: ms))
+    } else {
+      link.sendClip(url, metaJSON: Outgoing.clipMeta(durationMs: ms, to: target))
+      DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) {
+        WKInterfaceDevice.current().play(.success)
+      }
     }
+    lastSent = Date()
   }
 
   func cancelTalking() {
@@ -366,17 +535,35 @@ final class AppModel: ObservableObject {
 
   // MARK: - Messages
 
+  /// In solo mode the success haptic waits for the relay's answer (solo.onTextAcked).
   func send(_ message: QuickMessage) {
-    link.send(Outgoing.text(message))
+    let queued = mode == .solo
+    if queued {
+      solo.enqueue(text: RelayOutEvent(id: UUID().uuidString, msg: message.rawValue, text: message.label))
+    } else {
+      link.send(Outgoing.text(message))
+    }
     record(HistoryItem(who: "Group", outgoing: true, isPrivate: false, kind: .text(message.label)))
-    WKInterfaceDevice.current().play(.success)
-    show(Banner(title: "Sent", body: message.label, at: Date()))
+    if !queued { WKInterfaceDevice.current().play(.success) }
+    show(Banner(title: queued ? "Queued" : "Sent", body: message.label, at: Date()))
   }
 
+  /// In solo mode the state goes with every sync; the success haptic comes
+  /// with the first relay answer that holds it (handleSolo).
   func setSOS(_ active: Bool) {
     mySOSActive = active
-    link.send(Outgoing.sos(active: active))
-    WKInterfaceDevice.current().play(active ? .failure : .success)
+    mySOSAt = Date().timeIntervalSince1970 * 1000
+    if mode == .solo {
+      solo.sos = active
+      solo.sosAt = mySOSAt
+      sosChangedInSolo = true
+      sosPendingSince = Date()
+      sosLateAlerted = false
+      if active { WKInterfaceDevice.current().play(.failure) }
+    } else {
+      link.send(Outgoing.sos(active: active))
+      WKInterfaceDevice.current().play(active ? .failure : .success)
+    }
   }
 
   func dismissSOSAlert() { sosAlert = nil }
@@ -411,24 +598,116 @@ final class AppModel: ObservableObject {
   private func handle(json: String) {
     switch Incoming.parse(json) {
     case .state(let s):
-      state = s
+      storeRelay(from: s)
       lastStateAt = Date()
-      now = Date()
-      // Talking indicators expire with the state if an "inactive" event is lost.
-      let speaking = Set((s.riders ?? []).filter { $0.isSpeaking }.map { $0.uid })
-      talkingNow = talkingNow.filter { speaking.contains($0.key) }
-      for r in s.riders ?? [] where r.isSpeaking { talkingNow[r.uid] = r.displayName }
-      let inSOS = Set((s.riders ?? []).filter { $0.isSOS }.map { $0.uid })
-      sosSeenAt = sosSeenAt.filter { inSOS.contains($0.key) }
-      for uid in inSOS where sosSeenAt[uid] == nil { sosSeenAt[uid] = Date() }
-      if var alert = sosAlert, let r = rider(alert.uid) {
-        alert.dist = r.dist ?? alert.dist
-        alert.brg = r.brg ?? alert.brg
-        sosAlert = alert
+      if mode == .solo {
+        // The relay feeds the compass until solo mode ends.
+        if phoneBackSince == nil { phoneBackSince = Date() }
+        return
       }
+      adopt(s)
     case .event(let e):
       handle(event: e)
     case .unknown:
+      break
+    }
+  }
+
+  /// Shows a state, from the phone or built from a relay answer.
+  private func adopt(_ s: PhoneState) {
+    state = s
+    now = Date()
+    // Talking indicators expire with the state if an "inactive" event is lost.
+    let speaking = Set((s.riders ?? []).filter { $0.isSpeaking }.map { $0.uid })
+    talkingNow = talkingNow.filter { speaking.contains($0.key) }
+    for r in s.riders ?? [] where r.isSpeaking { talkingNow[r.uid] = r.displayName }
+    let inSOS = Set((s.riders ?? []).filter { $0.isSOS }.map { $0.uid })
+    sosSeenAt = sosSeenAt.filter { inSOS.contains($0.key) }
+    for uid in inSOS where sosSeenAt[uid] == nil { sosSeenAt[uid] = Date() }
+    if var alert = sosAlert, let r = rider(alert.uid) {
+      alert.dist = r.dist ?? alert.dist
+      alert.brg = r.brg ?? alert.brg
+      sosAlert = alert
+    }
+  }
+
+  // MARK: - Relay answers (solo mode)
+
+  private func handleSolo(_ r: SyncResponse, fix: RelayPosition?) {
+    guard mode == .solo, let settings = relay else { return }
+    let own = r.riders.first { $0.uid == settings.uid }
+    // One SOS state per rider, the newest change wins: a change made on the
+    // phone after the watch's own wins here too.
+    if let own = own, let at = own.sosAt, at > mySOSAt, own.sos != mySOSActive {
+      mySOSActive = own.sos
+      mySOSAt = at
+      solo.sos = own.sos
+      solo.sosAt = at
+      sosChangedInSolo = false // the phone made the newer change
+      sosPendingSince = nil
+      sosLateAlerted = false
+      InputLog.shared.system("SOS \(own.sos ? "on" : "off") from the phone")
+    } else if sosPendingSince != nil, let own = own, (own.sosAt ?? 0) >= mySOSAt {
+      // The relay holds the watch's latest change.
+      sosPendingSince = nil
+      sosLateAlerted = false
+      WKInterfaceDevice.current().play(.success)
+      show(Banner(title: mySOSActive ? "SOS sent" : "SOS cancelled", body: "The group has been told", at: Date()))
+    }
+    // Other riders' SOS: rows first, then events, each only if newer.
+    var changedByRow = Set<Int64>()
+    var rows: [Int64: RelayRider] = [:]
+    for row in r.riders where row.uid != settings.uid { rows[row.uid] = row }
+    for (uid, row) in rows {
+      let at = row.sosAt ?? 0
+      let applied = sosAppliedAt[uid]
+      guard at > (applied ?? 0) else { continue }
+      sosAppliedAt[uid] = at
+      // A newer state after one already applied is a new SOS; at first sight,
+      // only a rider not already shown in SOS (by the phone) raises the alarm.
+      if row.sos, applied != nil || sosSeenAt[uid] == nil {
+        changedByRow.insert(uid)
+        handle(event: PhoneEvent(type: "sos", uid: uid, from: row.name, active: true))
+      } else if !row.sos, sosAlert?.uid == uid {
+        changedByRow.insert(uid)
+        handle(event: PhoneEvent(type: "sos", uid: uid, from: row.name, active: false))
+      }
+    }
+    let riders = SoloGeometry.riders(r, me: fix, myUid: settings.uid)
+    adopt(PhoneState(v: 2, kind: "state", connected: true, channel: relayChannel, watchMode: true,
+                     me: MePosition(name: relayName, lat: fix?.lat, lon: fix?.lon, cog: fix?.cog,
+                                    sog: fix?.sog, t: fix?.t),
+                     riders: riders, ts: r.now, relay: settings))
+    for e in r.events {
+      if e.type == "sos" {
+        let at = e.at ?? r.now
+        // Already applied from the rows of this answer, or older than what was.
+        guard !changedByRow.contains(e.uid), at > (sosAppliedAt[e.uid] ?? 0) else { continue }
+        sosAppliedAt[e.uid] = at
+      }
+      handle(relayEvent: e)
+    }
+  }
+
+  private func handle(relayEvent e: RelayEvent) {
+    switch e.type {
+    case "text":
+      handle(event: PhoneEvent(type: "text", uid: e.uid, from: e.from, id: e.msg, text: e.text))
+    case "sos":
+      handle(event: PhoneEvent(type: "sos", uid: e.uid, from: e.from, active: e.active))
+    case "clip":
+      guard let id = e.clip else { return }
+      solo.download(id: id) { [weak self] clip in
+        guard let self = self, let clip = clip, let data = Data(base64Encoded: clip.data) else {
+          InputLog.shared.system("Clip download failed")
+          return
+        }
+        let url = FileManager.default.temporaryDirectory.appendingPathComponent("rx-\(id).\(clip.ext)")
+        guard (try? data.write(to: url)) != nil else { return }
+        self.handleClip(url, ClipMeta(uid: e.uid, from: e.from, durationMs: e.durationMs,
+                                      isPrivate: (e.to ?? 0) != 0))
+      }
+    default:
       break
     }
   }

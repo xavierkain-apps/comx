@@ -17,8 +17,8 @@ final class SoloLink {
   /// A watch fix younger than this wins (same value as the phone).
   static let watchFixMaxAge: TimeInterval = 30
 
-  /// The answer, the fix sent and the `sos` sent with that request.
-  var onResponse: ((SyncResponse, RelayPosition?, Bool) -> Void)?
+  /// The answer and the fix sent with that request.
+  var onResponse: ((SyncResponse, RelayPosition?) -> Void)?
   var onClipSent: (() -> Void)?
   var onTextAcked: (() -> Void)?
 
@@ -27,6 +27,8 @@ final class SoloLink {
   private(set) var clips: [QueuedClip] = []
   var name = ""
   var sos = false
+  /// When `sos` last changed (epoch ms).
+  var sosAt: Double = 0
 
   private let client = RelayClient()
   private let location = SoloLocation()
@@ -72,7 +74,10 @@ final class SoloLink {
 
   func enqueue(clip: QueuedClip) {
     clips.append(clip)
-    if clips.count > SoloLink.maxClips { clips.removeFirst() }
+    if clips.count > SoloLink.maxClips {
+      // Oldest dropped; History keeps its own copy.
+      try? FileManager.default.removeItem(at: clips.removeFirst().url)
+    }
     uploadNext()
   }
 
@@ -85,8 +90,8 @@ final class SoloLink {
     guard let settings = settings, !syncing else { return }
     syncing = true
     let fix = location.last
-    let sentSos = sos
-    let body = SyncRequest(uid: settings.uid, name: name, pos: fix, sos: sentSos, cursor: cursor, events: texts)
+    let body = SyncRequest(uid: settings.uid, name: name, pos: fix, sos: sos, sosAt: sosAt,
+                           cursor: cursor, events: texts)
     client.sync(settings, body) { [weak self] response in
       guard let self = self else { return }
       self.syncing = false
@@ -95,7 +100,7 @@ final class SoloLink {
       self.cursor = response.cursor
       self.texts.removeAll { response.acked.contains($0.id) }
       if !response.acked.isEmpty { self.onTextAcked?() }
-      self.onResponse?(response, fix, sentSos)
+      self.onResponse?(response, fix)
       self.uploadNext()
     }
   }
@@ -108,6 +113,8 @@ final class SoloLink {
       self.uploading = false
       guard ok else { return } // kept: the next sync tries again
       self.clips.removeAll { $0.clip.id == next.clip.id }
+      // The relay has it; the file was only kept to hand it to the phone.
+      try? FileManager.default.removeItem(at: next.url)
       self.onClipSent?()
       self.uploadNext()
     }

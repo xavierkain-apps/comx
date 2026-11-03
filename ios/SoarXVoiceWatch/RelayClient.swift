@@ -30,10 +30,12 @@ struct SyncRequest: Encodable {
   var source = "watch"
   var pos: RelayPosition?
   var sos: Bool
+  /// When this rider's SOS state last changed (epoch ms): the newest change wins.
+  var sosAt: Double
   var cursor: RelayCursor
   var events: [RelayOutEvent]
 
-  enum CodingKeys: String, CodingKey { case uid, name, source, pos, sos, cursor, events }
+  enum CodingKeys: String, CodingKey { case uid, name, source, pos, sos, sosAt, cursor, events }
 
   func encode(to encoder: Encoder) throws {
     var c = encoder.container(keyedBy: CodingKeys.self)
@@ -42,6 +44,7 @@ struct SyncRequest: Encodable {
     try c.encode(source, forKey: .source)
     try c.encode(pos, forKey: .pos) // explicit null before the first fix
     try c.encode(sos, forKey: .sos)
+    try c.encode(sosAt, forKey: .sosAt)
     try c.encode(cursor, forKey: .cursor)
     try c.encode(events, forKey: .events)
   }
@@ -53,6 +56,8 @@ struct RelayRider: Decodable {
   var source: String
   var pos: RelayPosition?
   var sos: Bool
+  /// When the uid's SOS state last changed (epoch ms), the same on every row.
+  var sosAt: Double?
   var seenAt: Double
 }
 
@@ -68,6 +73,8 @@ struct RelayEvent: Decodable {
   var clip: String?
   var durationMs: Double?
   var ext: String?
+  /// `sos`: when that SOS state was set (epoch ms).
+  var at: Double?
 }
 
 struct SyncResponse: Decodable {
