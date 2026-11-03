@@ -12,6 +12,8 @@ import {useRide} from './RideContext';
 import {WatchBridge, WatchInfo, WatchPlatform, VOICE_PLATFORMS, isActiveWatch} from '../services/WatchBridge';
 import {PROTOCOL_VERSION, buildWatchState, parseWatchMessage} from '../ride/protocol';
 import {appLog} from '../utils/logger';
+import {relayEnabled, relaySettings} from '../services/relayClient';
+import {channelKey} from '../ride/relay';
 import {micPolicy, WatchModeSetting} from '../ride/micPolicy';
 
 export type {WatchModeSetting};
@@ -52,10 +54,13 @@ const WatchContext = createContext<WatchContextValue | null>(null);
 export function WatchProvider({children}: {children: ReactNode}) {
   const {
     connectionState, channelName, getEngine, setMicOverride, isHeadphonesConnected, isMemoCapture, memoCaptureEpoch,
+    localUid,
   } = useAgoraContext();
   const {pilotName} = useUser();
   const {myPosition, riders, sendQuickMessage, setSos, subscribeRideEvents, demo} = useRide();
   const connected = connectionState === 'connected';
+  // An Agora reconnect is a blip, not leaving: the watch keeps its channel and relay settings.
+  const inChannel = connected || connectionState === 'reconnecting';
 
   const [watches, setWatches] = useState<WatchInfo[]>([]);
   const [setting, setSettingState] = useState<WatchModeSetting>('auto');
@@ -154,15 +159,30 @@ export function WatchProvider({children}: {children: ReactNode}) {
   // ---- Channel → watches ----------------------------------------------------
   const stateRef = useRef<object | null>(null);
   // Demo mode without a channel still looks like one to the watch
-  const demoOnly = demo && !connected;
+  const demoOnly = demo && !inChannel;
+  // Lets the watch reach the relay alone when the phone is out of range. Never in demo mode.
+  const relay = useMemo(
+    () => (relayEnabled && inChannel && !demo && localUid !== null
+      ? {...relaySettings, channelKey: channelKey(channelName), uid: localUid}
+      : null),
+    [inChannel, demo, localUid, channelName],
+  );
+  // Left = this process was in a channel and is not any more (user Leave,
+  // disconnected). A process iOS woke in the background never joined: the
+  // watch must keep its relay settings then.
+  const joinedRef = useRef(false);
+  if (inChannel) joinedRef.current = true;
+  const left = joinedRef.current && !inChannel;
   stateRef.current = buildWatchState({
-    connected: connected || demo,
+    connected: inChannel || demo,
     channel: demoOnly ? 'Demo' : channelName,
     watchMode,
     myName: pilotName,
     me: myPosition,
     riders,
     now,
+    relay,
+    left,
   });
 
   useEffect(() => {
@@ -172,7 +192,7 @@ export function WatchProvider({children}: {children: ReactNode}) {
       if (stateRef.current) WatchBridge.sendState(stateRef.current);
     }, STATE_INTERVAL_MS);
     return () => clearInterval(timer);
-  }, [connected, watchMode, demo]);
+  }, [inChannel, watchMode, demo]);
 
   // Text and SOS events
   const ridersRef = useRef(riders);

@@ -6,6 +6,8 @@ import React, {createContext, useCallback, useContext, useEffect, useMemo, useRe
 import {NativeModules, Vibration} from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import {useAgoraContext} from './AgoraContext';
+import {useUser} from './UserContext';
+import {relayEnabled, relaySync} from '../services/relayClient';
 import {requestLocationPermission, watchPosition} from '../services/location';
 import {
   Position,
@@ -25,10 +27,27 @@ import {
 } from '../ride/demo';
 import {LatLon} from '../utils/geo';
 import {addToHistory} from '../ride/history';
+import {
+  RELAY_SYNC_MS,
+  RelayEvent,
+  RelayOutgoingText,
+  RelayRider,
+  SeenIds,
+  SosState,
+  applySosChange,
+  channelKey,
+  hasSoloRider,
+  mergeRelayRiders,
+  pickPosition,
+} from '../ride/relay';
 
 const POSITION_BROADCAST_MS = 3000;
 const DEMO_KEY = '@comx_demo';
 const DEMO_TICK_MS = 2000;
+/** Quick messages waiting for the relay; the oldest go first when it is unreachable. */
+const RELAY_OUTBOX_MAX = 20;
+/** An active SOS is repeated this often on Agora, so late joiners see it. */
+const SOS_REPEAT_MS = 15_000;
 
 /** A voice memo's audio, kept in memory so it can be played again. */
 export interface HistoryClip {
@@ -52,7 +71,11 @@ export type RideEvent =
   | {type: 'text'; uid: number; from: string; id: string; text: string}
   | {type: 'sos'; uid: number; from: string; active: boolean};
 
+/** A voice clip announced by the relay (download it with relayDownloadClip). */
+export type RelayClipEvent = Extract<RelayEvent, {type: 'clip'}>;
+
 type RideEventListener = (e: RideEvent) => void;
+type RelayClipListener = (e: RelayClipEvent) => void;
 
 interface RideContextValue {
   myPosition: Position | null;
@@ -72,26 +95,48 @@ interface RideContextValue {
   /** The virtual rider currently raising an SOS, or null. */
   demoSosUid: number | null;
   setDemoSos: (active: boolean) => void;
+  /** Clip announcements from the relay, for MemoContext. */
+  subscribeRelayClips: (listener: RelayClipListener) => () => void;
+  /** A rider is only reachable through the relay. */
+  soloRiderPresent: boolean;
 }
 
 const RideContext = createContext<RideContextValue | null>(null);
 
 export function RideProvider({children}: {children: ReactNode}) {
-  const {connectionState, remotePilots, sendStreamJson, subscribeStream} = useAgoraContext();
+  const {connectionState, remotePilots, sendStreamJson, subscribeStream, channelName, localUid} = useAgoraContext();
+  const {pilotName} = useUser();
+  const pilotNameRef = useRef(pilotName);
+  pilotNameRef.current = pilotName;
   const connected = connectionState === 'connected';
+  const connectedRef = useRef(connected);
+  connectedRef.current = connected;
+  // One stay in a channel. An Agora reconnect keeps it: only leaving, or a new
+  // channel or uid, starts a new one (and forgets SOS states, cursor, outbox).
+  const inChannel = connected || connectionState === 'reconnecting';
+  const session = inChannel && localUid !== null ? `${channelName}|${localUid}` : null;
 
   const [myPosition, setMyPosition] = useState<Position | null>(null);
   const myPositionRef = useRef<Position | null>(null);
   const [positions, setPositions] = useState<Record<number, Position>>({});
-  const [sosUids, setSosUids] = useState<Record<number, boolean>>({});
+  // The SOS state known for every other rider, from every path (one source of truth)
+  const [sosStates, setSosStates] = useState<Record<number, SosState>>({});
+  const sosStatesRef = useRef<Record<number, SosState>>({});
   const [mySos, setMySos] = useState(false);
   const mySosRef = useRef(false);
+  /** Time of our last SOS change (ours, our watch's, or adopted from the relay). */
+  const mySosAtRef = useRef(0);
   const [messages, setMessages] = useState<RideMessage[]>([]);
   const [locationDenied, setLocationDenied] = useState(false);
   const [now, setNow] = useState(Date.now());
+  // Leaving ends our SOS; it is stamped so the next sync cancels it on the relay too
+  const forgetMySos = () => {
+    if (mySosRef.current) mySosAtRef.current = Date.now();
+    mySosRef.current = false;
+    setMySos(false);
+  };
   const listenersRef = useRef<Set<RideEventListener>>(new Set());
   const namesRef = useRef<Record<number, string>>({});
-  const sosStateRef = useRef<Record<number, boolean>>({});
   const [demo, setDemoState] = useState(false);
   const demoRef = useRef(false);
   demoRef.current = demo;
@@ -99,8 +144,21 @@ export function RideProvider({children}: {children: ReactNode}) {
   const [demoSosUid, setDemoSosUid] = useState<number | null>(null);
   // Riders exist while in a channel, or in demo mode without one
   const active = connected || demo;
+  // Relay (watch solo mode), see docs/superpowers/specs/2026-11-01-comx-watch-solo-design.md
+  const [relayRiders, setRelayRiders] = useState<RelayRider[]>([]);
+  // The relay's clock at the last sync: `seenAt` is in that clock
+  const [relayNow, setRelayNow] = useState(0);
+  const remotePilotsRef = useRef(remotePilots);
+  remotePilotsRef.current = remotePilots;
+  const relayCursorRef = useRef(0);
+  const relayOutboxRef = useRef<RelayOutgoingText[]>([]);
+  const seenTextsRef = useRef(new SeenIds());
+  const relayClipListenersRef = useRef<Set<RelayClipListener>>(new Set());
+  // Set below, once it exists: the relay loop adopts our SOS state from the relay
+  const applyMySosRef = useRef<(active: boolean, at: number) => void>(() => {});
 
   namesRef.current = Object.fromEntries(remotePilots.map(p => [p.uid, p.name]));
+  for (const r of relayRiders) namesRef.current[r.uid] ??= r.name;
   const nameOf = (uid: number) => namesRef.current[uid] || demoRider(uid)?.name || 'A rider';
 
   const emit = useCallback((e: RideEvent) => {
@@ -135,12 +193,14 @@ export function RideProvider({children}: {children: ReactNode}) {
   const receiveTextRef = useRef(receiveText);
   receiveTextRef.current = receiveText;
 
-  const receiveSos = (uid: number, active: boolean) => {
-    // An active SOS is repeated every 15 s: only alert on a change
-    if (!!sosStateRef.current[uid] === active) return;
+  // Every SOS path lands here: the newest change wins, alerts only on a change
+  const receiveSos = (uid: number, active: boolean, at: number) => {
+    const {next, changed} = applySosChange(sosStatesRef.current, uid, active, at);
+    if (next === sosStatesRef.current) return;
+    sosStatesRef.current = next;
+    setSosStates(next);
+    if (!changed) return;
     const from = nameOf(uid);
-    sosStateRef.current[uid] = active;
-    setSosUids(prev => ({...prev, [uid]: active}));
     if (active) {
       Vibration.vibrate([0, 800, 300, 800, 300, 800]);
       speak(`S O S from ${from}`);
@@ -152,6 +212,27 @@ export function RideProvider({children}: {children: ReactNode}) {
   };
   const receiveSosRef = useRef(receiveSos);
   receiveSosRef.current = receiveSos;
+
+  const handleRelayEvent = (e: RelayEvent) => {
+    // A relay-only rider may not be in namesRef until the next render
+    namesRef.current[e.uid] ??= e.from;
+    if (e.type === 'text') {
+      if (seenTextsRef.current.firstTime(e.id)) receiveTextRef.current(e.uid, e.msg, e.text);
+    } else if (e.type === 'sos') {
+      // Without a time it can only fill a rider never seen (rows come first)
+      receiveSosRef.current(e.uid, e.active, e.at ?? 0);
+    } else {
+      relayClipListenersRef.current.forEach(l => {
+        try {
+          l(e);
+        } catch (err) {
+          console.warn('[Ride] relay clip listener error', err);
+        }
+      });
+    }
+  };
+  const handleRelayEventRef = useRef(handleRelayEvent);
+  handleRelayEventRef.current = handleRelayEvent;
 
   // GPS while in a channel (or in demo mode)
   useEffect(() => {
@@ -196,31 +277,91 @@ export function RideProvider({children}: {children: ReactNode}) {
           break;
         }
         case 'text':
-          receiveTextRef.current(uid, msg.id, msg.text);
+          // The same quick message may also come through the relay
+          if (!msg.mid || seenTextsRef.current.firstTime(msg.mid)) receiveTextRef.current(uid, msg.id, msg.text);
           break;
         case 'sos': {
           if (msg.lat !== null && msg.lon !== null) {
             const {lat, lon} = msg;
             setPositions(prev => ({...prev, [uid]: {...(prev[uid] ?? {cog: null, sog: null, acc: 0}), lat, lon, t: Date.now()}}));
           }
-          receiveSosRef.current(uid, msg.active);
+          receiveSosRef.current(uid, msg.active, msg.at);
           break;
         }
       }
     });
   }, [subscribeStream]);
 
-  // Forget riders who left, and positions and SOS when we leave (the history stays for the app's run)
+  // A new stay in a channel starts from nothing; a reconnect is not one.
+  // Positions and SOS are forgotten when we leave (the history stays for the app's run).
   useEffect(() => {
-    if (!connected) {
+    if (session === null) return;
+    return () => {
+      relayCursorRef.current = 0;
+      relayOutboxRef.current = [];
       if (demoRef.current) return;
       setPositions({});
-      setSosUids({});
-      sosStateRef.current = {};
-      setMySos(false);
-      mySosRef.current = false;
-      return;
-    }
+      sosStatesRef.current = {};
+      setSosStates({});
+      forgetMySos();
+    };
+    // Only on session changes
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [session]);
+
+  // Relay: the way riders without a phone reach the group. It lives as long as
+  // the session and only pauses while Agora reconnects.
+  useEffect(() => {
+    if (!relayEnabled || session === null || demo || localUid === null) return;
+    const key = channelKey(channelName);
+    const uid = localUid;
+    let busy = false;
+    let cancelled = false;
+    const timer = setInterval(async () => {
+      if (busy || !connectedRef.current) return;
+      busy = true;
+      const res = await relaySync(key, {
+        uid,
+        name: pilotNameRef.current,
+        source: 'phone',
+        pos: myPositionRef.current,
+        sos: mySosRef.current,
+        sosAt: mySosAtRef.current,
+        cursor: relayCursorRef.current,
+        events: relayOutboxRef.current,
+      });
+      busy = false;
+      if (!res || cancelled) return;
+      relayCursorRef.current = res.cursor;
+      relayOutboxRef.current = relayOutboxRef.current.filter(e => !res.acked.includes(e.id));
+      setRelayRiders(res.riders);
+      setRelayNow(res.now);
+      // Rows before events, so a replayed old `sos` event cannot win
+      for (const r of Object.values(mergeRelayRiders(res.riders))) {
+        if (r.uid === uid) {
+          // A newer change from our watch: take it with its time. A change we
+          // made while the request was in flight is newer and stays.
+          if (r.sosAt > mySosAtRef.current) applyMySosRef.current(r.sos, r.sosAt);
+          continue;
+        }
+        namesRef.current[r.uid] ??= r.name;
+        receiveSosRef.current(r.uid, r.sos, r.sosAt);
+      }
+      res.events.forEach(e => handleRelayEventRef.current(e));
+    }, RELAY_SYNC_MS);
+    return () => {
+      cancelled = true;
+      clearInterval(timer);
+      setRelayRiders([]);
+      setRelayNow(0);
+    };
+    // channelName and localUid are part of session
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [session, demo]);
+
+  // Forget riders who left (not while reconnecting: the list may be stale)
+  useEffect(() => {
+    if (!connected) return;
     const present = new Set(remotePilots.map(p => p.uid));
     setPositions(prev => {
       const keys = Object.keys(prev).map(Number);
@@ -231,9 +372,20 @@ export function RideProvider({children}: {children: ReactNode}) {
 
   const sendQuickMessage = useCallback((id: string, text?: string) => {
     const body = text ?? quickMessageText(id);
-    if (!sendStreamJson({type: 'text', id, text: body}) && !demoRef.current) {
+    // One id on both paths, so a phone that gets it twice shows it once
+    const mid = `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
+    if (!sendStreamJson({type: 'text', id, text: body, mid}) && !demoRef.current) {
       appLog('Ride', `quick message not sent (not connected): ${id}`);
       return;
+    }
+    // Demo mode never syncs, so nothing is queued for the relay
+    if (relayEnabled && !demoRef.current) {
+      const outbox = relayOutboxRef.current;
+      outbox.push({id: mid, type: 'text', msg: id, text: body});
+      if (outbox.length > RELAY_OUTBOX_MAX) {
+        const dropped = outbox.shift();
+        appLog('Relay', `outbox full, dropped quick message ${dropped?.msg}`);
+      }
     }
     pushMessage({uid: null, from: 'You', id, text: body, t: Date.now()});
     if (demoRef.current) {
@@ -245,20 +397,30 @@ export function RideProvider({children}: {children: ReactNode}) {
     }
   }, [sendStreamJson, pushMessage]);
 
-  const setSos = useCallback((active: boolean) => {
-    const p = myPositionRef.current;
-    sendStreamJson({type: 'sos', active, lat: p?.lat ?? null, lon: p?.lon ?? null});
-    // Send twice: SOS must not depend on a single data-stream packet
-    setTimeout(() => sendStreamJson({type: 'sos', active, lat: p?.lat ?? null, lon: p?.lon ?? null}), 1500);
+  // Our SOS state, from the user or adopted from the relay with the time it carries
+  const applyMySos = useCallback((active: boolean, at: number) => {
+    const changed = mySosRef.current !== active;
+    mySosAtRef.current = at;
     mySosRef.current = active;
     setMySos(active);
+    if (!changed) return;
+    const p = myPositionRef.current;
+    const msg = {type: 'sos', active, at, lat: p?.lat ?? null, lon: p?.lon ?? null};
+    sendStreamJson(msg);
+    // Send twice: SOS must not depend on a single data-stream packet
+    setTimeout(() => sendStreamJson(msg), 1500);
     pushMessage({uid: null, from: 'You', id: 'sos', text: active ? 'SOS sent' : 'SOS cancelled', t: Date.now()});
+  }, [sendStreamJson, pushMessage]);
+  applyMySosRef.current = applyMySos;
+
+  const setSos = useCallback((active: boolean) => {
+    applyMySos(active, Date.now());
     if (demoRef.current && active) {
       setTimeout(() => {
         if (demoRef.current) receiveTextRef.current(DEMO_RIDERS[1].uid, 'custom', 'Saw your SOS, coming');
       }, 4000);
     }
-  }, [sendStreamJson, pushMessage]);
+  }, [applyMySos]);
 
   // ---- Demo mode ------------------------------------------------------------
   useEffect(() => {
@@ -281,12 +443,10 @@ export function RideProvider({children}: {children: ReactNode}) {
     if (demo) return;
     setDemoAnchor(null);
     setDemoSosUid(null);
-    for (const r of DEMO_RIDERS) delete sosStateRef.current[r.uid];
-    setSosUids(prev => Object.fromEntries(Object.entries(prev).filter(([k]) => !demoRider(Number(k)))));
-    if (!connected) {
-      setMySos(false);
-      mySosRef.current = false;
-    }
+    const kept = Object.fromEntries(Object.entries(sosStatesRef.current).filter(([k]) => !demoRider(Number(k))));
+    sosStatesRef.current = kept;
+    setSosStates(kept);
+    if (session === null) forgetMySos();
     // Only on demo changes
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [demo]);
@@ -318,7 +478,7 @@ export function RideProvider({children}: {children: ReactNode}) {
   const setDemoSos = useCallback((on: boolean) => {
     const uid = DEMO_RIDERS[1].uid;
     setDemoSosUid(on ? uid : null);
-    receiveSosRef.current(uid, on);
+    receiveSosRef.current(uid, on, Date.now());
   }, []);
 
   // While our SOS is on, repeat it so late joiners see it too
@@ -326,8 +486,9 @@ export function RideProvider({children}: {children: ReactNode}) {
     if (!mySos || !connected) return;
     const timer = setInterval(() => {
       const p = myPositionRef.current;
-      sendStreamJson({type: 'sos', active: true, lat: p?.lat ?? null, lon: p?.lon ?? null});
-    }, 15000);
+      // The time of the change, not of the repeat
+      sendStreamJson({type: 'sos', active: true, at: mySosAtRef.current, lat: p?.lat ?? null, lon: p?.lon ?? null});
+    }, SOS_REPEAT_MS);
     return () => clearInterval(timer);
   }, [mySos, connected, sendStreamJson]);
 
@@ -345,41 +506,71 @@ export function RideProvider({children}: {children: ReactNode}) {
     [pushMessage],
   );
 
-  const riders = useMemo(
-    () =>
-      buildRiderViews(
-        myPosition,
-        [
-          ...remotePilots.map(p => ({
+  const subscribeRelayClips = useCallback((listener: RelayClipListener) => {
+    relayClipListenersRef.current.add(listener);
+    return () => {
+      relayClipListenersRef.current.delete(listener);
+    };
+  }, []);
+  // Our own watch gets nothing we send through the relay (same uid), so it does not count
+  const soloRiderPresent = useMemo(
+    () => hasSoloRider(relayRiders.filter(r => r.uid !== localUid), relayNow),
+    [relayRiders, localUid, relayNow],
+  );
+
+  const relayMerged = useMemo(() => mergeRelayRiders(relayRiders), [relayRiders]);
+  // A fresh fix from our own watch wins, as it does for the rest of the group
+  const me = useMemo(
+    () => pickPosition(myPosition ?? undefined, localUid === null ? undefined : relayMerged[localUid]?.watch, now) ?? null,
+    [myPosition, localUid, relayMerged, now],
+  );
+
+  const riders = useMemo(() => {
+    const onAgora = new Set(remotePilots.map(p => p.uid));
+    return buildRiderViews(
+      me,
+      [
+        ...remotePilots.map(p => {
+          const relay = relayMerged[p.uid];
+          return {
             uid: p.uid,
             name: p.name,
             speaking: p.status === 'speaking',
-            position: positions[p.uid],
-            sos: !!sosUids[p.uid],
+            position: pickPosition(positions[p.uid] ?? relay?.phone, relay?.watch, now),
+            sos: !!sosStates[p.uid]?.active,
+          };
+        }),
+        ...Object.values(relayMerged)
+          .filter(r => !onAgora.has(r.uid) && r.uid !== localUid)
+          .map(r => ({
+            uid: r.uid,
+            name: r.name,
+            speaking: false,
+            position: pickPosition(r.phone, r.watch, now),
+            sos: !!sosStates[r.uid]?.active,
           })),
-          ...(demo
-            ? DEMO_RIDERS.map(r => ({
-                uid: r.uid,
-                name: r.name,
-                speaking: false,
-                position: demoAnchor ? demoPosition(r, demoAnchor, now) : undefined,
-                sos: !!sosUids[r.uid],
-              }))
-            : []),
-        ],
-        now,
-      ),
-    [myPosition, remotePilots, positions, sosUids, now, demo, demoAnchor],
-  );
+        ...(demo
+          ? DEMO_RIDERS.map(r => ({
+              uid: r.uid,
+              name: r.name,
+              speaking: false,
+              position: demoAnchor ? demoPosition(r, demoAnchor, now) : undefined,
+              sos: !!sosStates[r.uid]?.active,
+            }))
+          : []),
+      ],
+      now,
+    );
+  }, [me, remotePilots, relayMerged, localUid, positions, sosStates, now, demo, demoAnchor]);
 
   const value = useMemo(
     () => ({
       myPosition, riders, messages, mySos, locationDenied, sendQuickMessage, setSos, subscribeRideEvents, logMessage,
-      demo, setDemo, demoSosUid, setDemoSos,
+      demo, setDemo, demoSosUid, setDemoSos, subscribeRelayClips, soloRiderPresent,
     }),
     [
       myPosition, riders, messages, mySos, locationDenied, sendQuickMessage, setSos, subscribeRideEvents, logMessage,
-      demo, setDemo, demoSosUid, setDemoSos,
+      demo, setDemo, demoSosUid, setDemoSos, subscribeRelayClips, soloRiderPresent,
     ],
   );
 

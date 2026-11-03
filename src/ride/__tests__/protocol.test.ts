@@ -30,8 +30,14 @@ describe('parseStreamMessage', () => {
   });
 
   it('reads SOS with or without a position', () => {
-    expect(parseStreamMessage({type: 'sos', active: true, lat: 1, lon: 2})).toEqual({type: 'sos', active: true, lat: 1, lon: 2});
-    expect(parseStreamMessage({type: 'sos'})).toEqual({type: 'sos', active: false, lat: null, lon: null});
+    expect(parseStreamMessage({type: 'sos', active: true, at: 5, lat: 1, lon: 2})).toEqual({type: 'sos', active: true, at: 5, lat: 1, lon: 2});
+    expect(parseStreamMessage({type: 'sos', at: 5})).toEqual({type: 'sos', active: false, at: 5, lat: null, lon: null});
+  });
+
+  it('stamps an SOS without a time with the receive time', () => {
+    const before = Date.now();
+    const m = parseStreamMessage({type: 'sos', active: true, at: 'x'});
+    expect(m?.type === 'sos' && m.at >= before && m.at <= Date.now()).toBe(true);
   });
 });
 
@@ -92,8 +98,26 @@ describe('buildWatchState', () => {
     expect(s).toEqual({
       v: 2, kind: 'state', connected: true, channel: 'TARIFA-01', watchMode: true,
       me: {name: 'Xav', lat: null, lon: null, cog: null, sog: null, t: null},
-      riders: [], ts: 42,
+      riders: [], ts: 42, relay: null, left: false,
     });
+  });
+});
+
+describe('buildWatchState relay', () => {
+  const base = {connected: true, channel: 'A', watchMode: true, myName: 'X', me: null, riders: [], now: 1};
+
+  it('passes the relay settings to the watch', () => {
+    const relay = {url: 'https://r', key: 'k', channelKey: 'c', uid: 5};
+    expect(buildWatchState({...base, relay}).relay).toEqual(relay);
+  });
+
+  it('sends null without them', () => {
+    expect(buildWatchState(base).relay).toBeNull();
+  });
+
+  it('says left only when asked (a fresh phone process never joined)', () => {
+    expect(buildWatchState({...base, connected: false}).left).toBe(false);
+    expect(buildWatchState({...base, connected: false, left: true}).left).toBe(true);
   });
 });
 

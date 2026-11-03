@@ -2,12 +2,18 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
+	<key>NSAppTransportSecurity</key>
+	<dict>
+		<key>NSAllowsLocalNetworking</key>
+		<true/>
+	</dict>
 	<key>RCTNewArchEnabled</key>
 	<true/>
 	<key>WKApplication</key>
 	<true/>
 	<key>WKBackgroundModes</key>
 	<array>
+		<string>location</string>
 		<string>workout-processing</string>
 	</array>
 </dict>

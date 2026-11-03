@@ -52,8 +52,9 @@ export interface Position {
 export type StreamMessage =
   | {type: 'name'; name: string}
   | ({type: 'pos'} & Position)
-  | {type: 'text'; id: string; text: string}
-  | {type: 'sos'; active: boolean; lat: number | null; lon: number | null};
+  | {type: 'text'; id: string; text: string; mid?: string}
+  /** `at`: time of the sender's last SOS change, epoch ms (receive time for older apps). */
+  | {type: 'sos'; active: boolean; at: number; lat: number | null; lon: number | null};
 
 const isNum = (v: unknown): v is number => typeof v === 'number' && Number.isFinite(v);
 const numOrNull = (v: unknown): number | null => (isNum(v) ? v : null);
@@ -78,9 +79,20 @@ export function parseStreamMessage(raw: unknown): StreamMessage | null {
       };
     case 'text':
       if (typeof m.text !== 'string' || m.text.length === 0) return null;
-      return {type: 'text', id: typeof m.id === 'string' ? m.id : 'custom', text: m.text.slice(0, 200)};
+      return {
+        type: 'text',
+        id: typeof m.id === 'string' ? m.id : 'custom',
+        text: m.text.slice(0, 200),
+        ...(typeof m.mid === 'string' ? {mid: m.mid} : {}),
+      };
     case 'sos':
-      return {type: 'sos', active: m.active === true, lat: numOrNull(m.lat), lon: numOrNull(m.lon)};
+      return {
+        type: 'sos',
+        active: m.active === true,
+        at: isNum(m.at) ? m.at : Date.now(),
+        lat: numOrNull(m.lat),
+        lon: numOrNull(m.lon),
+      };
     default:
       return null;
   }
@@ -136,6 +148,14 @@ export function buildRiderViews(me: Position | null, riders: RiderInput[], now: 
     });
 }
 
+/** What a watch needs to reach the relay alone (null: no relay, or demo mode). */
+export interface WatchRelaySettings {
+  url: string;
+  key: string;
+  channelKey: string;
+  uid: number;
+}
+
 export interface WatchState {
   v: number;
   kind: 'state';
@@ -145,6 +165,9 @@ export interface WatchState {
   me: {name: string; lat: number | null; lon: number | null; cog: number | null; sog: number | null; t: number | null};
   riders: RiderView[];
   ts: number;
+  relay: WatchRelaySettings | null;
+  /** This phone process was in a channel and left it; false for one that never joined. */
+  left: boolean;
 }
 
 export function buildWatchState(args: {
@@ -155,6 +178,8 @@ export function buildWatchState(args: {
   me: Position | null;
   riders: RiderView[];
   now: number;
+  relay?: WatchRelaySettings | null;
+  left?: boolean;
 }): WatchState {
   const {me} = args;
   return {
@@ -173,6 +198,8 @@ export function buildWatchState(args: {
     },
     riders: args.riders,
     ts: args.now,
+    relay: args.relay ?? null,
+    left: args.left ?? false,
   };
 }
 

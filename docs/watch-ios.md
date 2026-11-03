@@ -13,6 +13,7 @@ by hand before the first signed release.
 | Garmin on iOS (Connect IQ SDK 1.8.0, Swift Package) | Compiles on CI; **not tested** with Garmin Connect or a Garmin watch |
 | Input test page, crown compass, double tap, Action button | Compiles on CI; **not tested** on a watch — the Input test page exists to find out |
 | Signed TestFlight build including the watch app | **Not run** — needs the manual steps below first |
+| Solo mode (watch alone through the relay) | Tested in simulators only; relay not deployed. See [Solo mode](#solo-mode) |
 
 ## Pieces
 
@@ -229,15 +230,126 @@ the screen, read this first**: it tells a crash (*App launched*, *Workout
 recovered*) from the workout ending (*Workout running > ended*) or the system
 moving the app (*App in background, workout running*). `InputLog.system()`.
 
-### Without the phone
+### Solo mode
 
-The watch has no GPS link and no network path of its own: positions, messages
-and voice go through the paired phone. If the phone stays on the beach the group
-keeps seeing the phone's position. After 30 s without the phone the watch plays
-a failure haptic and shows *No phone: your position is no longer shared*. A
-watch working alone over cellular would need its own GPS updates and a relay
-server reached with `URLSession`: watchOS allows HTTP there, but not WebSockets
-(TN3135) and Agora has no watchOS SDK.
+An Apple Watch with its own network (cellular or Wi-Fi) keeps working when the
+phone stays on the beach: it shares its own GPS position and talks to the group
+through the relay. Design: [`superpowers/specs/2026-11-01-comx-watch-solo-design.md`](superpowers/specs/2026-11-01-comx-watch-solo-design.md).
+Protocol: [Relay](watch-companion.md#relay). Code: `AppModel.swift` (modes),
+`SoloLink.swift` (sync loop, queues), `RelayClient.swift` (`URLSession`),
+`Sensors.swift` (`SoloLocation`, the watch GPS).
+
+The watch needs the phone once: the phone sends `relay` settings (url, key,
+channel key, uid) in its state while it is in a channel, and the watch stores
+them. A watch that never got them, or whose settings were cleared, cannot go
+solo; it keeps the old behaviour (after 30 s without the phone: failure haptic
+and *No phone: your position is no longer shared*).
+
+**When the watch goes solo** (relay settings stored):
+
+- no phone state for 15 s, or
+- the phone's states say it is not in a channel for 5 s. This is the case after
+  iOS killed the phone app and WatchConnectivity woke a fresh process.
+
+**When it leaves solo mode**: phone states keep arriving (no gap over 3 s) for
+5 s and the phone is in a channel. A single stray state does not end solo mode,
+and neither does a phone that is not in a channel. Whatever the relay has not
+taken yet (texts, clips, a pending SOS) is handed to the phone.
+
+**Stored settings** are cleared only when the phone says it left the channel
+(`left: true` in its state, logged as *Relay settings cleared: phone left the
+channel*) and by *End session*. An Agora reconnect or a restarted phone process
+does not clear them.
+
+**Status row** (in the Compass status line):
+
+| State | Row | Alert |
+| --- | --- | --- |
+| Solo, relay answered in the last 30 s (the first 30 s of solo mode count as answered) | `SOLO` in teal | None |
+| Solo, no relay answer for 30 s | `NO NETWORK` in red | Failure haptic and *No network: your position is no longer shared*; once, until the network is back |
+
+**What goes through the relay** (a request every 10 s, one at a time, 8 s
+timeout; a failed try waits for the next tick):
+
+- **Position**: from the watch GPS (`CLLocationManager`, best accuracy, fitness
+  activity), sent in every sync. The GPS runs in solo mode only. The group sees
+  the watch position instead of the phone's as long as the fix is under 30 s old.
+- **Quick messages**: the banner says *Queued*. The success haptic plays when
+  the relay acknowledges the message id, not before. At most 20 are kept, resent
+  until acknowledged.
+- **SOS**: the state is in every sync. *SOS sent* and the success haptic come
+  only when the relay's own state for this rider shows the change. After 15 s
+  without that, failure haptic and *SOS not transmitted: still trying*. The relay
+  also tells the watch about an SOS or cancel made on the phone, and the watch
+  adopts it.
+- **Voice clips**: uploaded with `POST /clips`, at most 5 queued (oldest
+  dropped), retried until accepted. The success haptic plays when the upload is
+  accepted. Incoming clips are downloaded with retry (5 tries, 15 minutes at
+  most), then go to the player and History as usual.
+- **Riders**: the relay's riders replace the phone's list on the compass.
+
+**SOS rule**: one state per rider, and the newest change time (`at` / `sosAt`)
+wins on every path. A state with an older time is ignored, so the replay of a
+first sync (the last 2 minutes of events) never raises an old SOS.
+
+**Session log lines** (*Session log* in the Messages page): *Solo mode on*
+(with *(phone not in a channel)* when that was the reason), *Solo mode off*,
+*No network*, *Network back*, *Battery n%* every 15 minutes, *Relay settings
+cleared: phone left the channel*, *Clip download dropped (n): solo mode off*,
+*Clip download failed (try n)* / *given up after n tries*, *Clip write failed*.
+These give the numbers to tune the 10 s interval after a field test.
+
+**Why `allowsBackgroundLocationUpdates` is not set**: on watchOS, setting it on
+the `CLLocationManager` raises an assertion and the app crashes. The workout
+session keeps the app running, and location updates keep coming with it.
+`WKBackgroundModes` has `location` and `workout-processing`.
+
+**Two fixes found on the way**:
+
+- Agora uids are random 32-bit unsigned values, so they can exceed 2^31 − 1.
+  Swift's `Int` is 32-bit on arm64_32 watches, so the watch uses `Int64` for
+  uids and relay cursors. With `Int`, riders with a high uid were not decoded.
+- The recording file name `watch-<ms>.m4a` took `Int(milliseconds)`, which
+  overflows on the same watches. It is `Int64` now.
+
+#### How to test solo mode in the simulator
+
+1. Start a local relay:
+   `cd relay && printf 'RELAY_KEY=dev\n' > .dev.vars && npm run dev` (port 8787).
+2. Build the phone app with the relay settings in the bundle:
+   `COMX_RELAY_URL=http://localhost:8787 COMX_RELAY_KEY=dev` (the values read
+   from `.env` at build time).
+3. Build the watch app with `CODE_SIGN_IDENTITY=- CODE_SIGN_STYLE=Manual
+   DEVELOPMENT_TEAM= PROVISIONING_PROFILE_SPECIFIER= CODE_SIGNING_REQUIRED=NO`
+   so the entitlements stay and HealthKit (the workout session) works.
+4. Join a channel on the phone (the watch then stores the relay settings), then
+   kill the phone app. After 15 s the watch shows `SOLO`.
+5. WatchConnectivity wakes a killed phone app when the watch becomes active.
+   The woken process is not in a channel, so the watch stays solo (the 5 s
+   *not in a channel* rule). Check the session log for *Solo mode on (phone
+   not in a channel)*.
+6. Move the watch with `xcrun simctl location`. A second simulator (phone or
+   Android emulator) in the same channel should see it move.
+7. A fake rider can be scripted against the relay API: `POST
+   /v1/channels/<channelKey>/sync` with header `X-ComX-Key: dev` and a body
+   as in [Relay](watch-companion.md#relay), every few seconds. The channel key
+   is `sha256("comx:" + upper-case channel name)` in hex.
+8. Check: text and a clip each way, a demo SOS from the watch and its
+   cancellation, `NO NETWORK` after stopping the relay, *Network back* after
+   restarting it.
+
+#### Known limits
+
+- Tested only in simulators. Not tested on a real watch, on cellular, or in
+  water.
+- After the phone app restarts, its Agora uid changes. The old row of the
+  rider's own watch then shows as another rider for up to 2 minutes, until the
+  relay drops it.
+- On the 49 mm watch the `NO NETWORK` label overlaps the N mark of the radar.
+- Battery use in solo mode (GPS plus a request every 10 s) has not been
+  measured. The spec wants it measured over two hours and written here.
+- The relay is not deployed yet; the free Workers plan has a daily request
+  limit that SOS would depend on.
 
 ### Apple Watch Ultra Action button
 
