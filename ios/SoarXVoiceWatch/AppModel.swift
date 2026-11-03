@@ -92,13 +92,12 @@ final class AppModel: ObservableObject {
   private var soloSince: Date?
   private var noNetworkAlerted = false
   /// An SOS change made in solo mode that no relay answer has confirmed yet.
+  /// Only such a change goes to the phone on the way back: otherwise the
+  /// relay already holds it, and the phone stamps the time it receives it,
+  /// so a stale state would win there.
   private var sosPendingSince: Date?
   /// *SOS not transmitted* was shown for the pending change.
   private var sosLateAlerted = false
-  /// The rider changed the SOS on the watch during solo mode: the phone gets
-  /// it on the way back. Otherwise the phone's own state stands (the phone
-  /// stamps the time it receives it, so a stale state would win there).
-  private var sosChangedInSolo = false
   private var lastBatteryLog = Date.distantPast
   /// Solo mode: time of the last SOS state applied per rider, so an older
   /// state (the replay of a first sync) never raises an SOS again.
@@ -273,8 +272,7 @@ final class AppModel: ObservableObject {
     for c in left.clips {
       link.sendClip(c.url, metaJSON: Outgoing.clipMeta(durationMs: c.ms, to: c.to))
     }
-    if sosChangedInSolo { link.send(Outgoing.sos(active: mySOSActive)) }
-    sosChangedInSolo = false
+    if sosPendingSince != nil { link.send(Outgoing.sos(active: mySOSActive)) }
     sosPendingSince = nil
     sosLateAlerted = false
   }
@@ -556,7 +554,6 @@ final class AppModel: ObservableObject {
     if mode == .solo {
       solo.sos = active
       solo.sosAt = mySOSAt
-      sosChangedInSolo = true
       sosPendingSince = Date()
       sosLateAlerted = false
       if active { WKInterfaceDevice.current().play(.failure) }
@@ -635,24 +632,29 @@ final class AppModel: ObservableObject {
 
   private func handleSolo(_ r: SyncResponse, fix: RelayPosition?) {
     guard mode == .solo, let settings = relay else { return }
-    let own = r.riders.first { $0.uid == settings.uid }
     // One SOS state per rider, the newest change wins: a change made on the
-    // phone after the watch's own wins here too.
-    if let own = own, let at = own.sosAt, at > mySOSAt, own.sos != mySOSActive {
-      mySOSActive = own.sos
-      mySOSAt = at
-      solo.sos = own.sos
-      solo.sosAt = at
-      sosChangedInSolo = false // the phone made the newer change
-      sosPendingSince = nil
-      sosLateAlerted = false
-      InputLog.shared.system("SOS \(own.sos ? "on" : "off") from the phone")
-    } else if sosPendingSince != nil, let own = own, (own.sosAt ?? 0) >= mySOSAt {
-      // The relay holds the watch's latest change.
-      sosPendingSince = nil
-      sosLateAlerted = false
-      WKInterfaceDevice.current().play(.success)
-      show(Banner(title: mySOSActive ? "SOS sent" : "SOS cancelled", body: "The group has been told", at: Date()))
+    // phone after the watch's own wins here too. The relay's own answer for
+    // this uid comes first; an older relay only has the rows.
+    let ownRow = r.riders.first { $0.uid == settings.uid && $0.source == "phone" }
+      ?? r.riders.first { $0.uid == settings.uid }
+    let mine = r.own.map { (sos: $0.sos, at: $0.sosAt) }
+      ?? ownRow.flatMap { row in row.sosAt.map { (sos: row.sos, at: $0) } }
+    if let mine = mine {
+      if mine.at > mySOSAt, mine.sos != mySOSActive {
+        mySOSActive = mine.sos
+        mySOSAt = mine.at
+        solo.sos = mine.sos
+        solo.sosAt = mine.at
+        sosPendingSince = nil // the phone made the newer change
+        sosLateAlerted = false
+        InputLog.shared.system("SOS \(mine.sos ? "on" : "off") from the phone")
+      } else if sosPendingSince != nil, mine.at >= mySOSAt, mine.sos == mySOSActive {
+        // The relay holds the watch's latest change.
+        sosPendingSince = nil
+        sosLateAlerted = false
+        WKInterfaceDevice.current().play(.success)
+        show(Banner(title: mySOSActive ? "SOS sent" : "SOS cancelled", body: "The group has been told", at: Date()))
+      }
     }
     // Other riders' SOS: rows first, then events, each only if newer.
     var changedByRow = Set<Int64>()

@@ -77,12 +77,25 @@ struct RelayEvent: Decodable {
   var at: Double?
 }
 
+/// The caller's own SOS state on the relay after its request.
+struct RelaySelf: Decodable {
+  var sos: Bool
+  var sosAt: Double
+}
+
 struct SyncResponse: Decodable {
   var now: Double
   var riders: [RelayRider]
   var events: [RelayEvent]
   var cursor: RelayCursor
   var acked: [String]
+  /// `self` in the JSON; absent from an older relay.
+  var own: RelaySelf?
+
+  enum CodingKeys: String, CodingKey {
+    case now, riders, events, cursor, acked
+    case own = "self"
+  }
 }
 
 struct RelayClip: Codable {
