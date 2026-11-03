@@ -165,7 +165,8 @@ final class SoloLocation: NSObject, CLLocationManagerDelegate {
     manager.delegate = self
     manager.desiredAccuracy = kCLLocationAccuracyBest
     manager.activityType = .fitness
-    manager.allowsBackgroundLocationUpdates = true
+    // No allowsBackgroundLocationUpdates: on watchOS setting it raises an
+    // assertion (crash) here; the running workout session keeps updates coming.
     manager.startUpdatingLocation()
   }
 
