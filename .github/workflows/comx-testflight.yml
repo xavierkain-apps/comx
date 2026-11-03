@@ -60,8 +60,15 @@ jobs:
       - name: Install JS dependencies
         run: npm ci
 
+      # The relay is optional: empty values build an app with the relay off
       - name: Write .env
-        run: echo "AGORA_APP_ID=${{ secrets.AGORA_APP_ID }}" > .env
+        env:
+          COMX_RELAY_URL: ${{ vars.COMX_RELAY_URL }}
+          COMX_RELAY_KEY: ${{ secrets.COMX_RELAY_KEY }}
+        run: |
+          echo "AGORA_APP_ID=${{ secrets.AGORA_APP_ID }}" > .env
+          echo "COMX_RELAY_URL=$COMX_RELAY_URL" >> .env
+          echo "COMX_RELAY_KEY=$COMX_RELAY_KEY" >> .env
 
       - name: Install CocoaPods
         run: bundle exec pod install --project-directory=ios
