@@ -1,0 +1,32 @@
+name: Relay
+
+on:
+  pull_request:
+    paths: ['relay/**']
+  push:
+    branches: [main]
+    paths: ['relay/**']
+
+jobs:
+  relay:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: relay
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm test
+      - if: github.event_name == 'push'
+        uses: cloudflare/wrangler-action@v3
+        with:
+          workingDirectory: relay
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          secrets: RELAY_KEY
+        env:
+          RELAY_KEY: ${{ secrets.COMX_RELAY_KEY }}
