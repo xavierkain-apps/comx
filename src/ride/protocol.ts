@@ -52,7 +52,7 @@ export interface Position {
 export type StreamMessage =
   | {type: 'name'; name: string}
   | ({type: 'pos'} & Position)
-  | {type: 'text'; id: string; text: string}
+  | {type: 'text'; id: string; text: string; mid?: string}
   | {type: 'sos'; active: boolean; lat: number | null; lon: number | null};
 
 const isNum = (v: unknown): v is number => typeof v === 'number' && Number.isFinite(v);
@@ -78,7 +78,12 @@ export function parseStreamMessage(raw: unknown): StreamMessage | null {
       };
     case 'text':
       if (typeof m.text !== 'string' || m.text.length === 0) return null;
-      return {type: 'text', id: typeof m.id === 'string' ? m.id : 'custom', text: m.text.slice(0, 200)};
+      return {
+        type: 'text',
+        id: typeof m.id === 'string' ? m.id : 'custom',
+        text: m.text.slice(0, 200),
+        ...(typeof m.mid === 'string' ? {mid: m.mid} : {}),
+      };
     case 'sos':
       return {type: 'sos', active: m.active === true, lat: numOrNull(m.lat), lon: numOrNull(m.lon)};
     default:
