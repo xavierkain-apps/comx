@@ -112,12 +112,12 @@ Durable Object.
 - `type` is `text`, `clip` or `sos`. `to` is `0` for the group, otherwise a uid.
 - A resent event id is acknowledged and not stored twice.
 - Riders not seen for 2 minutes are not returned.
-- SOS is one state per uid, last change wins. A sync changes it when that
-  `uid` and `source` row flips its `sos`, or when it is the first row of a uid
-  with no state yet. A new row for a uid that already has a state (a watch
-  going solo) changes nothing. A `sos` event is added only when the uid state
-  changes, and every row of the uid carries that state, so a rider who syncs
-  later sees an active SOS from `riders`.
+- SOS is one state per uid, and the newest change wins. A sync body carries
+  `sos` and `sosAt`, the time of the client's last SOS change. The relay takes
+  them when `sosAt` is newer than the uid's state, adds a `sos` event (with `at`)
+  when the value changes, and returns the uid's `sos` and `sosAt` on every row,
+  so a rider who syncs later sees an active SOS from `riders`. A `sosAt` more
+  than 10 minutes ahead of the relay clock is clamped to it.
 - Malformed bodies get `400`.
 
 ### Clips
@@ -150,13 +150,17 @@ uid. On every client:
 1. A `watch` position whose fix is under 30 s old wins over a `phone` position
    of the same uid. This fixes the phone left on the beach.
 2. Otherwise the most recent fix wins.
-3. `sos` is the same on both rows: the relay's state for the uid.
-4. A phone and a watch adopt their own uid's state from the relay when it
-   differs from what they sent and nothing changed locally during the request,
-   so a cancel made on the watch stops the phone repeating the SOS (on Agora
-   too), and the other way round.
-5. A rider who is not on Agora follows the relay's SOS state both ways; for a
-   rider on Agora the relay can only raise it, since Agora may be faster.
+3. SOS is `{active, at}` per rider, and every path (Agora `sos` messages, which
+   gain `at`, relay rows, relay events) applies the same rule: a state is taken
+   only if its `at` is newer than the one known for that rider. Alerts fire only
+   when the value changes. Relay rows are applied before relay events, so the
+   2-minute replay of a first sync cannot raise an old SOS.
+4. A phone and a watch adopt their own uid's state from the relay when its
+   `sosAt` is newer than their own, keeping that time, so a cancel made on the
+   watch stops the phone repeating the SOS (on Agora too), and the other way
+   round.
+5. An Agora reconnect to the same channel keeps the SOS states, the relay cursor
+   and the relay outbox; only leaving the channel resets them.
 
 A rider who is only on the relay leaves the list when the relay stops returning
 them. The phone also applies the first rule to its own uid, so the rider's own
