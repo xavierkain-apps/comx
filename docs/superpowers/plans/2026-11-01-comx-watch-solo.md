@@ -1767,7 +1767,8 @@ final class SoloLink {
   /// A watch fix younger than this wins (same value as the phone).
   static let watchFixMaxAge: TimeInterval = 30
 
-  var onResponse: ((SyncResponse, RelayPosition?) -> Void)?
+  /// The answer, the fix sent and the `sos` sent with that request.
+  var onResponse: ((SyncResponse, RelayPosition?, Bool) -> Void)?
   var onClipSent: (() -> Void)?
   var onTextAcked: (() -> Void)?
 
@@ -1834,7 +1835,8 @@ final class SoloLink {
     guard let settings = settings, !syncing else { return }
     syncing = true
     let fix = location.last
-    let body = SyncRequest(uid: settings.uid, name: name, pos: fix, sos: sos, cursor: cursor, events: texts)
+    let sentSos = sos
+    let body = SyncRequest(uid: settings.uid, name: name, pos: fix, sos: sentSos, cursor: cursor, events: texts)
     client.sync(settings, body) { [weak self] response in
       guard let self = self else { return }
       self.syncing = false
@@ -1843,7 +1845,7 @@ final class SoloLink {
       self.cursor = response.cursor
       self.texts.removeAll { response.acked.contains($0.id) }
       if !response.acked.isEmpty { self.onTextAcked?() }
-      self.onResponse?(response, fix)
+      self.onResponse?(response, fix, sentSos)
       self.uploadNext()
     }
   }
@@ -1961,7 +1963,7 @@ In `startIfNeeded`, before `link.activate()`:
 
 ```swift
     loadRelay()
-    solo.onResponse = { [weak self] response, fix in self?.handleSolo(response, fix: fix) }
+    solo.onResponse = { [weak self] response, fix, sentSos in self?.handleSolo(response, fix: fix, sentSos: sentSos) }
     solo.onClipSent = { WKInterfaceDevice.current().play(.success) }
     solo.onTextAcked = { WKInterfaceDevice.current().play(.success) }
 ```
@@ -2108,8 +2110,15 @@ Replace `watchLink()`:
 - [ ] **Step 4: Handle the relay answer**
 
 ```swift
-  private func handleSolo(_ r: SyncResponse, fix: RelayPosition?) {
+  private func handleSolo(_ r: SyncResponse, fix: RelayPosition?, sentSos: Bool) {
     guard let settings = relay else { return }
+    // One SOS state per rider: a change made on the phone wins here too.
+    if let own = r.riders.first(where: { $0.uid == settings.uid }),
+       own.sos != sentSos, mySOSActive == sentSos {
+      mySOSActive = own.sos
+      solo.sos = own.sos
+      InputLog.shared.system("SOS \(own.sos ? "on" : "off") from the phone")
+    }
     let rider = SoloGeometry.riders(r, me: fix, myUid: settings.uid)
     state = PhoneState(v: 2, kind: "state", connected: true, channel: relayChannel, watchMode: true,
                        me: MePosition(name: relayName, lat: fix?.lat, lon: fix?.lon, cog: fix?.cog,

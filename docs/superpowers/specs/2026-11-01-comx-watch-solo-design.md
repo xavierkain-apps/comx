@@ -101,6 +101,10 @@ Durable Object.
 
 - `source` is `phone` or `watch`. A rider has one row per `uid` and `source`.
 - `pos` may be null, for instance before the first GPS fix.
+- `cursor` is opaque: the client sends back the last one it got. It is built from
+  a channel epoch and the last event number ever assigned, so it survives the
+  expiry of every event and the hourly wipe (a cursor from another epoch gets
+  every retained event).
 - A first sync sends `cursor: 0` and only gets events from the last 2 minutes.
 - `events` returned exclude the caller's own, and private events for others.
 - Events are not returned to a client with the sender's uid: a phone and its
@@ -108,8 +112,13 @@ Durable Object.
 - `type` is `text`, `clip` or `sos`. `to` is `0` for the group, otherwise a uid.
 - A resent event id is acknowledged and not stored twice.
 - Riders not seen for 2 minutes are not returned.
-- `sos` in the body keeps the rider's SOS state. A `sos` event is added when the
-  state changes, so a rider who syncs later sees an active SOS from `riders`.
+- SOS is one state per uid, last change wins. A sync changes it when that
+  `uid` and `source` row flips its `sos`, or when it is the first row of a uid
+  with no state yet. A new row for a uid that already has a state (a watch
+  going solo) changes nothing. A `sos` event is added only when the uid state
+  changes, and every row of the uid carries that state, so a rider who syncs
+  later sees an active SOS from `riders`.
+- Malformed bodies get `400`.
 
 ### Clips
 
@@ -141,7 +150,13 @@ uid. On every client:
 1. A `watch` position whose fix is under 30 s old wins over a `phone` position
    of the same uid. This fixes the phone left on the beach.
 2. Otherwise the most recent fix wins.
-3. `sos` is true if either row is true.
+3. `sos` is the same on both rows: the relay's state for the uid.
+4. A phone and a watch adopt their own uid's state from the relay when it
+   differs from what they sent and nothing changed locally during the request,
+   so a cancel made on the watch stops the phone repeating the SOS (on Agora
+   too), and the other way round.
+5. A rider who is not on Agora follows the relay's SOS state both ways; for a
+   rider on Agora the relay can only raise it, since Agora may be faster.
 
 A rider who is only on the relay leaves the list when the relay stops returning
 them. The phone also applies the first rule to its own uid, so the rider's own
