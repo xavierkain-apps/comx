@@ -126,7 +126,7 @@ watch_settings = {
   "INFOPLIST_KEY_NSMicrophoneUsageDescription" =>
     "ComX records your voice messages to the riders in your channel.",
   "INFOPLIST_KEY_NSLocationWhenInUseUsageDescription" =>
-    "ComX uses the compass to point the arrows at the other riders.",
+    "ComX uses the compass to point the arrows at the other riders, and shares your position with your group when your phone is out of reach.",
   "INFOPLIST_KEY_NSHealthShareUsageDescription" =>
     "ComX runs a water sports workout to stay on screen during your session.",
   "INFOPLIST_KEY_NSHealthUpdateUsageDescription" =>

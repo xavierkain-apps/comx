@@ -32,6 +32,14 @@ struct Rider: Decodable, Identifiable, Equatable {
   var isStale: Bool { stale ?? false }
 }
 
+/// How to reach the relay; nil when the phone is not in a real channel.
+struct RelaySettings: Codable, Equatable {
+  var url: String
+  var key: String
+  var channelKey: String
+  var uid: Int
+}
+
 struct PhoneState: Decodable {
   var v: Int?
   var kind: String?
@@ -41,6 +49,7 @@ struct PhoneState: Decodable {
   var me: MePosition?
   var riders: [Rider]?
   var ts: Double?
+  var relay: RelaySettings?
 }
 
 struct PhoneEvent: Decodable {

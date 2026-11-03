@@ -12,6 +12,7 @@
 		11673D5ADCDBB4B9F0FC2691 /* Sensors.swift in Sources */ = {isa = PBXBuildFile; fileRef = ED060D1026DF1618E569F407 /* Sensors.swift */; };
 		13B07FBF1A68108700A75B9A /* Images.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 13B07FB51A68108700A75B9A /* Images.xcassets */; };
 		13BA3BEFA6E4ECEC88020325 /* GarminLink.m in Sources */ = {isa = PBXBuildFile; fileRef = F97C8DC1E1359BAC8D6ABEC4 /* GarminLink.m */; };
+		1D4A802E51036DE8EEA07345 /* RelayClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = DD7736BA7FD1ED50C8E4A4ED /* RelayClient.swift */; };
 		1E34DEBEC3B9815B2C0678A5 /* AppModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5054D08A17FD631FE83BFBCD /* AppModel.swift */; };
 		251E6A2C2F6605900079205C /* HIDModule.m in Sources */ = {isa = PBXBuildFile; fileRef = 251E6A2A2F6605900079205C /* HIDModule.m */; };
 		251E6A2D2F6605900079205C /* HIDModule.swift in Sources */ = {isa = PBXBuildFile; fileRef = 251E6A2B2F6605900079205C /* HIDModule.swift */; };
@@ -146,6 +147,7 @@
 		B14B8EDFD31F545115E3E859 /* BarlowCondensed-Bold.ttf */ = {isa = PBXFileReference; includeInIndex = 1; path = "BarlowCondensed-Bold.ttf"; sourceTree = "<group>"; };
 		C6BE7A5A9CC84E9591B871ED /* HapticManager.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = HapticManager.swift; sourceTree = "<group>"; };
 		CC3A2A6FCB9620F3033A6981 /* PhoneLink.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = PhoneLink.swift; sourceTree = "<group>"; };
+		DD7736BA7FD1ED50C8E4A4ED /* RelayClient.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = RelayClient.swift; sourceTree = "<group>"; };
 		DE9C44A7567B31232C6E7161 /* Intents.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = Intents.swift; sourceTree = "<group>"; };
 		DFC03273D5D73C9C59C36D9C /* Audio.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = Audio.swift; sourceTree = "<group>"; };
 		E3B28A541969B6483C137576 /* TalkControl.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = TalkControl.swift; sourceTree = "<group>"; };
@@ -289,6 +291,7 @@
 				E3B28A541969B6483C137576 /* TalkControl.swift */,
 				2A42CB0B24BA5481F7C3CADA /* History.swift */,
 				EDBDE2E1F1859F2F8C7E976E /* Theme.swift */,
+				DD7736BA7FD1ED50C8E4A4ED /* RelayClient.swift */,
 			);
 			name = SoarXVoiceWatch;
 			path = SoarXVoiceWatch;
@@ -586,6 +589,7 @@
 				33B39FFCE998AB4314FDD886 /* TalkControl.swift in Sources */,
 				92D01E89E177D9DC550F8A33 /* History.swift in Sources */,
 				8187BE3D11B3ADA0763B117B /* Theme.swift in Sources */,
+				1D4A802E51036DE8EEA07345 /* RelayClient.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -714,7 +718,7 @@
 				INFOPLIST_KEY_CFBundleDisplayName = ComX;
 				INFOPLIST_KEY_NSHealthShareUsageDescription = "ComX runs a water sports workout to stay on screen during your session.";
 				INFOPLIST_KEY_NSHealthUpdateUsageDescription = "ComX runs a water sports workout to stay on screen during your session. It does not save workouts.";
-				INFOPLIST_KEY_NSLocationWhenInUseUsageDescription = "ComX uses the compass to point the arrows at the other riders.";
+				INFOPLIST_KEY_NSLocationWhenInUseUsageDescription = "ComX uses the compass to point the arrows at the other riders, and shares your position with your group when your phone is out of reach.";
 				INFOPLIST_KEY_NSMicrophoneUsageDescription = "ComX records your voice messages to the riders in your channel.";
 				INFOPLIST_KEY_UISupportedInterfaceOrientations = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown";
 				INFOPLIST_KEY_WKCompanionAppBundleIdentifier = com.xavier.comx;
@@ -939,7 +943,7 @@
 				INFOPLIST_KEY_CFBundleDisplayName = ComX;
 				INFOPLIST_KEY_NSHealthShareUsageDescription = "ComX runs a water sports workout to stay on screen during your session.";
 				INFOPLIST_KEY_NSHealthUpdateUsageDescription = "ComX runs a water sports workout to stay on screen during your session. It does not save workouts.";
-				INFOPLIST_KEY_NSLocationWhenInUseUsageDescription = "ComX uses the compass to point the arrows at the other riders.";
+				INFOPLIST_KEY_NSLocationWhenInUseUsageDescription = "ComX uses the compass to point the arrows at the other riders, and shares your position with your group when your phone is out of reach.";
 				INFOPLIST_KEY_NSMicrophoneUsageDescription = "ComX records your voice messages to the riders in your channel.";
 				INFOPLIST_KEY_UISupportedInterfaceOrientations = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown";
 				INFOPLIST_KEY_WKCompanionAppBundleIdentifier = com.xavier.comx;
