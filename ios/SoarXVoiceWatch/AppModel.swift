@@ -74,6 +74,8 @@ final class AppModel: ObservableObject {
   static let soloAfter: TimeInterval = 15
   /// Phone state for this long ends solo mode.
   static let phoneBackAfter: TimeInterval = 5
+  /// ...as long as states keep coming: none for this long restarts the wait.
+  static let phoneBackGap: TimeInterval = 3
   /// No relay answer for this long: say the position is not shared.
   static let noNetworkAfter: TimeInterval = 30
   /// *SOS sent* needs a relay answer within this time.
@@ -90,6 +92,8 @@ final class AppModel: ObservableObject {
   private var relayChannel = ""
   private var phoneBackSince: Date?
   private var soloSince: Date?
+  /// The 15 s before solo mode count from here until a first phone state.
+  private var launchedAt = Date()
   private var noNetworkAlerted = false
   /// An SOS change made in solo mode that no relay answer has confirmed yet.
   /// Only such a change goes to the phone on the way back: otherwise the
@@ -148,6 +152,7 @@ final class AppModel: ObservableObject {
   func startIfNeeded() {
     guard !started else { return }
     started = true
+    launchedAt = Date()
 
     link.onJSON = { [weak self] in self?.handle(json: $0) }
     link.onClip = { [weak self] url, meta in self?.handleClip(url, meta) }
@@ -243,7 +248,7 @@ final class AppModel: ObservableObject {
         linkAlerted = false
         return
       }
-      let silent = lastStateAt.map { now.timeIntervalSince($0) } ?? .infinity
+      let silent = now.timeIntervalSince(lastStateAt ?? launchedAt)
       if silent >= AppModel.soloAfter, let settings = relay {
         enterSolo(settings)
       } else if !linkAlerted, relay == nil, let at = lastStateAt,
@@ -253,8 +258,11 @@ final class AppModel: ObservableObject {
         show(Banner(title: "No phone", body: "Your position is no longer shared", at: Date()))
       }
     case .solo:
-      if !up { phoneBackSince = nil } // a phone that goes quiet again restarts the wait
-      if let since = phoneBackSince, up, now.timeIntervalSince(since) >= AppModel.phoneBackAfter {
+      // A phone that goes quiet again restarts the wait: a single stray state
+      // must not end solo mode.
+      let fresh = lastStateAt.map { now.timeIntervalSince($0) < AppModel.phoneBackGap } ?? false
+      if !fresh { phoneBackSince = nil }
+      if let since = phoneBackSince, fresh, now.timeIntervalSince(since) >= AppModel.phoneBackAfter {
         exitSolo()
       } else {
         watchSolo()
@@ -296,10 +304,11 @@ final class AppModel: ObservableObject {
     sosLateAlerted = false
   }
 
-  /// Solo mode and the relay answered recently.
+  /// Solo mode and the relay answered recently. Before a first answer, the
+  /// first `noNetworkAfter` of solo mode count as online (no red at entry).
   var soloOnline: Bool {
-    guard let ok = solo.lastSyncOK else { return false }
-    return now.timeIntervalSince(ok) < AppModel.noNetworkAfter
+    guard let reference = solo.lastSyncOK ?? soloSince else { return false }
+    return now.timeIntervalSince(reference) < AppModel.noNetworkAfter
   }
 
   private func watchSolo() {
@@ -374,7 +383,7 @@ final class AppModel: ObservableObject {
   }
 
   var channelConnected: Bool {
-    mode == .solo ? soloOnline : linkUp && (state?.connected ?? false)
+    mode == .solo ? solo.lastSyncOK != nil && soloOnline : linkUp && (state?.connected ?? false)
   }
 
   enum HeadingSource { case compass, course, north }
