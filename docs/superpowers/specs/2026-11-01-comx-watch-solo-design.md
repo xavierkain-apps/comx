@@ -103,6 +103,8 @@ Durable Object.
 - `pos` may be null, for instance before the first GPS fix.
 - A first sync sends `cursor: 0` and only gets events from the last 2 minutes.
 - `events` returned exclude the caller's own, and private events for others.
+- Events are not returned to a client with the sender's uid: a phone and its
+  watch are one rider.
 - `type` is `text`, `clip` or `sos`. `to` is `0` for the group, otherwise a uid.
 - A resent event id is acknowledged and not stored twice.
 - Riders not seen for 2 minutes are not returned.
@@ -111,9 +113,10 @@ Durable Object.
 
 ### Clips
 
-- `POST /v1/channels/{channelKey}/clips?id=&uid=&to=&durationMs=`, body: the
-  audio file, 256 KB at most, stored as a SQLite blob.
-- `GET /v1/channels/{channelKey}/clips/{id}`.
+- `POST /v1/channels/{channelKey}/clips`, JSON body
+  `{"id", "uid", "from", "to", "durationMs", "ext", "data"}`, `data` being the
+  audio in base64, 350,000 characters at most. Stored in SQLite.
+- `GET /v1/channels/{channelKey}/clips/{id}` returns the same fields.
 
 The upload adds the `clip` event, so the sender does not send one in `sync`.
 
@@ -144,9 +147,9 @@ A rider who is only on the relay leaves the list when the relay stops returning
 them. The phone also applies the first rule to its own uid, so the rider's own
 phone does not show a position that the group no longer uses.
 
-Agora and the relay can both deliver the same event. Quick messages and SOS
-sent by a phone go out on both, so `text` and `sos` stream messages gain a
-message id, and clients ignore an id they have already seen (last 200 ids). The
+Agora and the relay can both deliver the same event. Quick messages sent by a
+phone go out on both, so `text` stream messages gain a message id (SOS repeats
+are already ignored), and clients ignore an id they have already seen (last 200 ids). The
 existing `id` of a `text` message is the quick message id, so the new field is
 `mid`.
 
