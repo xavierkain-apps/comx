@@ -78,8 +78,8 @@ JSON, UTF-8 (see `src/utils/encoding.ts`), each message < 1 KB.
 | --- | --- | --- |
 | `name` | `name`, `v` (protocol version, 2) | On join and when someone joins. No `v` or `v < 2`: the rider runs an older ComX (banner) |
 | `pos` | `lat`, `lon`, `cog` (deg true or `null`), `sog` (m/s or `null`), `acc` (m), `t` (epoch ms) | Every 3 s while in a channel |
-| `text` | `id` (quick message id or `custom`), `text` | Quick message sent |
-| `sos` | `active` (bool), `lat`, `lon` | SOS raised or cancelled |
+| `text` | `id` (quick message id or `custom`), `text`, `mid` (message id, so a message that also arrives through the relay is shown once) | Quick message sent |
+| `sos` | `active` (bool), `at` (time of the sender's last SOS change, epoch ms), `lat`, `lon` | SOS raised or cancelled |
 
 ## Phone ↔ watch
 
@@ -101,9 +101,21 @@ Sent every 2 s while connected and on any change. Watches keep only the last one
     {"uid": 12345, "name": "Carlos", "lat": 36.02, "lon": -5.61, "t": 1760000000000,
      "dist": 340, "brg": 45.0, "speaking": false, "sos": false, "stale": false}
   ],
+  "relay": {"url": "https://comx-relay.<subdomain>.workers.dev", "key": "...",
+            "channelKey": "<64 hex>", "uid": 12345},
+  "left": false,
   "ts": 1760000000000
 }
 ```
+
+- `relay`: present while the phone is in a real channel (not demo mode) and the
+  app was built with the relay settings. It gives a watch what it needs to reach
+  the relay alone (see [Relay](#relay)). `uid` is the phone's Agora uid, which
+  the watch uses as its own.
+- `left`: `true` when the phone has really left the channel. Only then does the
+  watch clear its stored `relay` settings. A state without `relay` and without
+  `left` (a phone process restarted by iOS, an Agora reconnect) changes nothing.
+  Agora uids are 32-bit unsigned: parse `uid` as 64-bit.
 
 - `dist`: metres from `me`, `brg`: initial bearing from `me`, degrees true
   (0 = north, clockwise). Both `null` when a position is missing.
@@ -152,6 +164,57 @@ Ids are fixed so every watch can label them in its own language.
 | `where` | Where are you? |
 | `gear` | Gear broken |
 | `help` | I need help |
+
+## Relay
+
+A watch with its own network (cellular or Wi-Fi) can work without its phone. It
+cannot join Agora (no watchOS SDK, no WebSockets on watchOS), so a small server,
+the **relay**, holds riders, events and voice clips of a channel. Phones in a
+channel sync with it every 5 s next to Agora, and a watch in solo mode syncs
+with it every 10 s. Full design, limits and risks:
+[`superpowers/specs/2026-11-01-comx-watch-solo-design.md`](superpowers/specs/2026-11-01-comx-watch-solo-design.md).
+Watch behaviour: [Solo mode in `watch-ios.md`](watch-ios.md#solo-mode).
+
+- Code: `relay/` (Cloudflare Worker and one SQLite Durable Object per channel,
+  Vitest tests). Phone side: `src/ride/relay.ts` (types, position pick),
+  `src/services/relayClient.ts` (HTTP), used by `RideContext` and `MemoContext`.
+- Address: `https://comx-relay.<subdomain>.workers.dev`. Every call has the
+  header `X-ComX-Key`; a wrong or missing key gets `401`. The key is built into
+  the apps and only slows abuse down.
+- `channelKey` is the hex SHA-256 of `comx:` and the upper-case channel name; the
+  relay never sees the name.
+
+| Endpoint | Purpose |
+| --- | --- |
+| `POST /v1/channels/{channelKey}/sync` | Send own position, SOS state (`sos`, `sosAt`), cursor and outgoing texts; get riders, new events, new cursor and `acked` ids |
+| `POST /v1/channels/{channelKey}/clips` | Upload a voice clip as JSON (`id`, `uid`, `from`, `to`, `durationMs`, `ext`, base64 `data`, 350,000 characters at most); adds the `clip` event |
+| `GET /v1/channels/{channelKey}/clips/{id}` | Download a clip |
+
+Other answers: `400` malformed body, `413` too large, `429` a second sync from
+the same `uid` and `source` within 1 s or a second clip within 3 s. Clients
+retry at the next sync. Events and clips are kept 15 minutes, riders 2 minutes,
+and a channel is deleted 1 hour after its last sync.
+
+- A rider has one row per `uid` and `source` (`phone` or `watch`). A watch uses
+  its phone's uid. On every client a `watch` fix under 30 s old wins over the
+  phone's of the same uid; otherwise the newest fix wins.
+- `cursor` is opaque: send back the last one received (`0` the first time).
+- **SOS rule**: one state per rider, and the newest change time wins. Agora
+  `sos` messages carry `at`, sync bodies carry `sosAt`, and rows and events from
+  the relay carry the same time. A state is taken only if its time is newer than
+  the one known for that rider, and alerts fire only when the value changes.
+  The relay clamps a time more than 10 minutes ahead of its own clock.
+- Quick messages from a phone go out on Agora and on the relay; the `mid` id
+  removes the duplicate (last 200 ids kept). Voice memos from a phone stay on
+  Agora and are uploaded to the relay only when a `watch` rider seen in the last
+  30 s is on it.
+
+Build settings: `COMX_RELAY_URL` and `COMX_RELAY_KEY` are read from `.env`. The
+TestFlight workflow (`comx-testflight.yml`) writes them from the repository
+variable `COMX_RELAY_URL` and the secret `COMX_RELAY_KEY`. Empty values turn the
+relay off: the phone sends no `relay` in the watch state and the app works as
+before. Deployment: `.github/workflows/relay-deploy.yml` (see `CLAUDE.md`); the
+Worker secret `RELAY_KEY` is set from the same `COMX_RELAY_KEY` secret.
 
 ## Native bridge contract (React Native ↔ native)
 

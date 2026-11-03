@@ -34,7 +34,9 @@ ComX was built from the SoarX Voice code (React Native + Agora) but is a
 | `src/contexts/RideContext.tsx` | Positions, quick messages, SOS over the Agora data stream |
 | `src/contexts/WatchContext.tsx` | Relay to watches: voice clips in/out, mic policy, private voice messages |
 | `src/contexts/MemoContext.tsx` | Voice memos (phone MEMO button and watch clips): send, receive, play, forward, history |
-| `src/ride/` | Pure, tested logic (protocol, mic policy, voice clip chunking) |
+| `src/ride/` | Pure, tested logic (protocol, mic policy, voice clip chunking, relay merge) |
+| `relay/` | Relay for the watch solo mode: Cloudflare Worker + Durable Object, Vitest tests |
+| `docs/superpowers/specs/2026-11-01-comx-watch-solo-design.md` | Spec of the watch solo mode and the relay |
 | `ios/SoarXVoiceWatch/` | Apple Watch app (SwiftUI, watchOS 10+) |
 | `ios/WatchBridge.swift`, `ios/GarminLink.m` | iOS bridge: WatchConnectivity + Garmin Connect IQ iOS SDK |
 | `android/wear/`, `android/app/.../watch/` | Wear OS app and Android bridge (Wear Data Layer + Garmin) |
@@ -52,6 +54,7 @@ builds locally.** Everything compiles on GitHub Actions:
 | `watch-ios-build.yml` | iOS app + watch app, simulator, unsigned | push / PR on `main` |
 | `watch-garmin-build.yml` | Connect IQ `.prg` for 14 devices (artifact `comx-garmin-prg`) | push / PR on `main` touching `garmin/**`, or manual |
 | `watch-android-build.yml` | Phone APK (release build, debug-signed, no Agora App ID: demo mode only) + Wear OS APK, artifacts `comx-phone` / `comx-wear` | push / PR on `main` |
+| `relay-deploy.yml` | Relay typecheck and tests; deploys to Cloudflare on push to `main` | PR on `main` touching `relay/**` (tests only); push to `main` touching `relay/**` (tests and deploy) |
 | `comx-testflight.yml` | Signed ComX build to TestFlight | tag `comx-v*` |
 
 Android builds must keep Agora's `libvideo_dec.so` / `libvideo_enc.so` (see
@@ -59,7 +62,7 @@ Android builds must keep Agora's `libvideo_dec.so` / `libvideo_enc.so` (see
 them the engine cannot load.
 
 Local checks that are cheap: `npx tsc --noEmit`, `npx eslint src --quiet`,
-`npx jest --maxWorkers=1` (102 tests).
+`npx jest --maxWorkers=1` (122 tests), `cd relay && npm test` (32 tests).
 
 ## Status (2026-10-17)
 
@@ -82,6 +85,7 @@ Local checks that are cheap: `npx tsc --noEmit`, `npx eslint src --quiet`,
   (Xcode, AVDs `Medium_Phone_API_36.1`, `ComX_Wear`).
 - App Store Connect record exists (`com.xavier.comx`, name "ComX Rider").
   Internal TestFlight group "Team" (all builds) with the owner in it.
+- Watch solo mode (branch watch-solo-design): simulator-tested, relay not yet deployed.
 - Demo mode (Settings → Demo) gives virtual riders for testing alone; see
   `docs/watch-companion.md`.
 - Next release: `git tag comx-v0.2.0 && git push origin comx-v0.2.0`; the build
@@ -93,8 +97,10 @@ Local checks that are cheap: `npx tsc --noEmit`, `npx eslint src --quiet`,
 
 - Garmin Connect IQ iOS SDK licence accepted (2026-10-17): the iOS build
   keeps the Garmin link.
-- Phone in a pouch first; a watch working alone (cellular, needs a server)
-  comes later. Field test 2026-11-01: a rider who left the phone on the beach
+- Phone in a pouch first. A watch with its own network works alone through the
+  relay (`relay/`); a phone is still needed to join the channel. The relay runs
+  on the owner's Cloudflare account (workers.dev, a token limited to Workers
+  Scripts) and never touches the frenchrdv.com zone. Field test 2026-11-01: a rider who left the phone on the beach
   stayed frozen at the phone's position, as expected from this design.
 - Voice = voice messages (to the group, or private to one rider), not live
   calls. Live calls from Apple Watch would need CallKit VoIP + a custom audio
