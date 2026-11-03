@@ -32,7 +32,7 @@ final class ClipRecorder {
     let dir = FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask)[0]
       .appendingPathComponent("tx", isDirectory: true)
     try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
-    let url = dir.appendingPathComponent("watch-\(Int(Date().timeIntervalSince1970 * 1000)).m4a")
+    let url = dir.appendingPathComponent("watch-\(Int64(Date().timeIntervalSince1970 * 1000)).m4a")
 
     let settings: [String: Any] = [
       AVFormatIDKey: Int(kAudioFormatMPEG4AAC),
