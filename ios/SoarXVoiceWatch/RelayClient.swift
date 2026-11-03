@@ -75,6 +75,8 @@ struct RelayEvent: Decodable {
   var ext: String?
   /// `sos`: when that SOS state was set (epoch ms).
   var at: Double?
+  /// Relay time (epoch ms) at which the event was stored; absent from an older relay.
+  var sentAt: Double?
 }
 
 /// The caller's own SOS state on the relay after its request.

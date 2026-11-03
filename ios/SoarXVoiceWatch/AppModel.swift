@@ -102,6 +102,20 @@ final class AppModel: ObservableObject {
   /// Solo mode: time of the last SOS state applied per rider, so an older
   /// state (the replay of a first sync) never raises an SOS again.
   private var sosAppliedAt: [Int64: Double] = [:]
+  /// Solo mode: a voice clip the relay announced and the watch has not got yet.
+  private struct PendingClip {
+    var event: RelayEvent
+    var since: Date
+    var failures = 0
+    var inFlight = false
+  }
+  /// Keyed by clip id; retried after each successful sync.
+  private var pendingClips: [String: PendingClip] = [:]
+  private static let clipMaxTries = 5
+  private static let clipGiveUpAfter: TimeInterval = 15 * 60
+  /// An event the relay stored this long before the last phone state was
+  /// already forwarded by the phone.
+  private static let phoneForwardMargin: Double = 2000
 
   // Compass focus (see "Compass focus" in docs/watch-companion.md)
   /// Rider the user last picked with the crown or the list (nil = overview).
@@ -254,6 +268,7 @@ final class AppModel: ObservableObject {
     soloSince = Date()
     noNetworkAlerted = false
     phoneBackSince = nil
+    sosAppliedAt = [:]
     WKInterfaceDevice.current().isBatteryMonitoringEnabled = true
     solo.sos = mySOSActive
     solo.sosAt = mySOSAt
@@ -265,6 +280,10 @@ final class AppModel: ObservableObject {
     InputLog.shared.system("Solo mode off")
     mode = .phone
     solo.stop()
+    if !pendingClips.isEmpty {
+      InputLog.shared.system("Clip download dropped (\(pendingClips.count)): solo mode off")
+      pendingClips = [:]
+    }
     let left = solo.drain()
     for t in left.texts {
       if let m = QuickMessage(rawValue: t.msg) { link.send(Outgoing.text(m)) }
@@ -680,7 +699,12 @@ final class AppModel: ObservableObject {
                      me: MePosition(name: relayName, lat: fix?.lat, lon: fix?.lon, cog: fix?.cog,
                                     sog: fix?.sog, t: fix?.t),
                      riders: riders, ts: r.now, relay: settings))
+    // Texts and clips the relay stored before the last phone state came
+    // through the phone already. An event without sentAt counts as new.
+    let forwardedBefore = lastStateAt.map { $0.timeIntervalSince1970 * 1000 - AppModel.phoneForwardMargin }
     for e in r.events {
+      if e.type == "text" || e.type == "clip", let sent = e.sentAt, let before = forwardedBefore,
+         sent < before { continue }
       if e.type == "sos" {
         let at = e.at ?? r.now
         // Already applied from the rows of this answer, or older than what was.
@@ -689,6 +713,7 @@ final class AppModel: ObservableObject {
       }
       handle(relayEvent: e)
     }
+    retryClips()
   }
 
   private func handle(relayEvent e: RelayEvent) {
@@ -698,19 +723,48 @@ final class AppModel: ObservableObject {
     case "sos":
       handle(event: PhoneEvent(type: "sos", uid: e.uid, from: e.from, active: e.active))
     case "clip":
-      guard let id = e.clip else { return }
-      solo.download(id: id) { [weak self] clip in
-        guard let self = self, let clip = clip, let data = Data(base64Encoded: clip.data) else {
-          InputLog.shared.system("Clip download failed")
-          return
-        }
-        let url = FileManager.default.temporaryDirectory.appendingPathComponent("rx-\(id).\(clip.ext)")
-        guard (try? data.write(to: url)) != nil else { return }
-        self.handleClip(url, ClipMeta(uid: e.uid, from: e.from, durationMs: e.durationMs,
-                                      isPrivate: (e.to ?? 0) != 0))
-      }
+      guard let id = e.clip, pendingClips[id] == nil else { return }
+      pendingClips[id] = PendingClip(event: e, since: Date())
+      fetchClip(id)
     default:
       break
+    }
+  }
+
+  /// Tries again the clips not downloaded yet (after a successful sync).
+  private func retryClips() {
+    for (id, p) in pendingClips where !p.inFlight { fetchClip(id) }
+  }
+
+  private func fetchClip(_ id: String) {
+    guard var p = pendingClips[id], !p.inFlight else { return }
+    p.inFlight = true
+    pendingClips[id] = p
+    let e = p.event
+    solo.download(id: id) { [weak self] clip in
+      guard let self = self, var p = self.pendingClips[id] else { return }
+      p.inFlight = false
+      guard let clip = clip, let data = Data(base64Encoded: clip.data) else {
+        p.failures += 1
+        if p.failures >= AppModel.clipMaxTries || Date().timeIntervalSince(p.since) >= AppModel.clipGiveUpAfter {
+          self.pendingClips[id] = nil
+          InputLog.shared.system("Clip download failed, given up after \(p.failures) tries")
+        } else {
+          self.pendingClips[id] = p
+          InputLog.shared.system("Clip download failed (try \(p.failures))")
+        }
+        return
+      }
+      self.pendingClips[id] = nil
+      let url = FileManager.default.temporaryDirectory.appendingPathComponent("rx-\(id).\(clip.ext)")
+      do {
+        try data.write(to: url)
+      } catch {
+        InputLog.shared.system("Clip write failed: \(error.localizedDescription)")
+        return
+      }
+      self.handleClip(url, ClipMeta(uid: e.uid, from: e.from, durationMs: e.durationMs,
+                                    isPrivate: (e.to ?? 0) != 0))
     }
   }
 
