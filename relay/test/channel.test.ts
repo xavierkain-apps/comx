@@ -159,3 +159,57 @@ describe('sync', () => {
     expect((await sync(key, syncBody(1))).status).toBe(429);
   });
 });
+
+const clip = (id: string, extra: object = {}) => ({
+  id, uid: 1, from: 'R1', to: 0, durationMs: 3100, ext: 'm4a', data: 'QUJD', ...extra,
+});
+
+async function getClip(key: string, id: string) {
+  return SELF.fetch(`https://relay.test/v1/channels/${key}/clips/${id}`, {headers: {'x-comx-key': 'test-key'}});
+}
+
+describe('clips', () => {
+  it('stores a clip and announces it', async () => {
+    const key = channelFor();
+    await at(key, 10_000);
+    expect((await post(`/v1/channels/${key}/clips`, clip('c1'))).status).toBe(200);
+    expect(await (await getClip(key, 'c1')).json()).toMatchObject({id: 'c1', data: 'QUJD', ext: 'm4a'});
+    await at(key, 12_000);
+    const {body} = await sync(key, syncBody(2));
+    expect(body.events[0]).toMatchObject({id: 'c1', type: 'clip', clip: 'c1', durationMs: 3100, ext: 'm4a', from: 'R1'});
+  });
+
+  it('refuses a clip over the limit', async () => {
+    const key = channelFor();
+    await at(key, 10_000);
+    const res = await post(`/v1/channels/${key}/clips`, clip('big', {data: 'A'.repeat(350_001)}));
+    expect(res.status).toBe(413);
+  });
+
+  it('refuses a second clip from a rider within 3 s', async () => {
+    const key = channelFor();
+    await at(key, 10_000);
+    await post(`/v1/channels/${key}/clips`, clip('c1'));
+    await at(key, 12_000);
+    expect((await post(`/v1/channels/${key}/clips`, clip('c2'))).status).toBe(429);
+  });
+
+  it('forgets clips after 15 minutes', async () => {
+    const key = channelFor();
+    await at(key, 10_000);
+    await post(`/v1/channels/${key}/clips`, clip('c1'));
+    await at(key, 10_000 + 15 * 60_000 + 1);
+    await sync(key, syncBody(2));
+    expect((await getClip(key, 'c1')).status).toBe(404);
+  });
+
+  it('wipes the channel when the alarm fires', async () => {
+    const key = channelFor();
+    await at(key, 10_000);
+    await sync(key, syncBody(1));
+    const stub = env.CHANNEL.get(env.CHANNEL.idFromName(key));
+    await runInDurableObject(stub, (c: Channel) => c.alarm());
+    await at(key, 20_000);
+    expect((await sync(key, syncBody(2))).body.riders).toEqual([]);
+  });
+});

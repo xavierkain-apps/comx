@@ -8,6 +8,12 @@ const FIRST_SYNC_WINDOW_MS = 120_000;
 const MIN_SYNC_GAP_MS = 1_000;
 const WIPE_AFTER_MS = 60 * 60_000;
 const ALARM_REFRESH_MS = 5 * 60_000;
+const MAX_CLIP_CHARS = 350_000;
+const MIN_CLIP_GAP_MS = 3_000;
+
+interface ClipBody {
+  id: string; uid: number; from: string; to: number; durationMs: number; ext: string; data: string;
+}
 
 interface SyncBody {
   uid: number;
@@ -27,22 +33,45 @@ export class Channel extends DurableObject<Env> {
   clock: () => number = Date.now;
   private alarmSetAt = 0;
 
-  constructor(ctx: DurableObjectState, env: Env) {
-    super(ctx, env);
-    ctx.storage.sql.exec(`
+  private lastClipAt = new Map<number, number>();
+
+  private ensureSchema() {
+    this.ctx.storage.sql.exec(`
       CREATE TABLE IF NOT EXISTS riders (
         uid INTEGER, source TEXT, name TEXT, pos TEXT, sos INTEGER, seen_at INTEGER,
         PRIMARY KEY (uid, source));
       CREATE TABLE IF NOT EXISTS events (
         seq INTEGER PRIMARY KEY AUTOINCREMENT, id TEXT UNIQUE, uid INTEGER, sender TEXT,
         to_uid INTEGER, at INTEGER, body TEXT);
+      CREATE TABLE IF NOT EXISTS clips (id TEXT PRIMARY KEY, at INTEGER, body TEXT);
     `);
   }
 
   async fetch(request: Request): Promise<Response> {
+    this.ensureSchema();
     const path = new URL(request.url).pathname;
     if (path.endsWith('/sync')) return this.sync((await request.json()) as SyncBody);
-    return new Response('not found', {status: 404});
+    if (path.endsWith('/clips')) return this.putClip((await request.json()) as ClipBody);
+    return this.getClip(path.split('/').pop() ?? '');
+  }
+
+  private putClip(clip: ClipBody): Response {
+    const now = this.clock();
+    if (clip.data.length > MAX_CLIP_CHARS) return new Response('too large', {status: 413});
+    const last = this.lastClipAt.get(clip.uid);
+    if (last !== undefined && now - last < MIN_CLIP_GAP_MS) return new Response('too fast', {status: 429});
+    this.lastClipAt.set(clip.uid, now);
+    this.ctx.storage.sql.exec('INSERT OR REPLACE INTO clips (id, at, body) VALUES (?, ?, ?)', clip.id, now, JSON.stringify(clip));
+    const who = {uid: clip.uid, name: clip.from} as SyncBody;
+    this.addEvent(clip.id, who, {type: 'clip', clip: clip.id, durationMs: clip.durationMs, ext: clip.ext}, clip.to);
+    this.keepAlarm(now);
+    return Response.json({ok: true});
+  }
+
+  private getClip(id: string): Response {
+    this.ctx.storage.sql.exec('DELETE FROM clips WHERE at < ?', this.clock() - EVENT_TTL_MS);
+    const row = this.ctx.storage.sql.exec<{body: string}>('SELECT body FROM clips WHERE id = ?', id).toArray()[0];
+    return row ? new Response(row.body, {headers: {'content-type': 'application/json'}}) : new Response('not found', {status: 404});
   }
 
   private sync(body: SyncBody): Response {
@@ -71,6 +100,7 @@ export class Channel extends DurableObject<Env> {
     }
 
     sql.exec('DELETE FROM events WHERE at < ?', now - EVENT_TTL_MS);
+    sql.exec('DELETE FROM clips WHERE at < ?', now - EVENT_TTL_MS);
     sql.exec('DELETE FROM events WHERE seq <= (SELECT MAX(seq) FROM events) - ?', MAX_EVENTS);
     this.keepAlarm(now);
 
@@ -124,5 +154,7 @@ export class Channel extends DurableObject<Env> {
   /** Runs one hour after the last refresh: nobody has synced since. */
   async alarm() {
     await this.ctx.storage.deleteAll();
+    this.lastClipAt.clear();
+    this.alarmSetAt = 0;
   }
 }
