@@ -12,6 +12,8 @@ import {useRide} from './RideContext';
 import {WatchBridge, WatchInfo, WatchPlatform, VOICE_PLATFORMS, isActiveWatch} from '../services/WatchBridge';
 import {PROTOCOL_VERSION, buildWatchState, parseWatchMessage} from '../ride/protocol';
 import {appLog} from '../utils/logger';
+import {relayEnabled, relaySettings} from '../services/relayClient';
+import {channelKey} from '../ride/relay';
 import {micPolicy, WatchModeSetting} from '../ride/micPolicy';
 
 export type {WatchModeSetting};
@@ -52,6 +54,7 @@ const WatchContext = createContext<WatchContextValue | null>(null);
 export function WatchProvider({children}: {children: ReactNode}) {
   const {
     connectionState, channelName, getEngine, setMicOverride, isHeadphonesConnected, isMemoCapture, memoCaptureEpoch,
+    localUid,
   } = useAgoraContext();
   const {pilotName} = useUser();
   const {myPosition, riders, sendQuickMessage, setSos, subscribeRideEvents, demo} = useRide();
@@ -155,6 +158,13 @@ export function WatchProvider({children}: {children: ReactNode}) {
   const stateRef = useRef<object | null>(null);
   // Demo mode without a channel still looks like one to the watch
   const demoOnly = demo && !connected;
+  // Lets the watch reach the relay alone when the phone is out of range. Never in demo mode.
+  const relay = useMemo(
+    () => (relayEnabled && connected && !demo && localUid !== null
+      ? {...relaySettings, channelKey: channelKey(channelName), uid: localUid}
+      : null),
+    [connected, demo, localUid, channelName],
+  );
   stateRef.current = buildWatchState({
     connected: connected || demo,
     channel: demoOnly ? 'Demo' : channelName,
@@ -163,6 +173,7 @@ export function WatchProvider({children}: {children: ReactNode}) {
     me: myPosition,
     riders,
     now,
+    relay,
   });
 
   useEffect(() => {

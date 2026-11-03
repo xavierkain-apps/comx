@@ -141,6 +141,14 @@ export function buildRiderViews(me: Position | null, riders: RiderInput[], now: 
     });
 }
 
+/** What a watch needs to reach the relay alone (null: no relay, or demo mode). */
+export interface WatchRelaySettings {
+  url: string;
+  key: string;
+  channelKey: string;
+  uid: number;
+}
+
 export interface WatchState {
   v: number;
   kind: 'state';
@@ -150,6 +158,7 @@ export interface WatchState {
   me: {name: string; lat: number | null; lon: number | null; cog: number | null; sog: number | null; t: number | null};
   riders: RiderView[];
   ts: number;
+  relay: WatchRelaySettings | null;
 }
 
 export function buildWatchState(args: {
@@ -160,6 +169,7 @@ export function buildWatchState(args: {
   me: Position | null;
   riders: RiderView[];
   now: number;
+  relay?: WatchRelaySettings | null;
 }): WatchState {
   const {me} = args;
   return {
@@ -178,6 +188,7 @@ export function buildWatchState(args: {
     },
     riders: args.riders,
     ts: args.now,
+    relay: args.relay ?? null,
   };
 }
 

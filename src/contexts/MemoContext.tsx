@@ -3,13 +3,17 @@
 // (src/ride/voiceClips.ts). Received memos play on this phone (not in watch
 // mode with a voice watch: the phone is in a pouch), go to an active Apple
 // Watch / Wear OS watch and into the history (RideContext messages, replayable).
+// When a rider is solo (their watch talks to the relay alone), memos also go
+// through the relay, with the same clip id as the Agora slices so a phone that
+// got them over Agora ignores the relay copy.
 
 import React, {createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, ReactNode} from 'react';
 import {Vibration} from 'react-native';
 import Sound from 'react-native-sound';
 import {AudioFileRecordingType, AudioMixingStateType, AudioRecordingQualityType} from 'react-native-agora';
 import {useAgoraContext} from './AgoraContext';
-import {HistoryClip, useRide} from './RideContext';
+import {HistoryClip, RelayClipEvent, useRide} from './RideContext';
+import {useUser} from './UserContext';
 import {useWatch} from './WatchContext';
 import {WatchBridge} from '../services/WatchBridge';
 import {PROTOCOL_VERSION} from '../ride/protocol';
@@ -36,6 +40,8 @@ import {
   toggleMemoTarget,
 } from '../memo/memo';
 import {appLog} from '../utils/logger';
+import {SeenIds, channelKey} from '../ride/relay';
+import {relayDownloadClip, relayEnabled, relayUploadClip} from '../services/relayClient';
 
 /** Demo mode: a virtual rider answers a memo after this long. */
 const DEMO_ECHO_DELAY_MS = 2000;
@@ -80,14 +86,23 @@ function playWithSound(path: string, done: () => void) {
 }
 
 export function MemoProvider({children}: {children: ReactNode}) {
-  const {connectionState, getEngine, sendStreamJson, subscribeStream, localUid, setMemoCapture} = useAgoraContext();
-  const {riders, logMessage, demo} = useRide();
+  const {
+    connectionState, getEngine, sendStreamJson, subscribeStream, localUid, setMemoCapture, channelName,
+  } = useAgoraContext();
+  const {riders, logMessage, demo, subscribeRelayClips, soloRiderPresent} = useRide();
   const {watchMode, voiceWatch} = useWatch();
+  const {pilotName} = useUser();
   const connected = connectionState === 'connected';
 
   // Latest values for callbacks fired by native events and timers
-  const live = useRef({connected, demo, watchMode, voiceWatch, localUid, names: new Map<number, string>()});
-  live.current = {connected, demo, watchMode, voiceWatch, localUid, names: new Map(riders.map(r => [r.uid, r.name]))};
+  const live = useRef({
+    connected, demo, watchMode, voiceWatch, localUid, channelName, pilotName, solo: soloRiderPresent,
+    names: new Map<number, string>(),
+  });
+  live.current = {
+    connected, demo, watchMode, voiceWatch, localUid, channelName, pilotName, solo: soloRiderPresent,
+    names: new Map(riders.map(r => [r.uid, r.name])),
+  };
 
   const nameOf = useCallback(
     (uid: number) => live.current.names.get(uid) ?? demoRider(uid)?.name ?? 'A rider',
@@ -191,17 +206,37 @@ export function MemoProvider({children}: {children: ReactNode}) {
   }, [logMessage, nameOf, play]);
 
   const assemblerRef = useRef(new ClipAssembler());
+  // Clip ids already received (or arriving) over Agora or the relay
+  const seenClipsRef = useRef(new SeenIds());
 
   useEffect(() => {
     return subscribeStream((fromUid, raw) => {
       if (raw.type !== 'vc') return;
       const chunk = parseVoiceChunk(raw);
       if (!chunk || !isClipForMe(chunk.to, live.current.localUid)) return;
+      // Marked on the first slice: the relay copy can arrive while slices still come
+      seenClipsRef.current.firstTime(chunk.id);
       const clip = assemblerRef.current.add(fromUid, chunk, Date.now());
       if (!clip) return;
       deliver(fromUid, {base64: clip.base64, ext: clip.ext, durationMs: clip.durationMs}, chunk.to !== GROUP_UID);
     });
   }, [subscribeStream, deliver]);
+
+  // Memos a solo rider's watch sent through the relay (or a phone sent for them)
+  useEffect(() => {
+    return subscribeRelayClips(async (e: RelayClipEvent) => {
+      const me = live.current.localUid;
+      if (live.current.demo || e.uid === me || !isClipForMe(e.to, me)) return;
+      if (!seenClipsRef.current.firstTime(e.clip)) return;
+      const clip = await relayDownloadClip(channelKey(live.current.channelName), e.clip);
+      if (!clip) {
+        appLog('Memo', `relay clip ${e.clip} could not be downloaded`);
+        logMessage(e.from, 'voice', 'Voice memo could not be downloaded');
+        return;
+      }
+      deliver(e.uid, {base64: clip.data, ext: clip.ext, durationMs: clip.durationMs}, e.to !== GROUP_UID);
+    });
+  }, [subscribeRelayClips, deliver, logMessage]);
 
   // ---- Demo: the virtual rider sends the memo back --------------------------
   const echoDemo = useCallback((clip: HistoryClip, to: number) => {
@@ -235,10 +270,20 @@ export function MemoProvider({children}: {children: ReactNode}) {
       logMessage('You', 'voice', 'Voice memo not sent: not connected');
       return false;
     }
-    const chunks = splitClip(clip.base64, newClipId(Date.now()), to, clip.durationMs, clip.ext);
+    // One id for the Agora slices and the relay copy: a phone that got both keeps one
+    const id = newClipId(Date.now());
+    const chunks = splitClip(clip.base64, id, to, clip.durationMs, clip.ext);
     chunks.forEach((chunk, i) => {
       setTimeout(() => sendStreamJson(chunk), i * CHUNK_INTERVAL_MS);
     });
+    const {localUid: uid, channelName: channel, pilotName: from, solo, demo: inDemo} = live.current;
+    if (relayEnabled && solo && !inDemo && uid !== null) {
+      relayUploadClip(channelKey(channel), {
+        id, uid, from, to, durationMs: clip.durationMs, ext: clip.ext, data: clip.base64,
+      }).then(ok => {
+        if (!ok) appLog('Memo', `relay upload of ${id} failed (Agora send not affected)`);
+      });
+    }
     appLog('Memo', `sending ${chunks.length} slices to ${to === GROUP_UID ? 'the group' : to}`);
     logMessage(who, 'voice', memoSummary(clip.durationMs), null, clip);
     return true;

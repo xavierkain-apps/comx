@@ -92,8 +92,21 @@ describe('buildWatchState', () => {
     expect(s).toEqual({
       v: 2, kind: 'state', connected: true, channel: 'TARIFA-01', watchMode: true,
       me: {name: 'Xav', lat: null, lon: null, cog: null, sog: null, t: null},
-      riders: [], ts: 42,
+      riders: [], ts: 42, relay: null,
     });
+  });
+});
+
+describe('buildWatchState relay', () => {
+  const base = {connected: true, channel: 'A', watchMode: true, myName: 'X', me: null, riders: [], now: 1};
+
+  it('passes the relay settings to the watch', () => {
+    const relay = {url: 'https://r', key: 'k', channelKey: 'c', uid: 5};
+    expect(buildWatchState({...base, relay}).relay).toEqual(relay);
+  });
+
+  it('sends null without them', () => {
+    expect(buildWatchState(base).relay).toBeNull();
   });
 });
 
